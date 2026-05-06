@@ -14,63 +14,62 @@
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html,body { height:100%; background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; overflow:hidden; }
 
-/* ── Stars ── */
-.stars { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:0; }
-.star { position:absolute; background:white; border-radius:50%; animation:twinkle var(--d,3s) var(--delay,0s) infinite alternate; }
-@keyframes twinkle { from{opacity:.04} to{opacity:.5} }
+.stars { position:fixed; inset:0; pointer-events:none; }
+.star { position:absolute; background:white; border-radius:50%; animation:tw var(--d,3s) var(--dl,0s) infinite alternate; }
+@keyframes tw { from{opacity:.04} to{opacity:.5} }
 
-.glow { position:fixed; top:35%; left:50%; transform:translate(-50%,-50%); width:400px; height:400px; border-radius:50%; background:radial-gradient(circle,rgba(232,0,61,.1) 0%,transparent 70%); pointer-events:none; transition:background 1s; z-index:0; }
+.glow { position:fixed; top:35%; left:50%; transform:translate(-50%,-50%); width:400px; height:400px; border-radius:50%; background:radial-gradient(circle,rgba(232,0,61,.1) 0%,transparent 70%); pointer-events:none; transition:background 1s; }
 .glow.on { background:radial-gradient(circle,rgba(0,200,100,.12) 0%,transparent 70%); }
 
-/* ── Screens ── */
-.screen { position:fixed; inset:0; z-index:1; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:opacity .3s, transform .3s; }
+.screen { position:fixed; inset:0; z-index:1; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:opacity .3s,transform .3s; }
 .screen.hidden { opacity:0; pointer-events:none; transform:scale(.97); }
 
-/* ════ SCAN SCREEN ════ */
-#scanScreen { background:var(--bg); }
+/* ══ SCAN SCREEN ══ */
+#scanScreen { background:var(--bg); padding:0; }
 
-.scan-header { position:absolute; top:0; left:0; right:0; padding:max(env(safe-area-inset-top),20px) 24px 14px; display:flex; align-items:center; gap:10px; background:linear-gradient(to bottom,var(--bg) 60%,transparent); z-index:5; }
+.scan-header { position:absolute; top:0; left:0; right:0; padding:max(env(safe-area-inset-top),20px) 24px 14px; display:flex; align-items:center; gap:10px; background:linear-gradient(to bottom,rgba(8,8,15,.9) 60%,transparent); z-index:10; }
 .hrt { width:24px; height:24px; color:var(--red); flex-shrink:0; }
 .htitle { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; background:linear-gradient(135deg,var(--gold),#fff 60%,var(--gold2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 
-.cam-wrap { width:100%; height:100%; position:relative; overflow:hidden; }
-#video { width:100%; height:100%; object-fit:cover; display:block; }
-#canvas { display:none; }
+/* ZXing video fills screen */
+#zxing-video {
+  width:100%; height:100%;
+  object-fit:cover;
+  display:block;
+}
+.cam-wrap { width:100%; height:100%; position:relative; }
+.vignette { position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse 55% 55% at 50% 48%,transparent 35%,rgba(8,8,15,.85) 100%); }
 
-.vignette { position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse 58% 58% at 50% 48%, transparent 38%, rgba(8,8,15,.8) 100%); }
-
-.scan-box { position:absolute; width:min(68vw,255px); height:min(68vw,255px); top:48%; left:50%; transform:translate(-50%,-50%); }
+.scan-box { position:absolute; width:min(68vw,255px); height:min(68vw,255px); top:48%; left:50%; transform:translate(-50%,-50%); pointer-events:none; }
 .scan-box::before,.scan-box::after,.scan-box .c3,.scan-box .c4 { content:''; position:absolute; width:28px; height:28px; border-color:var(--gold); border-style:solid; }
 .scan-box::before { top:0;left:0;border-width:3px 0 0 3px;border-radius:5px 0 0 0; }
 .scan-box::after  { top:0;right:0;border-width:3px 3px 0 0;border-radius:0 5px 0 0; }
-.scan-box .c3     { bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 5px 0; }
-.scan-box .c4     { bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 5px; }
+.scan-box .c3 { bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 5px 0; }
+.scan-box .c4 { bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 5px; }
+.scan-line { position:absolute; left:5px; right:5px; height:2px; background:linear-gradient(90deg,transparent,var(--gold),transparent); box-shadow:0 0 10px var(--gold); animation:sl 1.8s ease-in-out infinite; }
+@keyframes sl { 0%{top:4px} 50%{opacity:.4} 100%{top:calc(100% - 6px)} }
 
-.scan-line { position:absolute; left:5px; right:5px; height:2px; background:linear-gradient(90deg,transparent,var(--gold),transparent); box-shadow:0 0 10px var(--gold); animation:sline 1.8s ease-in-out infinite; }
-@keyframes sline { 0%{top:4px;opacity:1} 50%{opacity:.5} 100%{top:calc(100% - 6px);opacity:1} }
+.scan-bottom { position:absolute; bottom:0; left:0; right:0; padding:16px 24px max(env(safe-area-inset-bottom),20px); display:flex; flex-direction:column; align-items:center; gap:8px; background:linear-gradient(to top,rgba(8,8,15,.9) 60%,transparent); }
+.scan-hint { font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,.4); }
+.scan-stat { font-size:12px; color:rgba(245,200,66,.8); min-height:16px; text-align:center; }
 
-.scan-hint { position:absolute; bottom:50px; left:0; right:0; text-align:center; font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,.4); }
-.scan-status { position:absolute; bottom:80px; left:0; right:0; text-align:center; font-size:12px; color:rgba(245,200,66,.7); padding:0 20px; min-height:16px; }
-
-#startPrompt { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:40px; text-align:center; background:var(--bg); }
+#startPrompt { position:absolute; inset:0; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:40px; text-align:center; z-index:5; }
 .start-btn { background:linear-gradient(135deg,var(--red),#C00030); border:none; border-radius:50px; color:white; font-family:'DM Sans',sans-serif; font-size:16px; font-weight:600; padding:16px 36px; cursor:pointer; box-shadow:0 8px 24px rgba(232,0,61,.4); }
-.start-hint { font-size:14px; color:var(--muted); line-height:1.6; max-width:270px; }
+.start-sub { font-size:13px; color:var(--muted); max-width:260px; line-height:1.6; }
 
-/* ════ PLAY SCREEN ════ */
-#playScreen { padding:24px; justify-content:flex-start; padding-top:max(env(safe-area-inset-top),24px); background:var(--bg); gap:16px; }
+/* ══ PLAY SCREEN ══ */
+#playScreen { padding:24px; padding-top:max(env(safe-area-inset-top),24px); justify-content:flex-start; background:var(--bg); gap:16px; }
 
 .play-header { width:100%; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
 .btn-scan { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:50px; padding:10px 18px; color:var(--muted); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all .2s; }
-.btn-scan:hover { border-color:var(--gold); color:var(--gold); }
+.btn-scan:hover,.btn-scan:active { border-color:var(--gold); color:var(--gold); }
 .btn-scan svg { width:14px; height:14px; }
 
-/* mystery */
 .mystery { width:100%; max-width:400px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px 24px; display:flex; flex-direction:column; align-items:center; gap:10px; position:relative; overflow:hidden; flex-shrink:0; }
 .mystery::before { content:''; position:absolute; inset:0; background:repeating-linear-gradient(-45deg,transparent,transparent 12px,rgba(255,255,255,.015) 12px,rgba(255,255,255,.015) 24px); }
-.mlck { font-size:32px; position:relative; z-index:1; }
-.mhint { font-size:12px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:var(--muted); position:relative; z-index:1; }
+.mlck { font-size:30px; position:relative; z-index:1; }
+.mhint { font-size:11px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:var(--muted); position:relative; z-index:1; }
 
-/* revealed */
 .revcard { width:100%; max-width:400px; background:linear-gradient(135deg,rgba(245,200,66,.1),rgba(245,200,66,.03)); border:1px solid rgba(245,200,66,.3); border-radius:20px; padding:20px; display:none; flex-direction:column; gap:8px; animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; flex-shrink:0; }
 @keyframes pop { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
 .ry { font-family:'Bebas Neue',sans-serif; font-size:48px; line-height:1; letter-spacing:3px; background:linear-gradient(135deg,var(--gold),#fff 50%,var(--gold2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
@@ -80,16 +79,15 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .tag { font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; padding:4px 10px; border-radius:50px; background:rgba(255,255,255,.06); color:var(--muted); border:1px solid var(--border); }
 .tag.g { background:rgba(245,200,66,.1); color:var(--gold); border-color:rgba(245,200,66,.25); }
 
-/* player */
-.player { width:100%; max-width:400px; display:flex; flex-direction:column; align-items:center; gap:16px; flex-shrink:0; }
+.player { width:100%; max-width:400px; display:flex; flex-direction:column; align-items:center; gap:14px; flex-shrink:0; }
 .pw { width:100%; display:flex; align-items:center; gap:12px; }
 .pbar { flex:1; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
 .pfill { height:100%; width:0%; background:linear-gradient(90deg,var(--red),var(--gold)); border-radius:2px; transition:width .5s linear; }
 .tlbl { font-size:12px; color:var(--muted); min-width:36px; text-align:right; font-variant-numeric:tabular-nums; }
 
-.pbtn { width:76px; height:76px; border-radius:50%; background:linear-gradient(135deg,var(--red),#C00030); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 28px rgba(232,0,61,.45); transition:transform .15s,box-shadow .3s; }
+.pbtn { width:76px; height:76px; border-radius:50%; background:linear-gradient(135deg,var(--red),#C00030); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 28px rgba(232,0,61,.45); transition:transform .15s; }
 .pbtn:active { transform:scale(.92); }
-.pbtn.on { background:linear-gradient(135deg,var(--green),#009948); box-shadow:0 8px 28px rgba(0,200,100,.4); animation:pulse 2s ease-in-out infinite; }
+.pbtn.on { background:linear-gradient(135deg,var(--green),#009948); animation:pulse 2s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{box-shadow:0 8px 28px rgba(0,200,100,.4)} 50%{box-shadow:0 8px 40px rgba(0,200,100,.7),0 0 0 12px rgba(0,200,100,.08)} }
 .pbtn svg { width:30px; height:30px; fill:white; }
 .iplay{display:block;} .ipause{display:none;}
@@ -98,9 +96,8 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .stat { font-size:13px; color:var(--muted); text-align:center; min-height:18px; }
 .stat.ok{color:var(--green);} .stat.err{color:var(--red);}
 
-.btns { width:100%; max-width:400px; display:flex; gap:12px; }
-.btn { flex:1; padding:14px; border-radius:14px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:600; transition:all .2s; }
-.btn:hover { border-color:var(--gold); color:var(--gold); }
+.btns { width:100%; max-width:400px; }
+.btn { width:100%; padding:14px; border-radius:14px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:600; transition:all .2s; }
 .btn.done { background:rgba(245,200,66,.08); border-color:rgba(245,200,66,.3); color:var(--gold); }
 
 .cf { position:fixed; inset:0; pointer-events:none; z-index:999; overflow:hidden; }
@@ -109,9 +106,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <body>
 
 <div class="stars" id="stars"></div>
-<div class="glow"  id="glow"></div>
+<div class="glow" id="glow"></div>
 
-<!-- ════ SCAN SCREEN ════ -->
+<!-- ══ SCAN SCREEN ══ -->
 <div class="screen" id="scanScreen">
   <div class="scan-header">
     <svg class="hrt" viewBox="0 0 100 90" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round">
@@ -121,15 +118,16 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   </div>
 
   <div class="cam-wrap">
-    <video id="video" playsinline autoplay muted></video>
-    <canvas id="canvas"></canvas>
+    <video id="zxing-video" playsinline></video>
     <div class="vignette"></div>
     <div class="scan-box">
       <div class="scan-line"></div>
       <div class="c3"></div><div class="c4"></div>
     </div>
-    <div class="scan-status" id="scanStatus"></div>
-    <div class="scan-hint">Karte in den Rahmen halten</div>
+    <div class="scan-bottom">
+      <div class="scan-stat" id="scanStat"></div>
+      <div class="scan-hint">ESC-Karte in den Rahmen halten</div>
+    </div>
   </div>
 
   <div id="startPrompt">
@@ -137,12 +135,12 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       <path d="M15 3h4a2 2 0 012 2v4M9 3H5a2 2 0 00-2 2v4M15 21h4a2 2 0 002-2v-4M9 21H5a2 2 0 01-2-2v-4"/>
       <rect x="7" y="7" width="10" height="10" rx="1"/>
     </svg>
-    <div class="start-hint">Tippe um die Kamera zu starten und ESC-Karten zu scannen</div>
-    <button class="start-btn" onclick="startCamera()">📷 Kamera starten</button>
+    <div class="start-sub">Tippe um die Kamera zu starten und ESC-Karten zu scannen</div>
+    <button class="start-btn" onclick="startScanner()">📷 Kamera starten</button>
   </div>
 </div>
 
-<!-- ════ PLAY SCREEN ════ -->
+<!-- ══ PLAY SCREEN ══ -->
 <div class="screen hidden" id="playScreen">
   <div class="play-header">
     <svg class="hrt" viewBox="0 0 100 90" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round">
@@ -191,192 +189,188 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <div class="cf" id="cf"></div>
 <audio id="aud" preload="none"></audio>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<!-- ZXing browser QR library - better mobile support than jsQR -->
+<script src="https://unpkg.com/@zxing/browser@0.1.4/umd/index.min.js"></script>
 <script>
-// ── Stars ────────────────────────────────────────────────────────────
+// Stars
 const se=document.getElementById('stars');
-for(let i=0;i<50;i++){
-  const s=document.createElement('div');s.className='star';
-  const z=1+Math.random()*2;
-  s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;width:${z}px;height:${z}px;--d:${2+Math.random()*4}s;--delay:${Math.random()*5}s`;
-  se.appendChild(s);
-}
+for(let i=0;i<50;i++){const s=document.createElement('div');s.className='star';const z=1+Math.random()*2;s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;width:${z}px;height:${z}px;--d:${2+Math.random()*4}s;--dl:${Math.random()*5}s`;se.appendChild(s);}
 
-// ── State ─────────────────────────────────────────────────────────────
 const aud=document.getElementById('aud');
-const video=document.getElementById('video');
-const canvas=document.getElementById('canvas');
-const ctx=canvas.getContext('2d',{willReadFrequently:true});
-let scanning=false, scanTimer=null, lastScan=0;
-let playing=false, revealed=false, progTimer=null;
-let cameraStarted=false;
+let playing=false,revealed=false,pt=null;
+let codeReader=null, scanning=false, lastScan=0;
 
-// ── Helpers ───────────────────────────────────────────────────────────
-function show(id){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden');
-}
 function setStat(m,c){const e=document.getElementById('stat');e.textContent=m;e.className='stat'+(c?' '+c:'');}
-function setScanStatus(m){document.getElementById('scanStatus').textContent=m;}
+function setScanStat(m){document.getElementById('scanStat').textContent=m;}
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
 
-// ── Camera ────────────────────────────────────────────────────────────
-async function startCamera(){
-  document.getElementById('startPrompt').style.display='none';
-  setScanStatus('Kamera wird gestartet…');
+// ── ZXing Scanner ─────────────────────────────────────────────────────
+async function startScanner() {
+  document.getElementById('startPrompt').style.display = 'none';
+  setScanStat('Kamera wird gestartet…');
+
   try {
-    const stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}
+    // Get list of cameras
+    const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
+    // Prefer back camera
+    const backCam = devices.find(d =>
+      d.label.toLowerCase().includes('back') ||
+      d.label.toLowerCase().includes('rear') ||
+      d.label.toLowerCase().includes('environment') ||
+      d.label.toLowerCase().includes('hinten')
+    ) || devices[devices.length - 1] || devices[0];
+
+    const deviceId = backCam ? backCam.deviceId : undefined;
+
+    codeReader = new ZXingBrowser.BrowserQRCodeReader(undefined, {
+      delayBetweenScanAttempts: 150,
+      delayBetweenScanSuccess: 2000,
     });
-    video.srcObject=stream;
-    await video.play();
-    cameraStarted=true;
-    setScanStatus('');
-    startScan();
+
+    setScanStat('Kamera läuft – Karte scannen');
+    scanning = true;
+
+    await codeReader.decodeFromVideoDevice(deviceId, 'zxing-video', (result, err) => {
+      if (!scanning) return;
+      if (result) {
+        const now = Date.now();
+        if (now - lastScan < 2500) return;
+        lastScan = now;
+        setScanStat('✅ Code erkannt!');
+        handleQR(result.getText());
+      }
+      // Ignore errors - they fire constantly when no QR visible
+    });
+
   } catch(e) {
-    setScanStatus('Kamera-Fehler: '+e.message);
-    document.getElementById('startPrompt').style.display='flex';
+    setScanStat('Fehler: ' + e.message);
+    document.getElementById('startPrompt').style.display = 'flex';
   }
 }
 
-// ── Scanning ──────────────────────────────────────────────────────────
-function startScan(){
-  if(scanTimer) clearInterval(scanTimer);
-  scanning=true;
-  setScanStatus('');
-  scanTimer=setInterval(()=>{
-    if(!scanning) return;
-    if(video.readyState<video.HAVE_ENOUGH_DATA||video.videoWidth===0) return;
-    canvas.width=video.videoWidth;
-    canvas.height=video.videoHeight;
-    ctx.drawImage(video,0,0);
-    let imgData;
-    try{imgData=ctx.getImageData(0,0,canvas.width,canvas.height);}catch(e){return;}
-    const code=jsQR(imgData.data,imgData.width,imgData.height,{inversionAttempts:'attemptBoth'});
-    if(code){
-      const now=Date.now();
-      if(now-lastScan<2500) return;
-      lastScan=now;
-      handleQR(code.data);
-    }
-  },200);
+function stopScanner() {
+  scanning = false;
+  if (codeReader) {
+    try { codeReader.reset(); } catch(e) {}
+  }
 }
 
-function stopScan(){
-  scanning=false;
-  if(scanTimer){clearInterval(scanTimer);scanTimer=null;}
-}
-
-// ── QR Handler ─────────────────────────────────────────────────────────
-function handleQR(data){
-  stopScan();
-  let song=null;
-  try{
-    const url=new URL(data);
-    const p=url.searchParams;
-    if(p.get('y')&&p.get('t')&&p.get('a')){
-      song={year:p.get('y'),title:p.get('t'),artist:p.get('a'),
-            country:p.get('c')||'—',flag:p.get('f')||'🎵',
-            place:p.get('p')||'—',sid:p.get('sid')||null};
+// ── QR Handler ────────────────────────────────────────────────────────
+function handleQR(data) {
+  stopScanner();
+  let song = null;
+  try {
+    const url = new URL(data);
+    const p = url.searchParams;
+    if (p.get('y') && p.get('t') && p.get('a')) {
+      song = {
+        year: p.get('y'), title: p.get('t'), artist: p.get('a'),
+        country: p.get('c')||'—', flag: p.get('f')||'🎵',
+        place: p.get('p')||'—', sid: p.get('sid')||null
+      };
     }
-  }catch(e){}
-  if(!song){setScanStatus('Kein ESC QR-Code – nochmal versuchen');setTimeout(startScan,1500);return;}
+  } catch(e) {}
+
+  if (!song) {
+    setScanStat('Kein ESC QR-Code – nochmal versuchen');
+    scanning = true;
+    return;
+  }
   loadSong(song);
 }
 
 // ── Load Song ─────────────────────────────────────────────────────────
-function loadSong(song){
-  aud.pause();aud.src='';
-  clearInterval(progTimer);
-  playing=false;revealed=false;
+function loadSong(song) {
+  aud.pause(); aud.src = '';
+  clearInterval(pt);
+  playing = false; revealed = false;
 
-  document.getElementById('mystery').style.display='flex';
-  document.getElementById('revcard').style.display='none';
-  document.getElementById('rbtn').className='btn';
-  document.getElementById('rbtn').textContent='🔓 Auflösen';
+  document.getElementById('mystery').style.display  = 'flex';
+  document.getElementById('revcard').style.display  = 'none';
+  document.getElementById('rbtn').className         = 'btn';
+  document.getElementById('rbtn').textContent       = '🔓 Auflösen';
   document.getElementById('pbtn').classList.remove('on');
   document.getElementById('glow').classList.remove('on');
-  document.getElementById('pfill').style.width='0%';
-  document.getElementById('tlbl').textContent='—';
+  document.getElementById('pfill').style.width      = '0%';
+  document.getElementById('tlbl').textContent       = '—';
 
-  document.getElementById('rY').textContent=song.year;
-  document.getElementById('rT').textContent=song.title;
-  document.getElementById('rA').textContent=song.artist;
-  document.getElementById('rC').innerHTML=song.flag+' '+song.country;
-  document.getElementById('rP').textContent=song.place!=='—'?'Platz '+song.place:'ESC';
+  document.getElementById('rY').textContent  = song.year;
+  document.getElementById('rT').textContent  = song.title;
+  document.getElementById('rA').textContent  = song.artist;
+  document.getElementById('rC').innerHTML    = song.flag + ' ' + song.country;
+  document.getElementById('rP').textContent  = song.place !== '—' ? 'Platz ' + song.place : 'ESC';
 
   show('playScreen');
-  setStat('Suche Preview…','');
+  setStat('Suche Preview…', '');
   fetchPreview(song);
 }
 
-// ── iTunes Preview ─────────────────────────────────────────────────────
-async function fetchPreview(song){
-  // Strategy 1: direct lookup by song ID
-  if(song.sid){
-    try{
-      const r=await fetch('https://itunes.apple.com/lookup?id='+song.sid);
-      const d=await r.json();
-      const hit=(d.results||[]).find(x=>x.previewUrl);
-      if(hit){setAudio(hit.previewUrl);return;}
-    }catch(e){}
+// ── iTunes Preview ────────────────────────────────────────────────────
+async function fetchPreview(song) {
+  if (song.sid) {
+    try {
+      const r = await fetch('https://itunes.apple.com/lookup?id=' + song.sid);
+      const d = await r.json();
+      const hit = (d.results||[]).find(x => x.previewUrl);
+      if (hit) { setAudio(hit.previewUrl); return; }
+    } catch(e) {}
   }
-  // Strategy 2: search
-  try{
-    const q=encodeURIComponent(song.artist+' '+song.title);
-    const r=await fetch('https://itunes.apple.com/search?term='+q+'&media=music&entity=song&limit=10&country=de');
-    const d=await r.json();
-    const hit=(d.results||[]).find(x=>x.previewUrl);
-    if(hit){setAudio(hit.previewUrl);return;}
-  }catch(e){}
-  setStat('Keine Vorschau gefunden','err');
+  try {
+    const q = encodeURIComponent(song.artist + ' ' + song.title);
+    const r = await fetch('https://itunes.apple.com/search?term=' + q + '&media=music&entity=song&limit=10&country=de');
+    const d = await r.json();
+    const hit = (d.results||[]).find(x => x.previewUrl);
+    if (hit) { setAudio(hit.previewUrl); return; }
+  } catch(e) {}
+  setStat('Keine Vorschau gefunden', 'err');
 }
 
-function setAudio(url){
-  aud.src=url;aud.load();
-  document.getElementById('tlbl').textContent='0:30';
-  setStat('Bereit – tippe ▶','');
+function setAudio(url) {
+  aud.src = url; aud.load();
+  document.getElementById('tlbl').textContent = '0:30';
+  setStat('Bereit – tippe ▶', '');
 }
 
-// ── Playback ───────────────────────────────────────────────────────────
-function togglePlay(){
-  if(!aud.src||aud.src===location.href){setStat('Kein Song geladen','err');return;}
-  if(playing){
-    aud.pause();playing=false;
+// ── Playback ──────────────────────────────────────────────────────────
+function togglePlay() {
+  if (!aud.src || aud.src === location.href) { setStat('Kein Song geladen','err'); return; }
+  if (playing) {
+    aud.pause(); playing = false;
     document.getElementById('pbtn').classList.remove('on');
     document.getElementById('glow').classList.remove('on');
-    clearInterval(progTimer);setStat('Pausiert','');
-  }else{
-    aud.play().then(()=>{
-      playing=true;
+    clearInterval(pt); setStat('Pausiert','');
+  } else {
+    aud.play().then(() => {
+      playing = true;
       document.getElementById('pbtn').classList.add('on');
       document.getElementById('glow').classList.add('on');
       setStat('♫ Spielt…','ok');
-      progTimer=setInterval(()=>{
-        if(!aud.duration)return;
-        document.getElementById('pfill').style.width=(aud.currentTime/aud.duration*100)+'%';
-        const r=Math.max(0,Math.ceil(aud.duration-aud.currentTime));
-        document.getElementById('tlbl').textContent=Math.floor(r/60)+':'+String(r%60).padStart(2,'0');
-      },500);
-    }).catch(e=>setStat('Fehler: '+e.message,'err'));
+      pt = setInterval(() => {
+        if (!aud.duration) return;
+        document.getElementById('pfill').style.width = (aud.currentTime/aud.duration*100)+'%';
+        const r = Math.max(0, Math.ceil(aud.duration - aud.currentTime));
+        document.getElementById('tlbl').textContent = Math.floor(r/60)+':'+String(r%60).padStart(2,'0');
+      }, 500);
+    }).catch(e => setStat('Fehler: '+e.message,'err'));
   }
 }
 
-aud.addEventListener('ended',()=>{
-  playing=false;
+aud.addEventListener('ended', () => {
+  playing = false;
   document.getElementById('pbtn').classList.remove('on');
   document.getElementById('glow').classList.remove('on');
-  document.getElementById('pfill').style.width='100%';
-  document.getElementById('tlbl').textContent='0:00';
-  clearInterval(progTimer);setStat('Fertig – was tippst du?','');
+  document.getElementById('pfill').style.width = '100%';
+  document.getElementById('tlbl').textContent = '0:00';
+  clearInterval(pt); setStat('Fertig – was tippst du?','');
 });
 
-// ── Reveal ─────────────────────────────────────────────────────────────
-function reveal(){
-  if(revealed)return;revealed=true;
-  document.getElementById('mystery').style.display='none';
-  document.getElementById('revcard').style.display='flex';
-  document.getElementById('rbtn').className='btn done';
-  document.getElementById('rbtn').textContent='✓ Aufgedeckt';
+// ── Reveal ────────────────────────────────────────────────────────────
+function reveal() {
+  if (revealed) return; revealed = true;
+  document.getElementById('mystery').style.display = 'none';
+  document.getElementById('revcard').style.display = 'flex';
+  document.getElementById('rbtn').className = 'btn done';
+  document.getElementById('rbtn').textContent = '✓ Aufgedeckt';
   const cols=['#F5C842','#E8003D','#fff','#00C864','#4488FF'];
   const c=document.getElementById('cf');
   for(let i=0;i<36;i++){
@@ -390,18 +384,17 @@ function reveal(){
   }
 }
 
-// ── Navigation ─────────────────────────────────────────────────────────
-function goScan(){
-  aud.pause();aud.src='';
-  playing=false;clearInterval(progTimer);
+// ── Navigation ────────────────────────────────────────────────────────
+function goScan() {
+  aud.pause(); aud.src = ''; playing = false; clearInterval(pt);
   show('scanScreen');
-  if(cameraStarted) setTimeout(startScan,300);
+  setTimeout(() => { scanning = true; }, 300);
 }
 
-// ── Direct URL load (backwards compat) ────────────────────────────────
-window.addEventListener('load',()=>{
-  const p=new URLSearchParams(location.search);
-  if(p.get('y')&&p.get('t')&&p.get('a')){
+// ── Direct URL load ───────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  const p = new URLSearchParams(location.search);
+  if (p.get('y') && p.get('t') && p.get('a')) {
     handleQR(location.href);
   }
 });

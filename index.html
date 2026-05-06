@@ -19,129 +19,44 @@
 }
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html,body { height:100%; background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; overflow:hidden; }
-
 .stars { position:fixed; inset:0; pointer-events:none; }
 .star { position:absolute; background:white; border-radius:50%; animation:tw var(--d,3s) var(--dl,0s) infinite alternate; }
 @keyframes tw { from{opacity:.04} to{opacity:.5} }
-
 .glow { position:fixed; top:35%; left:50%; transform:translate(-50%,-50%); width:400px; height:400px; border-radius:50%; background:radial-gradient(circle,rgba(232,0,61,.1) 0%,transparent 70%); pointer-events:none; transition:background 1s; }
 .glow.on { background:radial-gradient(circle,rgba(0,200,100,.12) 0%,transparent 70%); }
-
 .screen { position:fixed; inset:0; z-index:1; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:opacity .3s,transform .3s; }
 .screen.hidden { opacity:0; pointer-events:none; transform:scale(.97); }
 
-/* ══ SCAN SCREEN ══ */
-#scanScreen { background:var(--bg); gap:0; justify-content:center; padding:40px 32px; }
-
-.scan-header {
-  position:absolute; top:0; left:0; right:0;
-  padding:max(env(safe-area-inset-top),24px) 24px 16px;
-  display:flex; align-items:center; gap:10px;
-  background:linear-gradient(to bottom,var(--bg) 70%,transparent);
-}
+/* SCAN SCREEN */
+#scanScreen { background:var(--bg); gap:0; padding:40px 32px; }
+.scan-header { position:absolute; top:0; left:0; right:0; padding:max(env(safe-area-inset-top),24px) 24px 16px; display:flex; align-items:center; gap:10px; background:linear-gradient(to bottom,var(--bg) 70%,transparent); }
 .hrt { width:24px; height:24px; color:var(--red); flex-shrink:0; }
 .htitle { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; background:linear-gradient(135deg,var(--gold),#fff 60%,var(--gold2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-
-/* Big scan button */
-.scan-card {
-  width:100%; max-width:340px;
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:24px;
-  padding:40px 32px;
-  display:flex; flex-direction:column;
-  align-items:center; gap:20px;
-  position:relative; overflow:hidden;
-}
-.scan-card::before {
-  content:''; position:absolute; top:0; left:10%; right:10%; height:2px;
-  background:linear-gradient(90deg,transparent,var(--gold),transparent);
-}
-
-.scan-icon-wrap {
-  width:100px; height:100px;
-  border-radius:50%;
-  background:linear-gradient(135deg,rgba(232,0,61,.15),rgba(232,0,61,.05));
-  border:1px solid rgba(232,0,61,.2);
-  display:flex; align-items:center; justify-content:center;
-  animation:breathe 3s ease-in-out infinite;
-}
-@keyframes breathe {
-  0%,100% { transform:scale(1); box-shadow:0 0 0 0 rgba(232,0,61,.2); }
-  50%      { transform:scale(1.04); box-shadow:0 0 0 12px rgba(232,0,61,0); }
-}
-
-.scan-title { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:2px; color:var(--text); }
+.scan-card { width:100%; max-width:340px; background:var(--surface); border:1px solid var(--border); border-radius:24px; padding:40px 32px; display:flex; flex-direction:column; align-items:center; gap:20px; position:relative; }
+.scan-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:2px; background:linear-gradient(90deg,transparent,var(--gold),transparent); }
+.scan-icon-wrap { width:100px; height:100px; border-radius:50%; background:linear-gradient(135deg,rgba(232,0,61,.15),rgba(232,0,61,.05)); border:1px solid rgba(232,0,61,.2); display:flex; align-items:center; justify-content:center; animation:breathe 3s ease-in-out infinite; }
+@keyframes breathe { 0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(232,0,61,.2)} 50%{transform:scale(1.04);box-shadow:0 0 0 12px rgba(232,0,61,0)} }
+.scan-title { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:2px; }
 .scan-sub { font-size:13px; color:var(--muted); text-align:center; line-height:1.6; max-width:220px; }
-
-/* The actual scan button – styled beautifully */
-.scan-trigger {
-  width:100%;
-  background:linear-gradient(135deg,var(--red),#C00030);
-  border:none; border-radius:16px;
-  color:white; font-family:'DM Sans',sans-serif;
-  font-size:16px; font-weight:600; letter-spacing:0.3px;
-  padding:18px; cursor:pointer;
-  box-shadow:0 8px 24px rgba(232,0,61,.4);
-  display:flex; align-items:center; justify-content:center; gap:10px;
-  transition:transform .15s, opacity .15s;
-  -webkit-appearance:none;
-  position:relative; z-index:5;
-}
-.scan-trigger:active { transform:scale(.97); opacity:.9; }
+.scan-trigger { width:100%; background:linear-gradient(135deg,var(--red),#C00030); border:none; border-radius:16px; color:white; font-family:'DM Sans',sans-serif; font-size:16px; font-weight:600; padding:18px; cursor:pointer; box-shadow:0 8px 24px rgba(232,0,61,.4); display:flex; align-items:center; justify-content:center; gap:10px; -webkit-appearance:none; }
+.scan-trigger:active { opacity:.85; transform:scale(.98); }
 .scan-trigger svg { width:22px; height:22px; flex-shrink:0; }
-
-/* Hidden file input */
-#qrInput {
-  position:absolute; opacity:0; width:1px; height:1px;
-  pointer-events:none; top:-100px;
-}
-
-.scan-status { font-size:13px; color:var(--muted); text-align:center; min-height:20px; }
+#qrInput { position:absolute; opacity:0; width:1px; height:1px; top:-200px; left:-200px; }
+.scan-status { font-size:13px; color:var(--muted); text-align:center; min-height:20px; padding:0 8px; }
 .scan-status.ok  { color:var(--green); }
 .scan-status.err { color:var(--red); }
-
-/* Canvas for processing */
 #processCanvas { display:none; }
 
-/* ══ PLAY SCREEN ══ */
-#playScreen {
-  padding:24px;
-  padding-top:max(env(safe-area-inset-top),24px);
-  padding-bottom:max(env(safe-area-inset-bottom),24px);
-  justify-content:flex-start;
-  background:var(--bg); gap:16px;
-}
-
+/* PLAY SCREEN */
+#playScreen { padding:24px; padding-top:max(env(safe-area-inset-top),24px); padding-bottom:max(env(safe-area-inset-bottom),24px); justify-content:flex-start; background:var(--bg); gap:16px; }
 .play-header { width:100%; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
-.btn-next {
-  display:flex; align-items:center; gap:8px;
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:50px; padding:10px 18px;
-  color:var(--muted); font-family:'DM Sans',sans-serif;
-  font-size:13px; font-weight:600; cursor:pointer;
-  -webkit-appearance:none;
-}
+.btn-next { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:50px; padding:10px 18px; color:var(--muted); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; -webkit-appearance:none; }
 .btn-next svg { width:14px; height:14px; }
-
-.mystery {
-  width:100%; max-width:400px;
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:20px; padding:28px 24px;
-  display:flex; flex-direction:column; align-items:center; gap:10px;
-  position:relative; overflow:hidden; flex-shrink:0;
-}
+.mystery { width:100%; max-width:400px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px 24px; display:flex; flex-direction:column; align-items:center; gap:10px; position:relative; overflow:hidden; flex-shrink:0; }
 .mystery::before { content:''; position:absolute; inset:0; background:repeating-linear-gradient(-45deg,transparent,transparent 12px,rgba(255,255,255,.015) 12px,rgba(255,255,255,.015) 24px); }
 .mlck { font-size:30px; position:relative; z-index:1; }
 .mhint { font-size:11px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:var(--muted); position:relative; z-index:1; }
-
-.revcard {
-  width:100%; max-width:400px;
-  background:linear-gradient(135deg,rgba(245,200,66,.1),rgba(245,200,66,.03));
-  border:1px solid rgba(245,200,66,.3); border-radius:20px;
-  padding:20px; display:none; flex-direction:column; gap:8px;
-  animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; flex-shrink:0;
-}
+.revcard { width:100%; max-width:400px; background:linear-gradient(135deg,rgba(245,200,66,.1),rgba(245,200,66,.03)); border:1px solid rgba(245,200,66,.3); border-radius:20px; padding:20px; display:none; flex-direction:column; gap:8px; animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; flex-shrink:0; }
 @keyframes pop { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
 .ry { font-family:'Bebas Neue',sans-serif; font-size:48px; line-height:1; letter-spacing:3px; background:linear-gradient(135deg,var(--gold),#fff 50%,var(--gold2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 .rt { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:1px; line-height:1.1; }
@@ -149,27 +64,22 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .rmeta { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
 .tag { font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; padding:4px 10px; border-radius:50px; background:rgba(255,255,255,.06); color:var(--muted); border:1px solid var(--border); }
 .tag.g { background:rgba(245,200,66,.1); color:var(--gold); border-color:rgba(245,200,66,.25); }
-
 .player { width:100%; max-width:400px; display:flex; flex-direction:column; align-items:center; gap:14px; flex-shrink:0; }
 .pw { width:100%; display:flex; align-items:center; gap:12px; }
 .pbar { flex:1; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
 .pfill { height:100%; width:0%; background:linear-gradient(90deg,var(--red),var(--gold)); border-radius:2px; transition:width .5s linear; }
 .tlbl { font-size:12px; color:var(--muted); min-width:36px; text-align:right; font-variant-numeric:tabular-nums; }
-
 .pbtn { width:76px; height:76px; border-radius:50%; background:linear-gradient(135deg,var(--red),#C00030); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 28px rgba(232,0,61,.45); -webkit-appearance:none; }
 .pbtn.on { background:linear-gradient(135deg,var(--green),#009948); animation:pulse 2s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{box-shadow:0 8px 28px rgba(0,200,100,.4)} 50%{box-shadow:0 8px 40px rgba(0,200,100,.7),0 0 0 12px rgba(0,200,100,.08)} }
 .pbtn svg { width:30px; height:30px; fill:white; }
 .iplay{display:block;}.ipause{display:none;}
 .pbtn.on .iplay{display:none;}.pbtn.on .ipause{display:block;}
-
 .stat { font-size:13px; color:var(--muted); text-align:center; min-height:18px; }
 .stat.ok{color:var(--green);}.stat.err{color:var(--red);}
-
 .btns { width:100%; max-width:400px; }
 .btn { width:100%; padding:14px; border-radius:14px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:600; -webkit-appearance:none; }
 .btn.done { background:rgba(245,200,66,.08); border-color:rgba(245,200,66,.3); color:var(--gold); }
-
 .cf { position:fixed; inset:0; pointer-events:none; z-index:999; overflow:hidden; }
 </style>
 </head>
@@ -178,7 +88,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <div class="stars" id="stars"></div>
 <div class="glow" id="glow"></div>
 
-<!-- ══ SCAN SCREEN ══ -->
+<!-- SCAN SCREEN -->
 <div class="screen" id="scanScreen">
   <div class="scan-header">
     <svg class="hrt" viewBox="0 0 100 90" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round">
@@ -186,21 +96,16 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     </svg>
     <div class="htitle">Eurovision Hitster</div>
   </div>
-
   <div class="scan-card">
     <div class="scan-icon-wrap">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.5">
-        <path d="M15 3h4a2 2 0 012 2v4M9 3H5a2 2 0 00-2 2v4M15 21h4a2 2 0 002-2v-4M9 21H5a2 2 0 01-2-2v-4"/>
-        <rect x="7" y="7" width="10" height="10" rx="1.5"/>
+        <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+        <circle cx="12" cy="13" r="4"/>
       </svg>
     </div>
-
     <div class="scan-title">Karte scannen</div>
-    <div class="scan-sub">Tippe den Button, richte die Kamera auf eine ESC-Karte und fotografiere den QR-Code</div>
-
-    <!-- Hidden file input – triggers native iOS camera with QR scan -->
+    <div class="scan-sub">Tippe den Button und fotografiere den QR-Code auf der ESC-Karte</div>
     <input type="file" id="qrInput" accept="image/*" capture="environment">
-
     <button class="scan-trigger" id="scanBtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
         <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
@@ -208,14 +113,12 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       </svg>
       Karte fotografieren
     </button>
-
-    <div class="scan-status" id="scanStatus">Bereit zum Scannen</div>
+    <div class="scan-status" id="scanStatus">Lädt Scanner…</div>
   </div>
-
   <canvas id="processCanvas"></canvas>
 </div>
 
-<!-- ══ PLAY SCREEN ══ -->
+<!-- PLAY SCREEN -->
 <div class="screen hidden" id="playScreen">
   <div class="play-header">
     <svg class="hrt" viewBox="0 0 100 90" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round">
@@ -229,12 +132,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       Nächste Karte
     </button>
   </div>
-
   <div class="mystery" id="mystery">
     <div class="mlck">🔒</div>
     <div class="mhint">Wann war das?</div>
   </div>
-
   <div class="revcard" id="revcard">
     <div class="ry" id="rY">—</div>
     <div class="rt"  id="rT">—</div>
@@ -244,7 +145,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       <span class="tag g" id="rP">—</span>
     </div>
   </div>
-
   <div class="player">
     <div class="pw">
       <div class="pbar"><div class="pfill" id="pfill"></div></div>
@@ -255,9 +155,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       <svg class="ipause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
     </button>
     <div class="stat" id="stat">—</div>
-    <div class="btns">
-      <button class="btn" id="rbtn">🔓 Auflösen</button>
-    </div>
+    <div class="btns"><button class="btn" id="rbtn">🔓 Auflösen</button></div>
   </div>
 </div>
 
@@ -270,82 +168,100 @@ const se=document.getElementById('stars');
 for(let i=0;i<50;i++){const s=document.createElement('div');s.className='star';const z=1+Math.random()*2;s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;width:${z}px;height:${z}px;--d:${2+Math.random()*4}s;--dl:${Math.random()*5}s`;se.appendChild(s);}
 
 // ── State ─────────────────────────────────────────────────────────────
-const aud = document.getElementById('aud');
-let playing=false, revealed=false, pt=null;
-let detector = null;
+const aud=document.getElementById('aud');
+let playing=false,revealed=false,pt=null;
+let jsQRReady=false;
 
 function setStat(m,c){const e=document.getElementById('stat');e.textContent=m;e.className='stat'+(c?' '+c:'');}
 function setScanStatus(m,c){const e=document.getElementById('scanStatus');e.textContent=m;e.className='scan-status'+(c?' '+c:'');}
 function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
 
-// ── Init BarcodeDetector ──────────────────────────────────────────────
-async function initDetector() {
-  if ('BarcodeDetector' in window) {
-    try {
-      const formats = await BarcodeDetector.getSupportedFormats();
-      if (formats.includes('qr_code')) {
-        detector = new BarcodeDetector({ formats: ['qr_code'] });
-        setScanStatus('✅ Bereit – Karte fotografieren', 'ok');
-        return true;
-      }
-    } catch(e) {}
+// ── Load jsQR with guaranteed onload callback ──────────────────────────
+function loadJsQR(callback) {
+  // Try multiple CDNs in order
+  const cdns = [
+    'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js',
+    'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
+    'https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js',
+  ];
+  let idx = 0;
+
+  function tryNext() {
+    if (idx >= cdns.length) {
+      setScanStatus('❌ Scanner konnte nicht geladen werden. Bitte Internetverbindung prüfen.', 'err');
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = cdns[idx++];
+    script.onload = () => {
+      jsQRReady = true;
+      setScanStatus('✅ Bereit – Karte fotografieren', 'ok');
+      if (callback) callback();
+    };
+    script.onerror = () => {
+      script.remove();
+      tryNext(); // try next CDN
+    };
+    document.head.appendChild(script);
   }
-  setScanStatus('⚠️ iOS 16.4+ erforderlich', 'err');
-  return false;
+  tryNext();
 }
 
-// ── QR via file input (native iOS camera) ────────────────────────────
-function triggerScan() {
-  const input = document.getElementById('qrInput');
-  input.value = '';
-  input.click();
-}
-
-document.getElementById('qrInput').addEventListener('change', async function(e) {
+// ── File input handler ────────────────────────────────────────────────
+document.getElementById('qrInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
-  setScanStatus('Verarbeite Foto…', '');
 
-  try {
-    // Create ImageBitmap from file – works best with BarcodeDetector
-    const bitmap = await createImageBitmap(file);
-
-    if (detector) {
-      // Use native BarcodeDetector
-      const codes = await detector.detect(bitmap);
-      bitmap.close();
-
-      if (codes.length > 0) {
-        setScanStatus('✅ Code erkannt!', 'ok');
-        handleQR(codes[0].rawValue);
-        return;
-      }
-
-      // Try again with canvas resize if not detected
-      const canvas = document.getElementById('processCanvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = 1000;
-      canvas.height = Math.round(1000 * (bitmap.height / bitmap.width));
-
-      const bitmap2 = await createImageBitmap(file);
-      ctx.drawImage(bitmap2, 0, 0, canvas.width, canvas.height);
-      bitmap2.close();
-
-      const codes2 = await detector.detect(canvas);
-      if (codes2.length > 0) {
-        setScanStatus('✅ Code erkannt!', 'ok');
-        handleQR(codes2[0].rawValue);
-        return;
-      }
-
-      setScanStatus('❌ Nicht erkannt – näher ran & nochmal versuchen', 'err');
-    } else {
-      setScanStatus('❌ BarcodeDetector nicht verfügbar', 'err');
-    }
-  } catch(e) {
-    setScanStatus('❌ Fehler: ' + e.message, 'err');
+  if (!jsQRReady) {
+    setScanStatus('⏳ Scanner lädt noch, bitte warten…', '');
+    return;
   }
+
+  setScanStatus('🔍 Verarbeite Foto…', '');
+
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const img = new Image();
+    img.onload = function() { scanImage(img); };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
 });
+
+function scanImage(img) {
+  const canvas = document.getElementById('processCanvas');
+  const ctx = canvas.getContext('2d', {willReadFrequently: true});
+
+  // Try 3 different sizes – best results with ~1000px
+  const sizes = [1000, 600, 1600];
+  for (const maxDim of sizes) {
+    const scale = Math.min(1.0, maxDim / Math.max(img.width, img.height));
+    canvas.width  = Math.round(img.width  * scale);
+    canvas.height = Math.round(img.height * scale);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'attemptBoth'
+    });
+
+    if (code && code.data) {
+      setScanStatus('✅ Erkannt!', 'ok');
+      handleQR(code.data);
+      return;
+    }
+  }
+  setScanStatus('❌ Nicht erkannt – QR-Code muss vollständig sichtbar sein', 'err');
+}
+
+function triggerScan() {
+  if (!jsQRReady) {
+    setScanStatus('⏳ Bitte warten – Scanner lädt…', '');
+    return;
+  }
+  document.getElementById('qrInput').value = '';
+  document.getElementById('qrInput').click();
+}
 
 // ── QR Handler ────────────────────────────────────────────────────────
 function handleQR(data) {
@@ -354,44 +270,32 @@ function handleQR(data) {
     const url = new URL(data);
     const p = url.searchParams;
     if (p.get('y') && p.get('t') && p.get('a')) {
-      song = {
-        year: p.get('y'), title: p.get('t'), artist: p.get('a'),
-        country: p.get('c')||'—', flag: p.get('f')||'🎵',
-        place: p.get('p')||'—', sid: p.get('sid')||null
-      };
+      song = { year:p.get('y'), title:p.get('t'), artist:p.get('a'), country:p.get('c')||'—', flag:p.get('f')||'🎵', place:p.get('p')||'—', sid:p.get('sid')||null };
     }
   } catch(e) {}
-
-  if (!song) {
-    setScanStatus('Kein ESC QR-Code erkannt', 'err');
-    return;
-  }
+  if (!song) { setScanStatus('❌ Kein ESC QR-Code', 'err'); return; }
   loadSong(song);
 }
 
 // ── Load Song ─────────────────────────────────────────────────────────
 function loadSong(song) {
-  aud.pause(); aud.src = '';
-  clearInterval(pt);
+  aud.pause(); aud.src=''; clearInterval(pt);
   playing=false; revealed=false;
-
-  document.getElementById('mystery').style.display  = 'flex';
-  document.getElementById('revcard').style.display  = 'none';
-  document.getElementById('rbtn').className         = 'btn';
-  document.getElementById('rbtn').textContent       = '🔓 Auflösen';
+  document.getElementById('mystery').style.display='flex';
+  document.getElementById('revcard').style.display='none';
+  document.getElementById('rbtn').className='btn';
+  document.getElementById('rbtn').textContent='🔓 Auflösen';
   document.getElementById('pbtn').classList.remove('on');
   document.getElementById('glow').classList.remove('on');
-  document.getElementById('pfill').style.width      = '0%';
-  document.getElementById('tlbl').textContent       = '—';
-
-  document.getElementById('rY').textContent  = song.year;
-  document.getElementById('rT').textContent  = song.title;
-  document.getElementById('rA').textContent  = song.artist;
-  document.getElementById('rC').innerHTML    = song.flag + ' ' + song.country;
-  document.getElementById('rP').textContent  = song.place !== '—' ? 'Platz ' + song.place : 'ESC';
-
+  document.getElementById('pfill').style.width='0%';
+  document.getElementById('tlbl').textContent='—';
+  document.getElementById('rY').textContent=song.year;
+  document.getElementById('rT').textContent=song.title;
+  document.getElementById('rA').textContent=song.artist;
+  document.getElementById('rC').innerHTML=song.flag+' '+song.country;
+  document.getElementById('rP').textContent=song.place!=='—'?'Platz '+song.place:'ESC';
   show('playScreen');
-  setStat('Suche Preview…', '');
+  setStat('Suche Preview…','');
   fetchPreview(song);
 }
 
@@ -399,53 +303,53 @@ function loadSong(song) {
 async function fetchPreview(song) {
   if (song.sid) {
     try {
-      const r = await fetch('https://itunes.apple.com/lookup?id=' + song.sid);
-      const d = await r.json();
-      const hit = (d.results||[]).find(x => x.previewUrl);
+      const r=await fetch('https://itunes.apple.com/lookup?id='+song.sid);
+      const d=await r.json();
+      const hit=(d.results||[]).find(x=>x.previewUrl);
       if (hit) { setAudio(hit.previewUrl); return; }
     } catch(e) {}
   }
   try {
-    const q = encodeURIComponent(song.artist + ' ' + song.title);
-    const r = await fetch('https://itunes.apple.com/search?term=' + q + '&media=music&entity=song&limit=10&country=de');
-    const d = await r.json();
-    const hit = (d.results||[]).find(x => x.previewUrl);
+    const q=encodeURIComponent(song.artist+' '+song.title);
+    const r=await fetch('https://itunes.apple.com/search?term='+q+'&media=music&entity=song&limit=10&country=de');
+    const d=await r.json();
+    const hit=(d.results||[]).find(x=>x.previewUrl);
     if (hit) { setAudio(hit.previewUrl); return; }
   } catch(e) {}
-  setStat('Keine Vorschau gefunden', 'err');
+  setStat('Keine Vorschau gefunden','err');
 }
 
 function setAudio(url) {
-  aud.src = url; aud.load();
-  document.getElementById('tlbl').textContent = '0:30';
-  setStat('Bereit – tippe ▶', '');
+  aud.src=url; aud.load();
+  document.getElementById('tlbl').textContent='0:30';
+  setStat('Bereit – tippe ▶','');
 }
 
 // ── Playback ──────────────────────────────────────────────────────────
 function togglePlay() {
-  if (!aud.src || aud.src === location.href) { setStat('Kein Song geladen','err'); return; }
+  if (!aud.src||aud.src===location.href) { setStat('Kein Song geladen','err'); return; }
   if (playing) {
     aud.pause(); playing=false;
     document.getElementById('pbtn').classList.remove('on');
     document.getElementById('glow').classList.remove('on');
     clearInterval(pt); setStat('Pausiert','');
   } else {
-    aud.play().then(() => {
+    aud.play().then(()=>{
       playing=true;
       document.getElementById('pbtn').classList.add('on');
       document.getElementById('glow').classList.add('on');
       setStat('♫ Spielt…','ok');
-      pt = setInterval(() => {
+      pt=setInterval(()=>{
         if (!aud.duration) return;
-        document.getElementById('pfill').style.width = (aud.currentTime/aud.duration*100)+'%';
-        const r = Math.max(0, Math.ceil(aud.duration-aud.currentTime));
-        document.getElementById('tlbl').textContent = Math.floor(r/60)+':'+String(r%60).padStart(2,'0');
-      }, 500);
-    }).catch(e => setStat('Fehler: '+e.message,'err'));
+        document.getElementById('pfill').style.width=(aud.currentTime/aud.duration*100)+'%';
+        const r=Math.max(0,Math.ceil(aud.duration-aud.currentTime));
+        document.getElementById('tlbl').textContent=Math.floor(r/60)+':'+String(r%60).padStart(2,'0');
+      },500);
+    }).catch(e=>setStat('Fehler: '+e.message,'err'));
   }
 }
 
-aud.addEventListener('ended', () => {
+aud.addEventListener('ended',()=>{
   playing=false;
   document.getElementById('pbtn').classList.remove('on');
   document.getElementById('glow').classList.remove('on');
@@ -477,26 +381,25 @@ function reveal() {
 // ── Navigation ────────────────────────────────────────────────────────
 function goScan() {
   aud.pause(); aud.src=''; playing=false; clearInterval(pt);
-  setScanStatus('Bereit zum Scannen','');
+  setScanStatus(jsQRReady ? '✅ Bereit – Karte fotografieren' : 'Lädt…', jsQRReady ? 'ok' : '');
   show('scanScreen');
 }
 
-// ── Wire up buttons ───────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('scanBtn').addEventListener('click', triggerScan);
   document.getElementById('pbtn').addEventListener('click', togglePlay);
   document.getElementById('rbtn').addEventListener('click', reveal);
   document.getElementById('btnNext').addEventListener('click', goScan);
-  // Init detector on load
-  initDetector();
+
+  // Load jsQR with fallback CDNs
+  loadJsQR();
 });
 
-// ── Direct URL load ───────────────────────────────────────────────────
+// Direct URL load (when QR code is scanned with native camera)
 window.addEventListener('load', () => {
-  const p = new URLSearchParams(location.search);
-  if (p.get('y') && p.get('t') && p.get('a')) {
-    handleQR(location.href);
-  }
+  const p=new URLSearchParams(location.search);
+  if (p.get('y')&&p.get('t')&&p.get('a')) handleQR(location.href);
 });
 </script>
 </body>

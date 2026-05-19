@@ -270,7 +270,7 @@ function handleQR(data) {
     const url = new URL(data);
     const p = url.searchParams;
     if (p.get('y') && p.get('t') && p.get('a')) {
-      song = { year:p.get('y'), title:p.get('t'), artist:p.get('a'), country:p.get('c')||'—', flag:p.get('f')||'🎵', place:p.get('p')||'—', sid:p.get('sid')||null };
+      song = { year:p.get('y'), title:p.get('t'), artist:p.get('a'), country:p.get('c')||'—', flag:p.get('f')||'🎵', place:p.get('p')||'—', sid:p.get('sid')||null, pr:p.get('pr')||null };
     }
   } catch(e) {}
   if (!song) { setScanStatus('❌ Kein ESC QR-Code', 'err'); return; }
@@ -301,6 +301,11 @@ function loadSong(song) {
 
 // ── iTunes Preview ────────────────────────────────────────────────────
 async function fetchPreview(song) {
+  // Strategy 0: Direct preview URL embedded in QR code (most reliable)
+  if (song.pr) {
+    setAudio(song.pr);
+    return;
+  }
   // Strategy 1: Lookup by song ID
   if (song.sid) {
     try {

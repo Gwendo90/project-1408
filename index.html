@@ -52,14 +52,14 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .mlck { font-size:30px; }
 .mhint { font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); }
 
-.revcard { width:100%; max-width:400px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:22px; display:none; flex-direction:column; gap:8px; animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; flex-shrink:0; box-shadow:0 8px 28px rgba(40,30,80,.06); position:relative; overflow:hidden; }
+.revcard { width:100%; max-width:300px; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; display:none; flex-direction:column; gap:5px; animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; flex-shrink:0; box-shadow:0 8px 28px rgba(40,30,80,.06); position:relative; overflow:hidden; }
 .revcard::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg,var(--grad-a),var(--grad-mid),var(--grad-b)); }
 @keyframes pop { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
-.ry { font-size:52px; font-weight:700; line-height:1; letter-spacing:1px; background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
-.rt { font-size:22px; font-weight:700; letter-spacing:.2px; line-height:1.15; }
-.ra { font-size:14px; font-weight:600; color:var(--muted); }
-.rmeta { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
-.tag { font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; padding:5px 11px; border-radius:50px; background:#F4F3EF; color:var(--muted); border:1px solid var(--border); }
+.ry { font-size:38px; font-weight:700; line-height:1; letter-spacing:.5px; background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.rt { font-size:17px; font-weight:700; letter-spacing:.2px; line-height:1.15; }
+.ra { font-size:13px; font-weight:600; color:var(--muted); }
+.rmeta { display:flex; gap:7px; flex-wrap:wrap; margin-top:3px; }
+.tag { font-size:10px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; padding:4px 9px; border-radius:50px; background:#F4F3EF; color:var(--muted); border:1px solid var(--border); }
 .tag.g { background:linear-gradient(135deg,rgba(110,99,232,.12),rgba(232,76,158,.12)); color:var(--grad-mid); border-color:rgba(180,92,203,.25); }
 
 /* PLAYER */
@@ -368,12 +368,22 @@ function goScan() {
   show('scanScreen');
 }
 
+// Nächste Karte: Wiedergabe stoppen und direkt die Kamera öffnen.
+// Falls der Scanner noch nicht geladen ist, zeige ersatzweise den Scan-Screen.
+function nextCard() {
+  aud.pause(); playing=false;
+  document.getElementById('pbtn').classList.remove('on');
+  clearInterval(pt);
+  if (jsQRReady) { triggerScan(); }
+  else { goScan(); }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('scanBtn').addEventListener('click', triggerScan);
   document.getElementById('pbtn').addEventListener('click', togglePlay);
   document.getElementById('rbtn').addEventListener('click', reveal);
-  document.getElementById('btnNext').addEventListener('click', goScan);
+  document.getElementById('btnNext').addEventListener('click', nextCard);
   loadJsQR();
 });
 

@@ -52,7 +52,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .mlck { font-size:30px; }
 .mhint { font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); }
 
-.revcard { width:100%; max-width:300px; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; display:none; flex-direction:column; gap:5px; animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; flex-shrink:0; box-shadow:0 8px 28px rgba(40,30,80,.06); position:relative; overflow:hidden; }
+.revcard { width:100%; max-width:400px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:18px 20px; display:none; flex-direction:column; gap:5px; animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; flex-shrink:0; box-shadow:0 8px 28px rgba(40,30,80,.06); position:relative; overflow:hidden; }
 .revcard::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg,var(--grad-a),var(--grad-mid),var(--grad-b)); }
 @keyframes pop { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
 .ry { font-size:38px; font-weight:700; line-height:1; letter-spacing:.5px; background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
@@ -110,7 +110,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     </div>
     <div class="scan-title">Karte scannen</div>
     <div class="scan-sub">Tippe den Button und fotografiere den QR-Code auf der ESC-Karte</div>
-    <input type="file" id="qrInput" accept="image/*" capture="environment">
     <button class="scan-trigger" id="scanBtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
         <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
@@ -160,6 +159,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 </div>
 
 <div class="cf" id="cf"></div>
+<input type="file" id="qrInput" accept="image/*" capture="environment" style="position:absolute;opacity:0;width:1px;height:1px;top:-200px;left:-200px;">
 <audio id="aud" preload="none"></audio>
 
 <script>
@@ -390,7 +390,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // Direct URL load (when QR code is scanned with native camera)
 window.addEventListener('load', () => {
   const p=new URLSearchParams(location.search);
-  if (p.get('y')&&p.get('t')&&p.get('a')) handleQR(location.href);
+  if (p.get('y')&&p.get('t')&&p.get('a')) {
+    handleQR(location.href);
+    // Parameter aus der Adresse entfernen, damit ein automatischer Reload
+    // (z. B. nach dem Öffnen der Kamera auf iOS) nicht erneut diesen Song lädt.
+    try { history.replaceState(null, '', location.pathname); } catch(e) {}
+  }
 });
 </script>
 </body>

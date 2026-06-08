@@ -368,14 +368,12 @@ function goScan() {
   show('scanScreen');
 }
 
-// Nächste Karte: Wiedergabe stoppen und direkt die Kamera öffnen.
-// Falls der Scanner noch nicht geladen ist, zeige ersatzweise den Scan-Screen.
+// Nächste Karte: Wiedergabe stoppen, auf den Scan-Screen wechseln (damit bei
+// Fehlschlag/Abbruch der Hinweis + Wiederholen-Button erscheint, nicht der alte
+// Song) und direkt die Kamera öffnen. Bei Erfolg geht es sofort zum neuen Song.
 function nextCard() {
-  aud.pause(); playing=false;
-  document.getElementById('pbtn').classList.remove('on');
-  clearInterval(pt);
-  if (jsQRReady) { triggerScan(); }
-  else { goScan(); }
+  goScan();                       // stoppt Audio, zeigt Scan-Screen mit Status
+  if (jsQRReady) triggerScan();   // öffnet sofort die Kamera
 }
 
 // ── Init ──────────────────────────────────────────────────────────────

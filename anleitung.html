@@ -11,7 +11,7 @@
   :root{
     --ink:#1b1422;
     --ink-soft:#5b5366;
-    --bg:#faf6fc;
+    --bg:#F1F0EC;
     --card:#ffffff;
     --line:#ece6f2;
     --blue:#2f7df6;
@@ -105,6 +105,7 @@
   .m2{top:42%;right:6%}
   .m3{top:66%;right:7%}
   .m4{bottom:6%;left:50%;transform:translateX(-50%)}
+  .mback{top:7%;right:7%;background:var(--pink)}
   .back{background-color:#0d0a12;justify-content:center}
   .back .blabel{position:absolute;bottom:7%;left:0;right:0;text-align:center;color:#fff;font-weight:600;font-size:.8rem;opacity:.9;text-shadow:0 1px 6px rgba(0,0,0,.6)}
   /* legend */
@@ -137,6 +138,33 @@
   .goal .gn{font-family:"Poppins";font-weight:800;font-size:3.2rem;line-height:1}
   .goal h2{color:#fff;margin:6px 0 6px;font-size:1.35rem}
   .goal p{font-weight:500;opacity:.95;max-width:30ch;margin:0 auto;font-size:1rem}
+  /* ── goal banner (top, compact) ── */
+  .goal-top{display:flex;align-items:center;gap:18px;background:var(--grad);color:#fff;border-radius:var(--radius);
+    padding:20px 24px;box-shadow:0 22px 44px -22px rgba(138,63,252,.8)}
+  .goal-top .gn{font-family:"Poppins";font-weight:800;font-size:2.9rem;line-height:.95;flex:0 0 auto}
+  .goal-top h2{color:#fff;margin:0 0 2px;font-size:1.18rem;text-align:left}
+  .goal-top p{font-weight:500;opacity:.95;margin:0;font-size:.92rem;line-height:1.35}
+  /* ── final CTA + scanner (index look) ── */
+  .cta{background:transparent;border:none;border-radius:0;padding:30px 4px 8px;text-align:center;box-shadow:none}
+  .cta h2{font-size:1.5rem;margin:.1em 0 .3em;color:var(--ink)}
+  .cta-lead{color:var(--ink-soft);font-weight:500;font-size:1rem;max-width:28ch;margin:0 auto}
+  .scan-card{max-width:340px;margin:24px auto 0;background:#fff;border:1px solid #E4E3DE;border-radius:22px;
+    padding:32px 26px;display:flex;flex-direction:column;align-items:center;gap:17px;box-shadow:0 12px 40px rgba(40,30,80,.07)}
+  .scan-icon-wrap{width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,rgba(110,99,232,.14),rgba(232,76,158,.12));animation:breathe 3s ease-in-out infinite}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+  .scan-title{font-family:"Poppins";font-weight:700;font-size:1.2rem;color:var(--ink)}
+  .scan-sub{font-size:.9rem;color:var(--ink-soft);text-align:center;line-height:1.5;max-width:230px}
+  .scan-trigger{width:100%;background:var(--grad);border:none;border-radius:15px;color:#fff;font-family:inherit;
+    font-size:1rem;font-weight:600;padding:16px;cursor:pointer;box-shadow:0 10px 26px rgba(150,80,200,.3);
+    display:flex;align-items:center;justify-content:center;gap:10px;-webkit-appearance:none}
+  .scan-trigger:active{opacity:.9;transform:scale(.98)}
+  .scan-trigger svg{width:22px;height:22px;flex-shrink:0}
+  .scan-status{font-size:.85rem;color:var(--ink-soft);text-align:center;min-height:20px}
+  .scan-status.ok{color:#00A14B}
+  .scan-status.err{color:#E8003D}
+  #qrInput{position:absolute;opacity:0;width:1px;height:1px;top:-200px;left:-200px}
+  #processCanvas{display:none}
 
   footer{text-align:center;padding:34px 0 48px;color:var(--ink-soft);font-size:.85rem;font-weight:500}
   footer svg{width:26px;height:26px;display:block;margin:0 auto 10px}
@@ -148,7 +176,6 @@
 </style>
 </head>
 <body>
-<div class="glow"></div>
 
 <div class="wrap">
 
@@ -157,6 +184,16 @@
     <h1>So wird gespielt</h1>
     <p class="lead">Errate das Jahr, bau deine Musik-Zeitleiste – und sammle Karten.</p>
   </header>
+
+  <section>
+    <div class="goal-top">
+      <div class="gn">10</div>
+      <div>
+        <h2>Karten zum Sieg</h2>
+        <p>Wer zuerst 10 Karten korrekt in seiner Zeitleiste hat, gewinnt.</p>
+      </div>
+    </div>
+  </section>
 
   <section>
     <div class="kicker">In 4 Schritten</div>
@@ -186,21 +223,24 @@
   </section>
 
   <section>
-    <div class="kicker">Vorder- &amp; Rückseite</div>
+    <div class="kicker">Rückseite &amp; Vorderseite</div>
     <h2>Was auf einer Karte steht</h2>
     <div class="demo">
-      <div class="gcard front">
-        <span class="mark m1">1</span>
-        <span class="mark m2">2</span>
-        <span class="mark m3">3</span>
-        <span class="mark m4">4</span>
+      <div class="gcard back cback">
+        <span class="mark mback">1</span>
       </div>
-      <div class="gcard back cback"></div>
+      <div class="gcard front">
+        <span class="mark m1">2</span>
+        <span class="mark m2">3</span>
+        <span class="mark m3">4</span>
+        <span class="mark m4">5</span>
+      </div>
       <div class="legend">
-        <div><span class="b">1</span>Interpret</div>
-        <div><span class="b p">2</span>Jahr – das errätst du</div>
-        <div><span class="b">3</span>Titel</div>
-        <div><span class="b">4</span>Land &amp; Platzierung</div>
+        <div><span class="b p">1</span>QR-Code – wird gescannt</div>
+        <div><span class="b">2</span>Interpret</div>
+        <div><span class="b p">3</span>Jahr – das errätst du</div>
+        <div><span class="b">4</span>Titel</div>
+        <div><span class="b">5</span>Land &amp; Platzierung</div>
       </div>
       <p class="demo-cap">Die vier Angaben <b>Land, Titel, Interpret und Platzierung</b> brauchst du gleich für die Extra-Chips.</p>
     </div>
@@ -234,10 +274,33 @@
   </section>
 
   <section>
-    <div class="goal">
-      <div class="gn">10</div>
-      <h2>Karten zum Sieg</h2>
-      <p>Wer zuerst 10 Karten korrekt in seiner Zeitleiste hat, gewinnt das Spiel.</p>
+    <div class="cta">
+      <div class="kicker">Bereit?</div>
+      <h2>Es kann losgehen</h2>
+      <p class="cta-lead">Scanne die erste Karte – das Lied startet automatisch.</p>
+      <div class="scan-card">
+        <div class="scan-icon-wrap">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="url(#sg)" stroke-width="1.7" stroke-linejoin="round">
+            <defs><linearGradient id="sg" x1="0" y1="0" x2="24" y2="24">
+              <stop offset="0" stop-color="#2f7df6"/><stop offset=".52" stop-color="#8a3ffc"/><stop offset="1" stop-color="#ff2d87"/>
+            </linearGradient></defs>
+            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+        </div>
+        <div class="scan-title">Karte scannen</div>
+        <div class="scan-sub">Tippe den Button und fotografiere den QR-Code auf der Karte.</div>
+        <button class="scan-trigger" id="scanBtn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          Karte fotografieren
+        </button>
+        <div class="scan-status" id="scanStatus">Lädt Scanner…</div>
+      </div>
+      <input type="file" id="qrInput" accept="image/*" capture="environment">
+      <canvas id="processCanvas"></canvas>
     </div>
   </section>
 
@@ -264,6 +327,86 @@
       es.forEach(function(e){ if(e.isIntersecting){ setTimeout(function(){card.classList.add('in');}, 250); io.disconnect(); } });
     }, {threshold:.5});
     io.observe(card);
+  })();
+
+  // ── QR-Scanner (wie auf der Index-Seite) ──────────────────────────────
+  (function(){
+    var btn = document.getElementById('scanBtn');
+    if(!btn) return;
+    var jsQRReady = false;
+
+    function setScanStatus(m, c){
+      var e = document.getElementById('scanStatus');
+      if(!e) return;
+      e.textContent = m; e.className = 'scan-status' + (c ? ' ' + c : '');
+    }
+
+    function loadJsQR(cb){
+      var cdns = [
+        'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js',
+        'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
+        'https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js'
+      ];
+      var i = 0;
+      (function next(){
+        if(i >= cdns.length){ setScanStatus('❌ Scanner konnte nicht geladen werden. Bitte Internetverbindung prüfen.', 'err'); return; }
+        var s = document.createElement('script');
+        s.src = cdns[i++];
+        s.onload = function(){ jsQRReady = true; setScanStatus('✅ Bereit – Karte fotografieren', 'ok'); if(cb) cb(); };
+        s.onerror = function(){ s.remove(); next(); };
+        document.head.appendChild(s);
+      })();
+    }
+
+    function goToCard(data){
+      data = (data || '').trim();
+      var target;
+      if(/^https?:\/\//i.test(data)){ target = data; }
+      else if(/^\d{1,4}$/.test(data)){
+        var id = data; while(id.length < 3){ id = '0' + id; }
+        target = 'https://gwendo90.github.io/project-1408/?id=' + id;
+      } else { target = data; }
+      window.location.href = target;
+    }
+
+    function scanImage(img){
+      var canvas = document.getElementById('processCanvas');
+      var ctx = canvas.getContext('2d', { willReadFrequently: true });
+      var sizes = [1000, 600, 1600];
+      for(var k = 0; k < sizes.length; k++){
+        var scale = Math.min(1.0, sizes[k] / Math.max(img.width, img.height));
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        var d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var code = jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' });
+        if(code && code.data){ setScanStatus('✅ Erkannt! Lied wird geladen…', 'ok'); goToCard(code.data); return; }
+      }
+      setScanStatus('❌ Nicht erkannt – QR-Code muss vollständig sichtbar sein', 'err');
+    }
+
+    var input = document.getElementById('qrInput');
+    input.addEventListener('change', function(e){
+      var file = e.target.files[0];
+      if(!file) return;
+      if(!jsQRReady){ setScanStatus('⏳ Scanner lädt noch, bitte warten…', ''); return; }
+      setScanStatus('🔍 Verarbeite Foto…', '');
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        var img = new Image();
+        img.onload = function(){ scanImage(img); };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    btn.addEventListener('click', function(){
+      if(!jsQRReady){ setScanStatus('⏳ Bitte warten – Scanner lädt…', ''); return; }
+      input.value = '';
+      input.click();
+    });
+
+    loadJsQR();
   })();
 </script>
 </body>

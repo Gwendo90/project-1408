@@ -52,16 +52,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .mlck { font-size:30px; }
 .mhint { font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); }
 
-.revcard { width:100%; max-width:400px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:18px 20px; display:none; flex-direction:column; gap:5px; animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; flex-shrink:0; box-shadow:0 8px 28px rgba(40,30,80,.06); position:relative; overflow:hidden; }
-.revcard::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg,var(--grad-a),var(--grad-mid),var(--grad-b)); }
-@keyframes pop { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
-.ry { font-size:38px; font-weight:700; line-height:1; letter-spacing:.5px; background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
-.rt { font-size:17px; font-weight:700; letter-spacing:.2px; line-height:1.15; }
-.ra { font-size:13px; font-weight:600; color:var(--muted); }
-.rmeta { display:flex; gap:7px; flex-wrap:wrap; margin-top:3px; }
-.tag { font-size:10px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; padding:4px 9px; border-radius:50px; background:#F4F3EF; color:var(--muted); border:1px solid var(--border); }
-.tag.g { background:linear-gradient(135deg,rgba(110,99,232,.12),rgba(232,76,158,.12)); color:var(--grad-mid); border-color:rgba(180,92,203,.25); }
-
 /* PLAYER */
 .player { width:100%; max-width:400px; display:flex; flex-direction:column; align-items:center; gap:22px; flex-shrink:0; }
 .pbtn { width:100px; height:100px; border-radius:50%; background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 12px 34px rgba(150,80,200,.35); -webkit-appearance:none; transition:transform .15s; }
@@ -83,14 +73,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 /* BUTTONS */
 .actions { width:100%; max-width:400px; display:flex; flex-direction:column; gap:12px; flex-shrink:0; }
 .btn { width:100%; padding:16px; border-radius:14px; cursor:pointer; font-family:inherit; font-size:15px; font-weight:600; -webkit-appearance:none; text-align:center; }
-/* secondary: Auflösen */
-.btn.reveal { border:1px solid var(--border); background:var(--surface); color:var(--text); }
-.btn.reveal.done { background:linear-gradient(135deg,rgba(110,99,232,.10),rgba(232,76,158,.10)); border-color:transparent; color:var(--grad-mid); }
 /* primary: gradient border */
 .btn.next { position:relative; border:none; color:var(--text); background:linear-gradient(var(--surface),var(--surface)) padding-box, linear-gradient(135deg,var(--grad-a),var(--grad-b)) border-box; border:2px solid transparent; }
 .btn.next:active { opacity:.85; }
 
-.cf { position:fixed; inset:0; pointer-events:none; z-index:999; overflow:hidden; }
 </style>
 </head>
 <body>
@@ -130,18 +116,8 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div class="mlck">🔒</div>
     <div class="mhint">Wann war das?</div>
   </div>
-  <div class="revcard" id="revcard">
-    <div class="ry" id="rY">—</div>
-    <div class="rt"  id="rT">—</div>
-    <div class="ra"  id="rA">—</div>
-    <div class="rmeta">
-      <span class="tag"   id="rC">—</span>
-      <span class="tag g" id="rP">—</span>
-    </div>
-  </div>
-
   <div class="player">
-    <button class="pbtn" id="pbtn">
+    <button class="pbtn" id="pbtn" aria-label="Abspielen / Pause">
       <svg class="iplay"  viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
       <svg class="ipause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
     </button>
@@ -153,32 +129,39 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   </div>
 
   <div class="actions">
-    <button class="btn reveal" id="rbtn">🔓 Auflösen</button>
     <button class="btn next" id="btnNext">Nächste Karte</button>
   </div>
 </div>
 
-<div class="cf" id="cf"></div>
 <input type="file" id="qrInput" accept="image/*" capture="environment" style="position:absolute;opacity:0;width:1px;height:1px;top:-200px;left:-200px;">
 <audio id="aud" preload="none"></audio>
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────
 const aud=document.getElementById('aud');
-let playing=false,revealed=false,pt=null;
+let playing=false,pt=null;
 let jsQRReady=false;
 let SONGS=null;          // wird aus songs.json geladen
 let pendingId=null;      // ID, die gescannt wurde bevor songs.json fertig war
 
 // ── songs.json laden ──────────────────────────────────────────────────
+let songsLoading = false;
+let songsFailed  = false;
+
 function loadSongs() {
+  if (songsLoading || SONGS) return;
+  songsLoading = true;
   fetch('songs.json?v=' + Date.now())
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(d => {
-      SONGS = d;
+      SONGS = d; songsFailed = false; songsLoading = false;
+      if (jsQRReady) setScanStatus('✅ Bereit – Karte fotografieren', 'ok');
       if (pendingId) { const id = pendingId; pendingId = null; loadById(id); }
     })
-    .catch(() => setScanStatus('❌ Songdaten konnten nicht geladen werden – Internetverbindung prüfen', 'err'));
+    .catch(e => {
+      songsFailed = true; songsLoading = false;
+      setScanStatus('❌ Songdaten konnten nicht geladen werden (' + e.message + ') – erneut scannen versucht es nochmal', 'err');
+    });
 }
 
 function normalizeId(raw) {
@@ -187,7 +170,7 @@ function normalizeId(raw) {
 }
 
 function loadById(id) {
-  if (!SONGS) { pendingId = id; setScanStatus('⏳ Lade Songdaten…', ''); return; }
+  if (!SONGS) { pendingId = id; setScanStatus('⏳ Lade Songdaten…', ''); loadSongs(); return; }
   const e = SONGS[id] || SONGS[String(parseInt(id, 10))];
   if (!e) { setScanStatus('❌ Song-ID ' + id + ' nicht gefunden', 'err'); return; }
   loadSong({
@@ -219,7 +202,7 @@ function loadJsQR(callback) {
     script.src = cdns[idx++];
     script.onload = () => {
       jsQRReady = true;
-      setScanStatus('✅ Bereit – Karte fotografieren', 'ok');
+      if (!songsFailed) setScanStatus('✅ Bereit – Karte fotografieren', 'ok');
       if (callback) callback();
     };
     script.onerror = () => { script.remove(); tryNext(); };
@@ -247,9 +230,13 @@ function scanImage(img) {
   const canvas = document.getElementById('processCanvas');
   const ctx = canvas.getContext('2d', {willReadFrequently: true});
   const sizes = [1000, 600, 1600];
+  const tried = new Set();
   for (const maxDim of sizes) {
     const scale = Math.min(1.0, maxDim / Math.max(img.width, img.height));
-    canvas.width  = Math.round(img.width  * scale);
+    const w = Math.round(img.width * scale);
+    if (tried.has(w)) continue;   // identische Größe nicht doppelt scannen
+    tried.add(w);
+    canvas.width  = w;
     canvas.height = Math.round(img.height * scale);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -288,56 +275,46 @@ function handleQR(data) {
 // ── Load Song ─────────────────────────────────────────────────────────
 function loadSong(song) {
   aud.pause(); aud.src=''; clearInterval(pt);
-  playing=false; revealed=false;
-  document.getElementById('mystery').style.display='flex';
-  document.getElementById('revcard').style.display='none';
-  document.getElementById('rbtn').className='btn reveal';
-  document.getElementById('rbtn').textContent='🔓 Auflösen';
+  playing=false;
   document.getElementById('pbtn').classList.remove('on');
   document.getElementById('pfill').style.width='0%';
   document.getElementById('tlbl').textContent='—';
-  document.getElementById('rY').textContent=song.year;
-  document.getElementById('rT').textContent=song.title;
-  document.getElementById('rA').textContent=song.artist;
-  document.getElementById('rC').innerHTML=song.flag+' '+song.country;
-  document.getElementById('rP').textContent=song.place!=='—'?'Platz '+song.place:'ESC';
   show('playScreen');
   setStat('Suche Preview…','');
   fetchPreview(song);
 }
 
 // ── iTunes Preview ────────────────────────────────────────────────────
+function fetchWithTimeout(url, ms) {
+  // AbortSignal.timeout ist auf aktuellen iOS/Android-Browsern verfügbar;
+  // falls nicht, einfach ohne Timeout fetchen.
+  try { return fetch(url, { signal: AbortSignal.timeout(ms) }); }
+  catch(e) { return fetch(url); }
+}
+
 async function fetchPreview(song) {
   if (song.pr) { setAudio(song.pr); return; }
-  if (song.sid) {
+
+  // Beim reinen Titel-Fallback muss der Interpret grob passen, sonst landet
+  // beim Ratespiel schnell ein völlig anderer Song im Player.
+  const artistKey = (song.artist || '').toLowerCase().split(/[\s,&]+/)[0] || '';
+  const artistMatches = x => !artistKey || (x.artistName || '').toLowerCase().includes(artistKey);
+
+  const attempts = [];
+  if (song.sid) attempts.push({ url: 'https://itunes.apple.com/lookup?id=' + song.sid, filter: null });
+  const q = encodeURIComponent(song.artist + ' ' + song.title);
+  attempts.push({ url: 'https://itunes.apple.com/search?term=' + q + '&media=music&entity=song&limit=10&country=de', filter: null });
+  attempts.push({ url: 'https://itunes.apple.com/search?term=' + q + '&media=music&entity=song&limit=10', filter: null });
+  attempts.push({ url: 'https://itunes.apple.com/search?term=' + encodeURIComponent(song.title) + '&media=music&entity=song&limit=10', filter: artistMatches });
+
+  for (const a of attempts) {
     try {
-      const r=await fetch('https://itunes.apple.com/lookup?id='+song.sid);
-      const d=await r.json();
-      const hit=(d.results||[]).find(x=>x.previewUrl);
+      const r = await fetchWithTimeout(a.url, 5000);
+      const d = await r.json();
+      const hit = (d.results || []).find(x => x.previewUrl && (!a.filter || a.filter(x)));
       if (hit) { setAudio(hit.previewUrl); return; }
     } catch(e) {}
   }
-  try {
-    const q=encodeURIComponent(song.artist+' '+song.title);
-    const r=await fetch('https://itunes.apple.com/search?term='+q+'&media=music&entity=song&limit=10&country=de');
-    const d=await r.json();
-    const hit=(d.results||[]).find(x=>x.previewUrl);
-    if (hit) { setAudio(hit.previewUrl); return; }
-  } catch(e) {}
-  try {
-    const q=encodeURIComponent(song.artist+' '+song.title);
-    const r=await fetch('https://itunes.apple.com/search?term='+q+'&media=music&entity=song&limit=10');
-    const d=await r.json();
-    const hit=(d.results||[]).find(x=>x.previewUrl);
-    if (hit) { setAudio(hit.previewUrl); return; }
-  } catch(e) {}
-  try {
-    const q=encodeURIComponent(song.title);
-    const r=await fetch('https://itunes.apple.com/search?term='+q+'&media=music&entity=song&limit=10');
-    const d=await r.json();
-    const hit=(d.results||[]).find(x=>x.previewUrl);
-    if (hit) { setAudio(hit.previewUrl); return; }
-  } catch(e) {}
   setStat('Keine Vorschau gefunden','err');
 }
 
@@ -374,28 +351,8 @@ aud.addEventListener('ended',()=>{
   document.getElementById('pbtn').classList.remove('on');
   document.getElementById('pfill').style.width='100%';
   document.getElementById('tlbl').textContent='0:00';
-  clearInterval(pt); setStat('Fertig – Auflösen?','');
+  clearInterval(pt); setStat('Fertig – nächste Karte?','');
 });
-
-// ── Reveal ────────────────────────────────────────────────────────────
-function reveal() {
-  if (revealed) return; revealed=true;
-  document.getElementById('mystery').style.display='none';
-  document.getElementById('revcard').style.display='flex';
-  document.getElementById('rbtn').className='btn reveal done';
-  document.getElementById('rbtn').textContent='✓ Aufgedeckt';
-  const cols=['#6E63E8','#E84C9E','#B45CCB','#5566E6','#E87BAE'];
-  const c=document.getElementById('cf');
-  for(let i=0;i<36;i++){
-    const el=document.createElement('div');
-    const sz=5+Math.random()*9,tx=(Math.random()-.5)*300,ty=-(80+Math.random()*220),rot=Math.random()*720,dl=Math.random()*.3;
-    el.style.cssText=`position:absolute;width:${sz}px;height:${sz}px;background:${cols[i%5]};border-radius:${Math.random()>.5?'50%':'2px'};left:${35+Math.random()*30}%;top:55%;animation:cf${i} ${.8+Math.random()*.4}s ${dl}s ease-out forwards`;
-    const st=document.createElement('style');
-    st.textContent=`@keyframes cf${i}{to{transform:translate(${tx}px,${ty}px) rotate(${rot}deg);opacity:0}}`;
-    document.head.appendChild(st);c.appendChild(el);
-    setTimeout(()=>{el.remove();st.remove();},1400);
-  }
-}
 
 // ── Navigation ────────────────────────────────────────────────────────
 function goScan() {
@@ -416,7 +373,6 @@ function nextCard() {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('scanBtn').addEventListener('click', triggerScan);
   document.getElementById('pbtn').addEventListener('click', togglePlay);
-  document.getElementById('rbtn').addEventListener('click', reveal);
   document.getElementById('btnNext').addEventListener('click', nextCard);
   loadSongs();
   loadJsQR();

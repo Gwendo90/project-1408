@@ -49,7 +49,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 #playScreen { padding:24px; padding-top:max(env(safe-area-inset-top),48px); padding-bottom:calc(max(env(safe-area-inset-bottom),24px) + 24px); justify-content:flex-start; background:var(--bg); gap:26px; }
 
 /* PLAYER */
-.player { width:100%; max-width:400px; display:flex; flex-direction:column; align-items:center; gap:22px; flex-shrink:0; }
+.player { width:100%; max-width:400px; display:flex; flex-direction:column; align-items:center; gap:22px; flex-shrink:0; margin:auto 0; }
 .pbtn { width:100px; height:100px; border-radius:50%; background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 12px 34px rgba(150,80,200,.35); -webkit-appearance:none; transition:transform .15s; }
 .pbtn:active { transform:scale(.96); }
 .pbtn.on { animation:pulse 2.4s ease-in-out infinite; }
@@ -173,6 +173,17 @@ function loadById(id) {
   });
 }
 
+// ── Audio-Unlock: Browser erlauben play() nur nach einer Nutzergeste.
+//    Trick: beim Tap auf "Karte fotografieren" ein stummes Mini-WAV abspielen –
+//    danach darf dasselbe <audio>-Element auch ohne Geste starten (Autoplay). ──
+const SILENT_WAV='data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+let audioUnlocked=false;
+function unlockAudio(){
+  if (audioUnlocked) return;
+  aud.src=SILENT_WAV;
+  aud.play().then(()=>{ aud.pause(); aud.removeAttribute('src'); audioUnlocked=true; }).catch(()=>{});
+}
+
 function setStat(m,c){const e=document.getElementById('stat');e.textContent=m;e.className='stat'+(c?' '+c:'');}
 function setScanStatus(m,c){const e=document.getElementById('scanStatus');e.textContent=m;e.className='scan-status'+(c?' '+c:'');}
 function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
@@ -239,6 +250,7 @@ function scanImage(img) {
 }
 
 function triggerScan() {
+  unlockAudio();   // Nutzergeste nutzen, um Autoplay freizuschalten
   if (!jsQRReady) { setScanStatus('⏳ Bitte warten – Scanner lädt…', ''); return; }
   document.getElementById('qrInput').value = '';
   document.getElementById('qrInput').click();
@@ -270,7 +282,7 @@ function loadSong(song) {
   playing=false;
   document.getElementById('pbtn').classList.remove('on');
   document.getElementById('pfill').style.width='0%';
-  document.getElementById('tlbl').textContent='—';
+  document.getElementById('tlbl').textContent='0:00';
   show('playScreen');
   setStat('Suche Preview…','');
   fetchPreview(song);
@@ -312,11 +324,31 @@ async function fetchPreview(song) {
 
 function setAudio(url) {
   aud.src=url; aud.load();
-  document.getElementById('tlbl').textContent='0:30';
-  setStat('Bereit – tippe ▶','');
+  document.getElementById('tlbl').textContent='0:00';
+  startPlayback(true);   // Autoplay-Versuch; scheitert er, bleibt es beim ▶-Hinweis
 }
 
 // ── Playback ──────────────────────────────────────────────────────────
+function startPlayback(auto) {
+  aud.play().then(()=>{
+    playing=true; audioUnlocked=true;
+    document.getElementById('pbtn').classList.add('on');
+    setStat('♫ Spielt…','ok');
+    clearInterval(pt);
+    pt=setInterval(()=>{
+      if (!aud.duration) return;
+      document.getElementById('pfill').style.width=(aud.currentTime/aud.duration*100)+'%';
+      const r=Math.max(0,Math.ceil(aud.duration-aud.currentTime));
+      document.getElementById('tlbl').textContent=Math.floor(r/60)+':'+String(r%60).padStart(2,'0');
+    },500);
+  }).catch(e=>{
+    // Autoplay blockiert (z. B. allererster Song ohne vorherige Geste):
+    // kein Fehler, nur freundlich zum manuellen Start auffordern.
+    if (auto) setStat('Bereit – tippe ▶','');
+    else setStat('Fehler: '+e.message,'err');
+  });
+}
+
 function togglePlay() {
   if (!aud.src||aud.src===location.href) { setStat('Kein Song geladen','err'); return; }
   if (playing) {
@@ -324,17 +356,7 @@ function togglePlay() {
     document.getElementById('pbtn').classList.remove('on');
     clearInterval(pt); setStat('Pausiert','');
   } else {
-    aud.play().then(()=>{
-      playing=true;
-      document.getElementById('pbtn').classList.add('on');
-      setStat('♫ Spielt…','ok');
-      pt=setInterval(()=>{
-        if (!aud.duration) return;
-        document.getElementById('pfill').style.width=(aud.currentTime/aud.duration*100)+'%';
-        const r=Math.max(0,Math.ceil(aud.duration-aud.currentTime));
-        document.getElementById('tlbl').textContent=Math.floor(r/60)+':'+String(r%60).padStart(2,'0');
-      },500);
-    }).catch(e=>setStat('Fehler: '+e.message,'err'));
+    startPlayback(false);
   }
 }
 

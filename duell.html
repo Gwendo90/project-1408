@@ -70,35 +70,78 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .seat .nm { font-size:12px; font-weight:600; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .seat .ct { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
 .seat .ct small { font-size:12px; font-weight:500; color:var(--muted); }
+/* Leben im ESC-Herzstil */
+.leben { display:flex; align-items:center; gap:5px; height:24px; }
+.leben svg { width:21px; height:22px; display:block; fill:var(--text); flex-shrink:0;
+             transition:fill .3s, opacity .3s; }
+.leben svg.weg { fill:var(--track); opacity:.55; }
 
 /* ── Bühne: Mystery / Reveal ──────────────────────────────────── */
-.stage { width:100%; max-width:400px; flex-shrink:0; }
-.mystery { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:22px;
-           display:flex; flex-direction:column; align-items:center; gap:6px; box-shadow:0 8px 28px rgba(40,30,80,.05); }
-.mlck { font-size:30px; }
-.mhint { font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); }
-.revcard { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:18px 20px;
-           display:flex; flex-direction:column; gap:5px; position:relative; overflow:hidden;
-           box-shadow:0 8px 28px rgba(40,30,80,.06); animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; }
-.revcard::before { content:''; position:absolute; top:0; left:0; right:0; height:4px;
-           background:linear-gradient(90deg,var(--grad-a),var(--grad-mid),var(--grad-b)); }
+/* Quadratisch wie die Karte – die Höhe steht damit fest, egal welche
+   Phase gerade läuft. Beide Kinder liegen deckungsgleich darin. */
+.buehne { position:relative; width:100%; max-width:400px; aspect-ratio:1/1; flex-shrink:0; }
+.stage  { position:absolute; inset:0; container-type:inline-size; }
 @keyframes pop { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
-.ry { font-size:38px; font-weight:700; line-height:1; letter-spacing:.5px;
-      background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
-      -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
-.rt { font-size:17px; font-weight:700; letter-spacing:.2px; line-height:1.15; }
-.ra { font-size:13px; font-weight:600; color:var(--muted); }
-.rmeta { display:flex; gap:7px; flex-wrap:wrap; margin-top:3px; }
-.tag { font-size:10px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; padding:4px 9px;
-       border-radius:50px; background:#F4F3EF; color:var(--muted); border:1px solid var(--border); }
-.tag.g { background:linear-gradient(135deg,rgba(224,50,110,.12),rgba(79,187,221,.14));
-         color:var(--grad-mid); border-color:rgba(158,34,180,.25); }
-.verdict { margin-top:10px; font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; }
+
+/* ── Kartenfront ──────────────────────────────────────────────────
+   Nachbau der gedruckten Karte. Der Verlauf ist aus Set_1/Fronts
+   ausgemessen: exakt linear von #ED4F4F nach #745BFF über die
+   Diagonale, die Gegendiagonale bleibt konstant #B155A7.          */
+.cardface { position:relative; width:100%; aspect-ratio:1/1; border-radius:22px; overflow:hidden;
+            background:linear-gradient(135deg,#ED4F4F,#745BFF); color:#111114;
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            gap:2px; padding:26px 22px 56px; text-align:center;
+            box-shadow:0 14px 40px rgba(90,50,140,.28);
+            animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; }
+.cardface .ca { font-size:clamp(15px,4.8vw,21px); font-weight:700; line-height:1.15;
+                max-width:100%; overflow-wrap:anywhere; }
+/* Ausgemessen an Set_1/Set_2: Ziffernhöhe 21,5 % der Kartenhöhe (trifft
+   exakt), mittlere Breite 64,2 % (trifft mit -.045em auf 63,9 %). Die
+   Streuung zwischen schmalen und breiten Jahren fällt in DM Sans größer
+   aus als in der Druckschrift – das lässt sich über Laufweite nicht
+   angleichen, ohne den Mittelwert zu verfehlen. */
+.cardface .cy { font-size:clamp(64px,21vw,104px); font-weight:700; line-height:1;
+                letter-spacing:-.045em; margin:.06em 0; }
+.cardface .ct { font-size:clamp(14px,4.4vw,19px); font-weight:700; line-height:1.2;
+                max-width:100%; overflow-wrap:anywhere; }
+.cardface .foot { position:absolute; left:22px; right:22px; bottom:18px;
+                  display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.cardface .land { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:400;
+                  min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.cardface .land img { width:28px; height:28px; flex-shrink:0; display:block; }
+.cardface .nr { font-size:14px; font-weight:400; flex-shrink:0; }
+
+/* An der Kartenbreite ausgerichtet statt am Viewport – nur so trifft die
+   Jahreszahl die 65 % Breite der gedruckten Karte. Die clamp()-Werte
+   darüber bleiben als Rückfall für Browser ohne Container-Queries. */
+@supports (font-size: 1cqw) {
+  .cardface { padding:8cqw 7cqw 17cqw; gap:0; }
+  .cardface .ca  { font-size:6.4cqw; }
+  /* 29.7cqw: Ziffernhöhe von DM Sans Bold (Versalhöhe 0,724 × Schriftgrad)
+     mal 29.7 % ergibt die 21,5 % Kartenhöhe der gedruckten Karte. */
+  .cardface .cy  { font-size:29.7cqw; margin:.04em 0; }
+  .cardface .ct  { font-size:5.8cqw; }
+  .cardface .foot { left:7cqw; right:7cqw; bottom:5.5cqw; }
+  .cardface .land { font-size:4.2cqw; gap:2.4cqw; }
+  .cardface .land img { width:8.6cqw; height:8.6cqw; }
+  .cardface .nr  { font-size:4.2cqw; }
+}
+
+/* Eigene Zeile unter der Bühne mit fester Höhe. Läge sie in der Bühne,
+   ragte sie unten heraus und würde die Zeitleisten-Überschrift überdecken. */
+.verdict { width:100%; max-width:400px; height:22px; flex-shrink:0;
+           font-size:15px; font-weight:700; display:flex;
+           align-items:center; justify-content:center; gap:8px; }
 .verdict.ok  { color:var(--green); }
 .verdict.err { color:var(--red); }
 
 /* ── Player ───────────────────────────────────────────────────── */
-.player { width:100%; max-width:400px; display:flex; flex-direction:column; align-items:center; gap:16px; flex-shrink:0; }
+/* Der Playbutton ist das einzige zentrierte Kind und sitzt damit genau
+   dort, wo später die Mitte der aufgelösten Karte liegt. Balken und
+   Statuszeile hängen darunter, ohne ihn zu verschieben. */
+.player { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+.punten { position:absolute; left:0; right:0; top:calc(50% + 58px);
+          display:flex; flex-direction:column; align-items:center; gap:12px; }
 .pbtn { width:84px; height:84px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center;
         justify-content:center; -webkit-appearance:none; transition:transform .15s;
         background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
@@ -126,15 +169,19 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .tl { display:flex; align-items:stretch; gap:0; overflow-x:auto; padding:4px 2px 12px;
       -webkit-overflow-scrolling:touch; scrollbar-width:none; }
 .tl::-webkit-scrollbar { display:none; }
-.tlcard { flex:0 0 auto; width:92px; background:var(--surface); border:1px solid var(--border); border-radius:14px;
-          padding:12px 8px; display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center; }
-.tlcard .y { font-size:19px; font-weight:700; line-height:1;
-             background:linear-gradient(135deg,var(--grad-a),var(--grad-b));
-             -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
-.tlcard .t { font-size:9px; font-weight:600; color:var(--muted); line-height:1.25;
+/* Miniaturen derselben Kartenfront */
+.tlcard { flex:0 0 auto; width:92px; aspect-ratio:1/1; border-radius:13px; overflow:hidden;
+          background:linear-gradient(135deg,#ED4F4F,#745BFF); color:#111114;
+          padding:8px 7px; display:flex; flex-direction:column; align-items:center;
+          justify-content:center; gap:2px; text-align:center;
+          box-shadow:0 5px 14px rgba(90,50,140,.22); }
+.tlcard .y { font-size:22px; font-weight:700; line-height:1; letter-spacing:-.02em; }
+.tlcard .t { font-size:8px; font-weight:600; line-height:1.25; opacity:.78;
              display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.tlcard .f { font-size:13px; }
-.tlcard.fresh { animation:pop .45s cubic-bezier(.34,1.56,.64,1) both; box-shadow:0 0 0 2px var(--green); }
+.tlcard .f { font-size:13px; line-height:0; margin-bottom:2px; }
+.tlcard .f img { width:20px; height:20px; display:block; }
+.tlcard.fresh { animation:pop .45s cubic-bezier(.34,1.56,.64,1) both;
+                box-shadow:0 0 0 3px var(--green), 0 5px 14px rgba(90,50,140,.22); }
 .gap { flex:0 0 auto; width:34px; display:flex; align-items:center; justify-content:center;
        background:none; border:none; padding:0; font-family:inherit; }
 .gap .bar { width:4px; height:52px; border-radius:3px; background:var(--track); transition:all .2s; }
@@ -173,6 +220,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <input class="inp code" id="codeInput" placeholder="CODE" maxlength="5" autocomplete="off"
            autocapitalize="characters" autocorrect="off" spellcheck="false">
     <button class="btn" id="btnJoin">Spiel beitreten</button>
+    <div class="divider">alleine</div>
+    <button class="btn" id="btnSolo">Solo spielen</button>
+    <div class="sub" id="soloBest"></div>
   </div>
   <div class="stat" id="homeStat"></div>
 </div>
@@ -195,18 +245,25 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <!-- ══ SPIEL ══════════════════════════════════════════════════ -->
 <div class="screen hidden" id="gameScreen">
   <div class="score" id="score"></div>
-  <div class="stage" id="stage"></div>
-  <div class="player" id="playerBox">
-    <button class="pbtn" id="pbtn" disabled>
-      <svg class="iplay"  viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-      <svg class="ipause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-    </button>
-    <div class="pw">
-      <div class="pbar"><div class="pfill" id="pfill"></div></div>
-      <div class="tlbl" id="tlbl">—</div>
+  <!-- Feste Höhe im Format der Karte. Player und Auflösung liegen darin
+       übereinander, damit beim Phasenwechsel nichts verrutscht. -->
+  <div class="buehne">
+    <div class="stage" id="stage"></div>
+    <div class="player" id="playerBox">
+      <button class="pbtn" id="pbtn" disabled>
+        <svg class="iplay"  viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="ipause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <div class="punten">
+        <div class="pw">
+          <div class="pbar"><div class="pfill" id="pfill"></div></div>
+          <div class="tlbl" id="tlbl">—</div>
+        </div>
+        <div class="stat" id="stat">—</div>
+      </div>
     </div>
-    <div class="stat" id="stat">—</div>
   </div>
+  <div class="verdict" id="verdict"></div>
   <div class="tlwrap">
     <div class="tllabel" id="tlLabel">Zeitleiste</div>
     <div class="tl" id="tl"></div>
@@ -229,6 +286,14 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   </div>
 </div>
 
+<!-- ESC-Herz, aus esc_heart-1.png vektorisiert (trace_heart.py).
+     Einmal als Symbol, damit der Pfad nicht pro Herz wiederholt wird. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="escherz" viewBox="0 0 95.2 100">
+    <path fill-rule="evenodd" d="M70.3,0.0 L62.76,1.93 L55.54,5.94 L47.83,13.0 L42.86,19.9 L38.84,15.09 L31.62,11.4 L24.24,10.59 L18.78,12.2 L12.68,15.89 L7.7,20.87 L3.37,28.09 L1.44,33.55 L0.0,42.54 L0.32,52.49 L2.41,61.0 L6.26,68.7 L10.11,73.84 L17.01,80.42 L36.92,93.74 L43.66,100.0 L44.94,99.2 L47.35,94.22 L52.49,88.12 L71.75,70.63 L82.99,58.75 L89.57,49.12 L93.74,39.0 L95.02,31.94 L94.86,23.27 L93.42,16.85 L90.53,10.75 L85.55,4.98 L81.54,2.25 L76.24,0.32 L70.47,0.0ZM78.65,11.4 L81.86,17.01 L83.47,26.0 L82.83,33.71 L80.26,41.89 L76.57,48.96 L71.27,56.66 L48.15,82.34 L42.86,90.69 L38.52,85.87 L25.52,75.28 L16.85,65.97 L11.56,56.5 L9.47,46.87 L9.95,37.24 L12.52,27.93 L16.53,21.51 L21.99,17.17 L26.0,15.89 L28.89,15.89 L34.03,17.5 L38.36,21.51 L40.93,27.45 L43.02,28.57 L43.98,27.93 L46.87,21.19 L50.72,16.05 L55.86,11.24 L60.51,8.35 L65.33,6.74 L70.3,6.58 L74.8,8.03 L78.65,11.24Z"/>
+  </symbol>
+</svg>
+
 <div class="cf" id="cf"></div>
 <audio id="aud" preload="auto" playsinline></audio>
 
@@ -242,6 +307,17 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.111.0';
 const ZIEL = window.DUELL_ZIEL || 10;
 const CODE_ALPHABET = 'ACDEFGHJKLMNPQRTUVWXY34679';   // ohne verwechselbare Zeichen
 const STORE_KEY = 'duell1408';
+const SOLO_KEY  = 'duell1408solo';      // laufende Solo-Partie
+const BEST_KEY  = 'duell1408best';      // Bestwert im Solo-Modus
+const SOLO_FEHLER = 3;                  // nach dem dritten Fehler ist Schluss
+// Vorlauf beim Autostart: beide Geräte bekommen Zeit, die Preview zu laden,
+// damit der Song bei beiden wirklich bei Sekunde 0 beginnt statt mittendrin.
+const VORLAUF_MS = 900;
+// Wer beim Start einer Karte weniger als so viele Sekunden hinterherhinkt,
+// hört sie trotzdem von vorn statt mittendrin einzusteigen. Die Spieler
+// sitzen nicht im selben Raum – ein Versatz von ein, zwei Sekunden ist
+// unhörbar, ein fehlender Songanfang wäre sofort spürbar.
+const ANLAUF_KULANZ = 3;
 const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 
 // ══ Zustand (lokal) ══════════════════════════════════════════════
@@ -257,6 +333,9 @@ let pendingGap = null;         // vorgemerkte Lücke, wartet auf Bestätigung
 let audioUnlocked = false;
 let lastRenderedCard = null;   // um Audio nur bei Kartenwechsel neu zu laden
 let confettiShownFor = null;
+let soloRekord = false;        // war die letzte Solo-Partie ein Bestwert?
+let vorlaufTimer = null;       // wartet den Autostart-Vorlauf ab
+let audioAnweisung = null;     // welche Audio-Anweisung ist schon umgesetzt?
 
 const $  = id => document.getElementById(id);
 const other = s => s === 'p1' ? 'p2' : 'p1';
@@ -267,6 +346,7 @@ const setHomeStat = (m,c) => { const e=$('homeStat'); e.textContent=m; e.classNa
 const song = id => SONGS ? SONGS[id] : null;
 const yearOf = id => parseInt(song(id).year, 10);
 const serverNow = () => Date.now() + clockOffset;
+const solo = () => !!(G && G.state.solo);
 
 // ══ Start ════════════════════════════════════════════════════════
 init();
@@ -274,6 +354,7 @@ init();
 async function init() {
   $('btnCreate').addEventListener('click', createGame);
   $('btnJoin').addEventListener('click', joinGame);
+  $('btnSolo').addEventListener('click', startSolo);
   $('btnLeaveLobby').addEventListener('click', leaveGame);
   $('btnHome').addEventListener('click', leaveGame);
   $('btnStart').addEventListener('click', startGame);
@@ -291,6 +372,11 @@ async function init() {
 
   const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
   if (saved?.name) $('nameInput').value = saved.name;
+  zeigeBestwert();
+
+  // Songs zuerst: die braucht auch der Solo-Modus, und der soll selbst
+  // dann laufen, wenn Supabase klemmt.
+  await loadSongs();
 
   try {
     if (!window.SUPABASE_URL || window.SUPABASE_URL.includes('DEIN-PROJEKT'))
@@ -298,15 +384,20 @@ async function init() {
     sb = createClient(window.SUPABASE_URL, window.SUPABASE_KEY, {
       realtime: { params: { eventsPerSecond: 10 } }
     });
-  } catch (e) { return fail(e.message); }
+  } catch (e) { return fail(e.message + ' Solo spielen geht trotzdem.'); }
 
-  await Promise.all([ loadSongs(), calibrateClock() ]);
+  await calibrateClock();
 
-  // Laufendes Spiel? Dann direkt wieder rein.
+  // Laufendes Spiel? Dann direkt wieder rein – erst das Duell, sonst Solo.
   if (saved?.code && saved?.seat) {
     const { data } = await sb.from('games').select().eq('code', saved.code).maybeSingle();
-    if (data && data.state.phase !== 'over') { seat = saved.seat; adopt(data); await subscribe(saved.code); }
+    if (data && data.state.phase !== 'over') {
+      seat = saved.seat; adopt(data); await subscribe(saved.code);
+      return;
+    }
   }
+  const soloSt = JSON.parse(localStorage.getItem(SOLO_KEY) || 'null');
+  if (soloSt && soloSt.phase !== 'over') { seat = 'p1'; G = { code:null, version:0, state:soloSt }; render(); }
 }
 
 function fail(msg) {
@@ -398,6 +489,42 @@ async function createGame() {
   setHomeStat('Konnte keinen freien Code finden – nochmal versuchen.','err');
 }
 
+// ── Solo ─────────────────────────────────────────────────────────
+// Läuft ohne Supabase: G wird lokal gehalten, commit() schreibt nicht
+// ins Netz. Endlos ziehen, nach SOLO_FEHLER Fehlern ist Schluss.
+function startSolo() {
+  if (!SONGS) return setHomeStat('Songdaten laden noch…','');
+  const deck = shuffled(Object.keys(SONGS));
+  seat = 'p1';
+  G = { code:null, version:0, state:{
+    solo: true,
+    phase: 'draw',
+    ziel: Infinity,
+    maxFehler: SOLO_FEHLER,
+    fehler: 0,
+    seats: { p1: { name: myName() }, p2: null },
+    turn: 'p1',
+    timelines: { p1: [deck.pop()], p2: [] },
+    deck,
+    current: null,
+    audio: { playing:false, startedAt:0, seek:0 },
+    result: null,
+    winner: null
+  }};
+  localStorage.setItem(STORE_KEY, JSON.stringify({ name: myName() }));
+  // Gleich sichern, sonst ginge die Partie bei einem Reload vor der ersten
+  // Karte verloren – gespeichert wird sonst erst beim ersten commit().
+  try { localStorage.setItem(SOLO_KEY, JSON.stringify(G.state)); } catch(e) {}
+  render();
+}
+
+function bestwert() { return parseInt(localStorage.getItem(BEST_KEY) || '0', 10); }
+
+function zeigeBestwert() {
+  const b = bestwert();
+  $('soloBest').textContent = b ? `Dein Bestwert: ${b} Karten` : '';
+}
+
 async function joinGame() {
   const code = ($('codeInput').value || '').trim().toUpperCase();
   if (code.length !== 5) return setHomeStat('Bitte den 5-stelligen Code eingeben.','err');
@@ -422,12 +549,15 @@ async function joinGame() {
 }
 
 async function leaveGame() {
-  localStorage.removeItem(STORE_KEY);
+  localStorage.setItem(STORE_KEY, JSON.stringify({ name: myName() }));   // Name behalten
+  localStorage.removeItem(SOLO_KEY);
   if (channel) { await sb.removeChannel(channel); channel = null; }
   clearInterval(pollTimer);
   stopAudio();
   G = null; seat = null; lastRenderedCard = null; confettiShownFor = null;
+  pendingGap = null; soloRekord = false;
   setHomeStat('','');
+  zeigeBestwert();
   show('homeScreen');
 }
 
@@ -458,6 +588,15 @@ function adopt(row) {
 // Schreiben mit optimistischem Sperren: nur wenn die Version noch stimmt.
 // Bei Konflikt neu laden und den Mutator erneut anwenden.
 async function commit(mutate) {
+  // Solo: kein Netz, kein Sperren – einfach lokal anwenden und sichern.
+  if (solo()) {
+    const next = mutate(structuredClone(G.state));
+    if (!next) return false;
+    G = { code:null, version:G.version + 1, state:next };
+    try { localStorage.setItem(SOLO_KEY, JSON.stringify(next)); } catch(e) {}
+    render();
+    return true;
+  }
   for (let i = 0; i < 5; i++) {
     const next = mutate(structuredClone(G.state));
     if (!next) return false;
@@ -490,7 +629,9 @@ async function drawCard() {
   await commit(s => {
     if (s.phase !== 'draw' || s.turn !== seat) return null;
     s.current = s.deck.pop();
-    s.audio = { playing:false, startedAt:0, seek:0 };
+    // Läuft von selbst los. Der Vorlauf liegt in der Zukunft, damit beide
+    // Geräte die Preview geladen haben, bevor Sekunde 0 fällt.
+    s.audio = { playing:true, startedAt:serverNow() + VORLAUF_MS, seek:0 };
     s.result = null;
     s.phase = 'turn';
     return s;
@@ -517,27 +658,51 @@ async function place(index) {
     s.result = { seat, id, index, correct: ok };
     s.audio  = { playing:false, startedAt:0, seek:0 };
     s.phase  = 'result';
-    if (ok && tl.length >= s.ziel) { s.phase = 'over'; s.winner = seat; }
-    return s;
-  });
-}
-
-async function nextTurn() {
-  await commit(s => {
-    if (s.phase !== 'result') return null;
-    s.turn    = other(s.turn);
-    s.current = null;
-    s.result  = null;
-    s.phase   = s.deck.length ? 'draw' : 'over';
-    if (s.phase === 'over' && !s.winner) {
-      const a = s.timelines.p1.length, b = s.timelines.p2.length;
-      s.winner = a === b ? null : (a > b ? 'p1' : 'p2');
+    if (s.solo) {
+      if (!ok) s.fehler++;
+      // Der Bestwert muss hier fallen, nicht nach dem commit: im Solo-Modus
+      // zeichnet commit() sofort neu, und renderOver liest soloRekord.
+      if (s.fehler >= s.maxFehler) { s.phase = 'over'; merkeBestwert(tl.length); }
+    } else if (ok && tl.length >= s.ziel) {
+      s.phase = 'over'; s.winner = seat;
     }
     return s;
   });
 }
 
+// Bestwert ist die Länge der Zeitleiste, wenn der dritte Fehler fällt.
+// Erst vergleichen, dann speichern – sonst wäre der alte Wert schon weg.
+function merkeBestwert(n) {
+  soloRekord = n > bestwert();
+  if (soloRekord) localStorage.setItem(BEST_KEY, String(n));
+}
+
+// Nach der Auflösung in einem Schritt: Zug abgeben und gleich die nächste
+// Karte aufdecken. Vorher waren das zwei Tipps ("Weiter", dann "Karte
+// ziehen"), was sich doppelt anfühlte.
+async function naechsteKarte() {
+  await commit(s => {
+    if (s.phase !== 'result') return null;
+    if (!s.solo) s.turn = other(s.turn);
+    s.result = null;
+    if (!s.deck.length) {
+      s.phase = 'over';
+      s.current = null;
+      if (!s.solo && !s.winner) {
+        const a = s.timelines.p1.length, b = s.timelines.p2.length;
+        s.winner = a === b ? null : (a > b ? 'p1' : 'p2');
+      }
+      return s;
+    }
+    s.current = s.deck.pop();
+    s.audio = { playing:true, startedAt:serverNow() + VORLAUF_MS, seek:0 };
+    s.phase = 'turn';
+    return s;
+  });
+}
+
 async function playAgain() {
+  if (solo()) return startSolo();
   await commit(s => {
     s.deck      = shuffled(Object.keys(SONGS));
     s.timelines = { p1: [s.deck.pop()], p2: [s.deck.pop()] };
@@ -592,6 +757,16 @@ function syncAudio(st) {
   }
   const want = targetTime(st.audio);
 
+  // Vorlauf läuft noch: beide Geräte warten auf Position 0, damit der Song
+  // wirklich bei beiden von vorn beginnt und nicht mittendrin einsteigt.
+  if (st.audio.playing && want < 0) {
+    if (!aud.paused) aud.pause();
+    if (aud.currentTime) aud.currentTime = 0;
+    clearTimeout(vorlaufTimer);
+    vorlaufTimer = setTimeout(() => { if (G) render(); }, Math.min(2000, -want * 1000) + 60);
+    return 'vorlauf';
+  }
+
   // Der wartende Spieler schreibt nie in den Zustand. Läuft die Preview
   // aus, während er zusieht, bleibt dort also "playing: true" stehen. Wer
   // danach neu lädt oder das Handy entsperrt, würde sonst eine tote
@@ -603,18 +778,29 @@ function syncAudio(st) {
     return 'fertig';
   }
 
-  if (st.audio.playing) {
-    if (aud.paused || Math.abs(aud.currentTime - want) > .7) {
+  // Jede Audio-Anweisung genau einmal umsetzen statt laufend auf die
+  // Sollposition nachzuregeln. Das Nachregeln würde einen Start von vorn
+  // sofort wieder wegkorrigieren – und nötig ist es nicht, weil Audio-Uhren
+  // über 90 Sekunden nicht nennenswert auseinanderlaufen.
+  const anweisung = `${st.current}|${st.audio.playing}|${st.audio.startedAt}|${st.audio.seek}`;
+  if (anweisung !== audioAnweisung) {
+    audioAnweisung = anweisung;
+    if (st.audio.playing) {
+      // Kartenstart: lieber von vorn als mittendrin (siehe ANLAUF_KULANZ).
+      aud.currentTime = (!st.audio.seek && want < ANLAUF_KULANZ) ? 0 : Math.max(0, want);
+      aud.play()
+        .then(() => { if (G) render(); })         // Status von "Lädt…" auf "läuft"
+        .catch(() => {
+          audioAnweisung = null;                  // beim nächsten Zeichnen erneut versuchen
+          setStat('Tippe einmal auf den Bildschirm, um Ton zu erlauben','err');
+        });
+    } else {
+      aud.pause();
       aud.currentTime = Math.max(0, want);
-      aud.play().catch(() => setStat('Tippe einmal auf den Bildschirm, um Ton zu erlauben','err'));
     }
-    return 'laeuft';
   }
-  if (!aud.paused) {
-    aud.pause();
-    aud.currentTime = Math.max(0, want);
-  }
-  return 'pause';
+  if (!st.audio.playing) return 'pause';
+  return aud.paused ? 'laedt' : 'laeuft';
 }
 
 function fmtTime(sec) {
@@ -627,10 +813,28 @@ aud.addEventListener('loadedmetadata', () => {
   if (aud.paused && aud.duration) $('tlbl').textContent = fmtTime(aud.duration);
 });
 
+// Beide Geräte kennen die Deck-Reihenfolge, also lässt sich die nächste
+// Preview schon laden, während noch aufgelöst wird. Der Browser hat sie
+// dann im Cache und der Autostart trifft Sekunde 0 – gerade beim wartenden
+// Spieler, der den Zustand erst über Realtime bekommt. Kostet keine
+// zusätzlichen Daten, die Datei würde ohnehin gleich gebraucht.
+let vorladeEl = null, vorgeladen = null;
+function ladeNaechsteVor(st) {
+  const naechste = st.deck[st.deck.length - 1];
+  if (!naechste || vorgeladen === naechste) return;
+  const s = song(naechste);
+  if (!s) return;
+  vorgeladen = naechste;
+  if (!vorladeEl) { vorladeEl = new Audio(); vorladeEl.preload = 'auto'; }
+  vorladeEl.src = s.pr;
+  vorladeEl.load();
+}
+
 function stopAudio() {
   if (lastRenderedCard === null) return;     // schon gestoppt
   aud.pause(); aud.removeAttribute('src'); aud.load();
   lastRenderedCard = null;
+  audioAnweisung = null;
 }
 
 function onAudioEnded() {
@@ -687,33 +891,46 @@ function renderGame(st) {
   const mine = st.turn === seat;
 
   // ── Punktestand ──
-  $('score').innerHTML = ['p1','p2'].map(k => `
-    <div class="seat${st.turn===k?' active':''}">
-      <div class="nm">${esc(st.seats[k]?.name || '—')}${k===seat?' (du)':''}</div>
-      <div class="ct">${st.timelines[k].length}<small> / ${st.ziel}</small></div>
-    </div>`).join('');
-
-  // ── Bühne ──
-  const stage = $('stage');
-  if (st.phase === 'draw') {
-    stage.innerHTML = `<div class="mystery"><div class="mlck">🎴</div>
-      <div class="mhint">${mine ? 'Du bist dran' : esc(st.seats[st.turn].name) + ' ist dran'}</div></div>`;
-  } else if (st.phase === 'turn') {
-    stage.innerHTML = `<div class="mystery"><div class="mlck">🔒</div>
-      <div class="mhint">Wann war das?</div></div>`;
-  } else if (st.phase === 'result') {
-    stage.innerHTML = revealHTML(song(st.result.id), st.result);
+  if (st.solo) {
+    const herz = weg => `<svg class="${weg ? 'weg' : ''}" viewBox="0 0 95.2 100"><use href="#escherz"/></svg>`;
+    const leben = Array.from({ length: st.maxFehler }, (_, i) => herz(i >= st.maxFehler - st.fehler)).join('');
+    $('score').innerHTML = `
+      <div class="seat active"><div class="nm">Karten</div>
+        <div class="ct">${st.timelines.p1.length}</div></div>
+      <div class="seat"><div class="nm">Leben</div>
+        <div class="ct leben">${leben}</div></div>`;
+  } else {
+    $('score').innerHTML = ['p1','p2'].map(k => `
+      <div class="seat${st.turn===k?' active':''}">
+        <div class="nm">${esc(st.seats[k]?.name || '—')}${k===seat?' (du)':''}</div>
+        <div class="ct">${st.timelines[k].length}<small> / ${st.ziel}</small></div>
+      </div>`).join('');
   }
 
+  // ── Bühne ──
+  // Vor der Auflösung bleibt sie leer: der Player allein sagt genug.
+  const stage = $('stage');
+  const auflösung = st.phase === 'result';
+  stage.innerHTML = auflösung ? revealHTML(st.result.id) : '';
+  stage.style.display = auflösung ? 'block' : 'none';
+
+  const vd = $('verdict');
+  vd.textContent = !auflösung ? ''
+    : st.result.correct ? '✓ Richtig einsortiert' : '✕ Daneben – Karte kommt zurück';
+  vd.className = 'verdict' + (auflösung ? (st.result.correct ? ' ok' : ' err') : '');
+
   // ── Player ──
+  // Bleibt auch beim Ziehen stehen (nur ausgegraut), damit der Knopf nicht
+  // erst auftaucht und alles darunter verschiebt.
   const audible = st.phase === 'turn';
-  $('playerBox').style.display = audible ? 'flex' : 'none';
+  $('playerBox').style.display = auflösung ? 'none' : 'flex';
   $('pbtn').disabled = !(audible && mine);
   if (audible) {
     const lauf = syncAudio(st);
     $('pbtn').classList.toggle('on', lauf === 'laeuft');
     setStat(
-      lauf === 'laeuft' ? '♫ Ihr hört beide zu'
+      lauf === 'laeuft' ? (st.solo ? '♫ Läuft' : '♫ Ihr hört beide zu')
+      : lauf === 'vorlauf' ? 'Gleich geht’s los…'
       : lauf === 'laedt' ? 'Lädt…'
       : lauf === 'fertig' ? (mine ? 'Durchgelaufen – nochmal ▶ oder einsortieren' : 'Durchgelaufen')
       : mine ? 'Tippe ▶ zum Anspielen'
@@ -721,7 +938,12 @@ function renderGame(st) {
       lauf === 'laeuft' ? 'ok' : '');
   } else {
     $('pbtn').classList.remove('on');
+    clearTimeout(vorlaufTimer);
     stopAudio();
+    $('pfill').style.width = '0%';
+    $('tlbl').textContent = '—';
+    setStat(st.phase === 'draw' && !mine ? 'Wartet auf ' + st.seats[st.turn].name : '', '');
+    ladeNaechsteVor(st);        // Ziehen und Auflösen sind die ruhigen Momente
   }
 
   // ── Zeitleiste des Spielers am Zug ──
@@ -729,11 +951,15 @@ function renderGame(st) {
   $('tlLabel').textContent = tlSeat === seat ? 'Deine Zeitleiste' : 'Zeitleiste von ' + st.seats[tlSeat].name;
   renderTimeline(st, tlSeat, mine && st.phase === 'turn');
 
-  // ── Gegner kompakt ──
-  const oSeat = other(tlSeat);
-  $('oppo').innerHTML = `<div class="tllabel">${oSeat===seat ? 'Deine Karten' : esc(st.seats[oSeat].name)}</div>
-    <div class="row">${st.timelines[oSeat].map(id => `<span class="chip">${song(id).year}</span>`).join('') ||
-      '<span class="chip">noch leer</span>'}</div>`;
+  // ── Gegner kompakt (im Solo gibt es keinen) ──
+  if (st.solo) {
+    $('oppo').innerHTML = '';
+  } else {
+    const oSeat = other(tlSeat);
+    $('oppo').innerHTML = `<div class="tllabel">${oSeat===seat ? 'Deine Karten' : esc(st.seats[oSeat].name)}</div>
+      <div class="row">${st.timelines[oSeat].map(id => `<span class="chip">${song(id).year}</span>`).join('') ||
+        '<span class="chip">noch leer</span>'}</div>`;
+  }
 
   // ── Aktionen ──
   renderActions(st, mine);
@@ -769,7 +995,8 @@ function renderTimeline(st, tlSeat, interactive) {
       const s = song(tl[i]);
       const c = document.createElement('div');
       c.className = 'tlcard' + (i === freshIdx ? ' fresh' : '');
-      c.innerHTML = `<div class="f">${s.flag}</div><div class="y">${s.year}</div><div class="t">${esc(s.title)}</div>`;
+      c.style.background = verlauf(tl[i]);
+      c.innerHTML = `<div class="f">${flagImg(s)}</div><div class="y">${s.year}</div><div class="t">${esc(s.title)}</div>`;
       el.appendChild(c);
       if (i === freshIdx) focus = c;
     }
@@ -802,22 +1029,64 @@ function renderActions(st, mine) {
     else if (pendingGap === null) add('Tippe eine Lücke in der Zeitleiste', '', null, true);
     else add('Hier einsortieren', 'prim', () => { const g = pendingGap; pendingGap = null; place(g); });
   } else if (st.phase === 'result') {
-    add('Weiter', 'prim', nextTurn);
+    add('Nächste Karte', 'prim', naechsteKarte);
   }
-  add('Spiel verlassen', 'ghost', leaveGame);
+  add(st.solo ? 'Solo beenden' : 'Spiel verlassen', 'ghost', leaveGame);
 }
 
-function revealHTML(s, res) {
-  return `<div class="revcard">
-    <div class="ry">${s.year}</div>
-    <div class="rt">${esc(s.title)}</div>
-    <div class="ra">${esc(s.artist)}</div>
-    <div class="rmeta">
-      <span class="tag">${s.flag} ${esc(s.country)}</span>
-      <span class="tag g">${s.place && s.place !== '—' ? 'Platz ' + esc(s.place) : 'ESC'}</span>
-    </div>
-    <div class="verdict ${res.correct ? 'ok' : 'err'}">
-      ${res.correct ? '✓ Richtig einsortiert' : '✕ Daneben – Karte kommt zurück'}
+// ── Kartenverläufe ───────────────────────────────────────────────
+// Aus allen 336 gedruckten Karten ausgemessen: 25 Farbpaare, jeweils
+// exakt linear über die Diagonale, teils in beide Richtungen.
+const VERLAEUFE = [
+  ['#FFF6AD','#FFA9F8'], ['#FFF199','#FF3131'], ['#99F074','#5DE6FE'],
+  ['#FF49C6','#FFEA64'], ['#8B52FE','#5CE0E6'], ['#DDFE96','#51C84F'],
+  ['#FFC1F4','#FF5D5D'], ['#CCFED8','#94B9FE'], ['#FFDF09','#FFFAC2'],
+  ['#DBFEFE','#CBAFE7'], ['#0CC0DE','#FEDD59'], ['#5DE5FE','#FEC2F5'],
+  ['#FFDE09','#FECFB4'], ['#0097B1','#7DD857'], ['#745BFE','#F85BF6'],
+  ['#94B8FE','#F6A3F6'], ['#FE5757','#8C52FE'], ['#FE66B9','#59B4FF'],
+  ['#5977FE','#FE71BE'], ['#FEBF31','#56EAE1'], ['#AE89F9','#00BE63'],
+  ['#FF5757','#FFD852'], ['#ED4F4F','#745BFE'], ['#8B50FE','#A9FEA3'],
+  ['#4D6CDB','#C1EFFE']
+];
+
+// Der Verlauf muss aus der Song-ID folgen, nicht aus Zufall: dieselbe
+// Karte soll in der Zeitleiste, in der Auflösung und auf beiden Handys
+// gleich aussehen. FNV-1a streut die 336 IDs gut über die 25 Paare.
+function verlauf(id) {
+  let h = 2166136261;
+  const s = String(id);
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h >>>= 0;
+  const [a, b] = VERLAEUFE[h % VERLAEUFE.length];
+  return (h >>> 9) & 1
+    ? `linear-gradient(135deg,${b},${a})`
+    : `linear-gradient(135deg,${a},${b})`;
+}
+
+// Dateiname der Herzflagge aus dem Ländernamen. Muss identisch zu slug()
+// in build_flags.py bleiben.
+function flagSlug(land) {
+  return String(land).toLowerCase()
+    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+}
+
+// Für Ungarn gibt es (noch) keine Herzflagge – dann übernimmt das Emoji.
+// Der Ersatz muss ein Element sein, sonst greift das flex-gap daneben nicht.
+function flagImg(s) {
+  return `<img src="flags/${flagSlug(s.country)}.png" alt="" data-fb="${s.flag}"
+               onerror="this.outerHTML='&lt;span&gt;'+this.dataset.fb+'&lt;/span&gt;'">`;
+}
+
+function revealHTML(id) {
+  const s = song(id);
+  return `<div class="cardface" style="background:${verlauf(id)}">
+    <div class="ca">${esc(s.artist)}</div>
+    <div class="cy">${s.year}</div>
+    <div class="ct">${esc(s.title)}</div>
+    <div class="foot">
+      <span class="land">${flagImg(s)}${esc(s.country)}</span>
+      <span class="nr">${s.place && s.place !== '—' ? 'Platz ' + esc(s.place) : 'ESC'}</span>
     </div>
   </div>`;
 }
@@ -825,7 +1094,22 @@ function revealHTML(s, res) {
 function renderOver(st) {
   show('overScreen');
   stopAudio();
+  localStorage.removeItem(SOLO_KEY);
+
+  if (st.solo) {
+    const n = st.timelines.p1.length;
+    $('overTitle').textContent = soloRekord ? 'Neuer Bestwert!' : `${n} Karten`;
+    $('overSub').textContent = soloRekord
+      ? `${n} Karten in deiner Zeitleiste – so weit warst du noch nie.`
+      : `${n} Karten geschafft. Dein Bestwert liegt bei ${bestwert()}.`;
+    $('btnAgain').textContent = 'Nochmal solo';
+    zeigeBestwert();
+    if (soloRekord) confetti();
+    return;
+  }
+
   const w = st.winner;
+  $('btnAgain').textContent = 'Nochmal spielen';
   $('overTitle').textContent = !w ? 'Unentschieden'
     : (w === seat ? 'Du gewinnst!' : st.seats[w].name + ' gewinnt');
   $('overSub').textContent =

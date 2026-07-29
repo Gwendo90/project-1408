@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="1408 Duell">
+<meta name="theme-color" content="#F1F0EC">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>1408 – Fernduell</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#F1F0EC; --surface:#FFFFFF; --border:#E4E3DE;
+  --grad-a:#E0326E; --grad-mid:#9E22B4; --grad-b:#4FBBDD;
+  --pink:#D62E8A; --blue:#436EDC;
+  --green:#00A14B; --red:#E8003D;
+  --text:#16161A; --muted:#9A9AA0; --track:#CDCCC7;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { height:100%; background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; overflow:hidden; }
+.screen { position:fixed; inset:0; z-index:1; display:flex; flex-direction:column; align-items:center; gap:22px;
+          padding:24px; padding-top:max(env(safe-area-inset-top),40px);
+          padding-bottom:calc(max(env(safe-area-inset-bottom),20px) + 16px);
+          transition:opacity .3s,transform .3s; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.screen.hidden { opacity:0; pointer-events:none; transform:scale(.97); }
+.logo { width:100%; display:flex; justify-content:center; flex-shrink:0; }
+.logo img { width:150px; height:auto; display:block; }
+
+/* ── Karten / Panels ──────────────────────────────────────────── */
+.panel { width:100%; max-width:400px; background:var(--surface); border:1px solid var(--border);
+         border-radius:20px; padding:22px; display:flex; flex-direction:column; align-items:center;
+         gap:14px; flex-shrink:0; box-shadow:0 8px 28px rgba(40,30,80,.05); }
+.h1 { font-size:21px; font-weight:700; letter-spacing:.3px; text-align:center; }
+.sub { font-size:13px; color:var(--muted); text-align:center; line-height:1.6; }
+
+/* ── Eingaben & Buttons ───────────────────────────────────────── */
+.inp { width:100%; padding:15px 16px; border:1px solid var(--border); border-radius:14px; background:var(--bg);
+       font-family:inherit; font-size:16px; font-weight:500; color:var(--text); -webkit-appearance:none; text-align:center; }
+.inp:focus { outline:none; border-color:var(--grad-mid); }
+.inp.code { text-transform:uppercase; letter-spacing:6px; font-weight:700; font-size:22px; }
+.btn { width:100%; padding:16px; border-radius:14px; cursor:pointer; font-family:inherit; font-size:15px;
+       font-weight:600; -webkit-appearance:none; text-align:center; border:1px solid var(--border);
+       background:var(--surface); color:var(--text); }
+.btn:disabled { opacity:.4; cursor:default; }
+.btn.prim { border:none; color:white; background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
+            box-shadow:0 10px 26px rgba(158,34,180,.30); }
+.btn.prim:active { opacity:.9; transform:scale(.98); }
+.btn.ghost { background:transparent; border:none; color:var(--muted); font-size:13px; padding:8px; }
+.actions { width:100%; max-width:400px; display:flex; flex-direction:column; gap:10px; flex-shrink:0; }
+.divider { display:flex; align-items:center; gap:12px; width:100%; color:var(--muted); font-size:12px; }
+.divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ── Lobby-Code ───────────────────────────────────────────────── */
+.bigcode { font-size:44px; font-weight:700; letter-spacing:10px; padding-left:10px;
+           background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
+           -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.waiting { display:flex; align-items:center; gap:9px; font-size:13px; color:var(--muted); }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--grad-mid); animation:blink 1.4s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:.25} 50%{opacity:1} }
+
+/* ── Punktestand ──────────────────────────────────────────────── */
+.score { width:100%; max-width:400px; display:flex; gap:10px; flex-shrink:0; }
+.seat { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:14px;
+        padding:10px 12px; display:flex; flex-direction:column; gap:2px; position:relative; overflow:hidden; }
+.seat.active { border-color:transparent; box-shadow:0 0 0 2px var(--grad-mid); }
+.seat.active::before { content:''; position:absolute; top:0; left:0; right:0; height:3px;
+        background:linear-gradient(90deg,var(--grad-a),var(--grad-b)); }
+.seat .nm { font-size:12px; font-weight:600; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.seat .ct { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
+.seat .ct small { font-size:12px; font-weight:500; color:var(--muted); }
+
+/* ── Bühne: Mystery / Reveal ──────────────────────────────────── */
+.stage { width:100%; max-width:400px; flex-shrink:0; }
+.mystery { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:22px;
+           display:flex; flex-direction:column; align-items:center; gap:6px; box-shadow:0 8px 28px rgba(40,30,80,.05); }
+.mlck { font-size:30px; }
+.mhint { font-size:11px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--muted); }
+.revcard { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:18px 20px;
+           display:flex; flex-direction:column; gap:5px; position:relative; overflow:hidden;
+           box-shadow:0 8px 28px rgba(40,30,80,.06); animation:pop .4s cubic-bezier(.34,1.56,.64,1) both; }
+.revcard::before { content:''; position:absolute; top:0; left:0; right:0; height:4px;
+           background:linear-gradient(90deg,var(--grad-a),var(--grad-mid),var(--grad-b)); }
+@keyframes pop { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
+.ry { font-size:38px; font-weight:700; line-height:1; letter-spacing:.5px;
+      background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
+      -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.rt { font-size:17px; font-weight:700; letter-spacing:.2px; line-height:1.15; }
+.ra { font-size:13px; font-weight:600; color:var(--muted); }
+.rmeta { display:flex; gap:7px; flex-wrap:wrap; margin-top:3px; }
+.tag { font-size:10px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; padding:4px 9px;
+       border-radius:50px; background:#F4F3EF; color:var(--muted); border:1px solid var(--border); }
+.tag.g { background:linear-gradient(135deg,rgba(224,50,110,.12),rgba(79,187,221,.14));
+         color:var(--grad-mid); border-color:rgba(158,34,180,.25); }
+.verdict { margin-top:10px; font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; }
+.verdict.ok  { color:var(--green); }
+.verdict.err { color:var(--red); }
+
+/* ── Player ───────────────────────────────────────────────────── */
+.player { width:100%; max-width:400px; display:flex; flex-direction:column; align-items:center; gap:16px; flex-shrink:0; }
+.pbtn { width:84px; height:84px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center;
+        justify-content:center; -webkit-appearance:none; transition:transform .15s;
+        background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
+        box-shadow:0 12px 34px rgba(158,34,180,.35); }
+.pbtn:active { transform:scale(.96); }
+.pbtn:disabled { background:var(--track); box-shadow:none; cursor:default; }
+.pbtn.on { animation:pulse 2.4s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{box-shadow:0 12px 34px rgba(158,34,180,.35)}
+                   50%{box-shadow:0 12px 44px rgba(158,34,180,.6),0 0 0 14px rgba(158,34,180,.06)} }
+.pbtn svg { width:32px; height:32px; fill:white; margin-left:3px; }
+.pbtn.on svg { margin-left:0; }
+.iplay{display:block;} .ipause{display:none;}
+.pbtn.on .iplay{display:none;} .pbtn.on .ipause{display:block;}
+.pw { width:100%; display:flex; align-items:center; gap:14px; }
+.pbar { flex:1; height:5px; background:var(--track); border-radius:3px; overflow:hidden; }
+.pfill { height:100%; width:0%; background:linear-gradient(90deg,var(--blue),var(--pink)); border-radius:3px; }
+.tlbl { font-size:13px; color:var(--muted); min-width:40px; text-align:right; font-variant-numeric:tabular-nums; }
+.stat { font-size:13px; color:var(--muted); text-align:center; min-height:18px; }
+.stat.ok{color:var(--green);} .stat.err{color:var(--red);}
+
+/* ── Zeitleiste ───────────────────────────────────────────────── */
+.tlwrap { width:100%; max-width:400px; flex-shrink:0; }
+.tllabel { font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+           color:var(--muted); margin-bottom:8px; padding-left:2px; }
+.tl { display:flex; align-items:stretch; gap:0; overflow-x:auto; padding:4px 2px 12px;
+      -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.tl::-webkit-scrollbar { display:none; }
+.tlcard { flex:0 0 auto; width:92px; background:var(--surface); border:1px solid var(--border); border-radius:14px;
+          padding:12px 8px; display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center; }
+.tlcard .y { font-size:19px; font-weight:700; line-height:1;
+             background:linear-gradient(135deg,var(--grad-a),var(--grad-b));
+             -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.tlcard .t { font-size:9px; font-weight:600; color:var(--muted); line-height:1.25;
+             display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.tlcard .f { font-size:13px; }
+.tlcard.fresh { animation:pop .45s cubic-bezier(.34,1.56,.64,1) both; box-shadow:0 0 0 2px var(--green); }
+.gap { flex:0 0 auto; width:34px; display:flex; align-items:center; justify-content:center;
+       background:none; border:none; padding:0; font-family:inherit; }
+.gap .bar { width:4px; height:52px; border-radius:3px; background:var(--track); transition:all .2s; }
+.gap.live .bar { background:linear-gradient(180deg,var(--grad-a),var(--grad-b)); cursor:pointer; }
+.gap.live:active .bar { transform:scaleX(2); }
+.gap.sel .bar { width:16px; height:66px; background:linear-gradient(180deg,var(--grad-a),var(--grad-b));
+                box-shadow:0 6px 18px rgba(158,34,180,.40); }
+.tlempty { font-size:13px; color:var(--muted); padding:14px 0; }
+
+/* ── Gegner-Leiste (kompakt) ──────────────────────────────────── */
+.oppo { width:100%; max-width:400px; flex-shrink:0; }
+.oppo .tllabel { margin-bottom:6px; }
+.oppo .row { display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; padding-bottom:4px; }
+.oppo .row::-webkit-scrollbar { display:none; }
+.chip { flex:0 0 auto; font-size:11px; font-weight:600; padding:5px 9px; border-radius:50px;
+        background:var(--surface); border:1px solid var(--border); color:var(--muted); }
+
+.cf { position:fixed; inset:0; pointer-events:none; z-index:999; overflow:hidden; }
+.err-banner { width:100%; max-width:400px; background:#FDECEF; border:1px solid #F5C2CE; color:var(--red);
+              border-radius:14px; padding:12px 14px; font-size:13px; line-height:1.5; flex-shrink:0; }
+</style>
+</head>
+<body>
+
+<!-- ══ START ══════════════════════════════════════════════════ -->
+<div class="screen" id="homeScreen">
+  <div class="logo"><img src="Logo.svg" alt="1408"></div>
+  <div class="panel">
+    <div class="h1">Fernduell</div>
+    <div class="sub">Zwei Spieler, zwei Handys.<br>Die App ist die Verbindung.</div>
+    <input class="inp" id="nameInput" placeholder="Dein Name" maxlength="14" autocomplete="off">
+  </div>
+  <div class="actions">
+    <button class="btn prim" id="btnCreate">Neues Spiel starten</button>
+    <div class="divider">oder</div>
+    <input class="inp code" id="codeInput" placeholder="CODE" maxlength="5" autocomplete="off"
+           autocapitalize="characters" autocorrect="off" spellcheck="false">
+    <button class="btn" id="btnJoin">Spiel beitreten</button>
+  </div>
+  <div class="stat" id="homeStat"></div>
+</div>
+
+<!-- ══ LOBBY ══════════════════════════════════════════════════ -->
+<div class="screen hidden" id="lobbyScreen">
+  <div class="logo"><img src="Logo.svg" alt="1408"></div>
+  <div class="panel">
+    <div class="sub">Spielcode</div>
+    <div class="bigcode" id="lobbyCode">—</div>
+    <div class="sub" id="lobbyHint">Gib den Code an deinen Mitspieler weiter</div>
+  </div>
+  <div class="panel" id="lobbySeats"></div>
+  <div class="actions">
+    <button class="btn prim" id="btnStart" disabled>Spiel starten</button>
+    <button class="btn ghost" id="btnLeaveLobby">Abbrechen</button>
+  </div>
+</div>
+
+<!-- ══ SPIEL ══════════════════════════════════════════════════ -->
+<div class="screen hidden" id="gameScreen">
+  <div class="score" id="score"></div>
+  <div class="stage" id="stage"></div>
+  <div class="player" id="playerBox">
+    <button class="pbtn" id="pbtn" disabled>
+      <svg class="iplay"  viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      <svg class="ipause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+    </button>
+    <div class="pw">
+      <div class="pbar"><div class="pfill" id="pfill"></div></div>
+      <div class="tlbl" id="tlbl">—</div>
+    </div>
+    <div class="stat" id="stat">—</div>
+  </div>
+  <div class="tlwrap">
+    <div class="tllabel" id="tlLabel">Zeitleiste</div>
+    <div class="tl" id="tl"></div>
+  </div>
+  <div class="oppo" id="oppo"></div>
+  <div class="actions" id="gameActions"></div>
+</div>
+
+<!-- ══ ENDE ═══════════════════════════════════════════════════ -->
+<div class="screen hidden" id="overScreen">
+  <div class="logo"><img src="Logo.svg" alt="1408"></div>
+  <div class="panel">
+    <div style="font-size:46px">🏆</div>
+    <div class="h1" id="overTitle">—</div>
+    <div class="sub" id="overSub">—</div>
+  </div>
+  <div class="actions">
+    <button class="btn prim" id="btnAgain">Nochmal spielen</button>
+    <button class="btn ghost" id="btnHome">Zurück zum Start</button>
+  </div>
+</div>
+
+<div class="cf" id="cf"></div>
+<audio id="aud" preload="auto" playsinline></audio>
+
+<script src="duell-config.js"></script>
+<script type="module">
+// Feste Version statt @2: ein automatisches Minor-Update soll das Spiel
+// nicht mitten in einer Runde kaputtmachen.
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.111.0';
+
+// ══ Konstanten ═══════════════════════════════════════════════════
+const ZIEL = window.DUELL_ZIEL || 10;
+const CODE_ALPHABET = 'ACDEFGHJKLMNPQRTUVWXY34679';   // ohne verwechselbare Zeichen
+const STORE_KEY = 'duell1408';
+const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+
+// ══ Zustand (lokal) ══════════════════════════════════════════════
+const aud = document.getElementById('aud');
+let sb = null;                 // Supabase-Client
+let SONGS = null;              // songs.json
+let G = null;                  // { code, version, state }
+let seat = null;               // 'p1' | 'p2' – wer bin ich?
+let channel = null;
+let pollTimer = null, tickTimer = null;
+let clockOffset = 0;           // Serverzeit − lokale Zeit, in ms
+let pendingGap = null;         // vorgemerkte Lücke, wartet auf Bestätigung
+let audioUnlocked = false;
+let lastRenderedCard = null;   // um Audio nur bei Kartenwechsel neu zu laden
+let confettiShownFor = null;
+
+const $  = id => document.getElementById(id);
+const other = s => s === 'p1' ? 'p2' : 'p1';
+const show = id => document.querySelectorAll('.screen')
+  .forEach(s => s.classList.toggle('hidden', s.id !== id));
+const setStat = (m,c) => { const e=$('stat'); e.textContent=m; e.className='stat'+(c?' '+c:''); };
+const setHomeStat = (m,c) => { const e=$('homeStat'); e.textContent=m; e.className='stat'+(c?' '+c:''); };
+const song = id => SONGS ? SONGS[id] : null;
+const yearOf = id => parseInt(song(id).year, 10);
+const serverNow = () => Date.now() + clockOffset;
+
+// ══ Start ════════════════════════════════════════════════════════
+init();
+
+async function init() {
+  $('btnCreate').addEventListener('click', createGame);
+  $('btnJoin').addEventListener('click', joinGame);
+  $('btnLeaveLobby').addEventListener('click', leaveGame);
+  $('btnHome').addEventListener('click', leaveGame);
+  $('btnStart').addEventListener('click', startGame);
+  $('btnAgain').addEventListener('click', playAgain);
+  $('pbtn').addEventListener('click', togglePlay);
+  $('codeInput').addEventListener('input', e => {
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
+  });
+  // Beim ersten Antippen das Audio-Element für spätere programmatische
+  // Wiedergabe freischalten (iOS/Android erlauben play() sonst nur direkt
+  // aus einer Nutzergeste heraus – der wartende Spieler tippt aber nicht).
+  document.addEventListener('pointerdown', unlockAudio, { once:true });
+
+  aud.addEventListener('ended', onAudioEnded);
+
+  const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+  if (saved?.name) $('nameInput').value = saved.name;
+
+  try {
+    if (!window.SUPABASE_URL || window.SUPABASE_URL.includes('DEIN-PROJEKT'))
+      throw new Error('Supabase ist noch nicht konfiguriert – trag URL und Key in duell-config.js ein.');
+    sb = createClient(window.SUPABASE_URL, window.SUPABASE_KEY, {
+      realtime: { params: { eventsPerSecond: 10 } }
+    });
+  } catch (e) { return fail(e.message); }
+
+  await Promise.all([ loadSongs(), calibrateClock() ]);
+
+  // Laufendes Spiel? Dann direkt wieder rein.
+  if (saved?.code && saved?.seat) {
+    const { data } = await sb.from('games').select().eq('code', saved.code).maybeSingle();
+    if (data && data.state.phase !== 'over') { seat = saved.seat; adopt(data); await subscribe(saved.code); }
+  }
+}
+
+function fail(msg) {
+  const b = document.createElement('div');
+  b.className = 'err-banner';
+  b.textContent = '⚠️ ' + msg;
+  $('homeScreen').insertBefore(b, $('homeScreen').children[1]);
+  $('btnCreate').disabled = $('btnJoin').disabled = true;
+}
+
+function loadSongs() {
+  return fetch('songs.json?v=' + Date.now())
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(d => { SONGS = d; })
+    .catch(() => fail('Songdaten konnten nicht geladen werden – Internetverbindung prüfen.'));
+}
+
+// Die beiden Handys gehen unterschiedlich. Für die Audio-Synchronisation
+// messen wir einmal den Versatz zur Serveruhr (dreimal, bester RTT gewinnt).
+async function calibrateClock() {
+  let best = Infinity;
+  for (let i = 0; i < 3; i++) {
+    const t0 = Date.now();
+    const { data, error } = await sb.rpc('server_now');
+    if (error) return;
+    const rtt = Date.now() - t0;
+    if (rtt < best) {
+      best = rtt;
+      clockOffset = new Date(data).getTime() + rtt / 2 - Date.now();
+    }
+  }
+}
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  const src = aud.src;
+  aud.src = SILENT;
+  aud.play().then(() => { aud.pause(); if (src) aud.src = src; }).catch(() => {});
+}
+
+// ══ Spiel anlegen / beitreten ════════════════════════════════════
+function myName() {
+  return ($('nameInput').value || '').trim().slice(0,14) || 'Spieler';
+}
+
+function shuffled(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function newCode() {
+  let c = '';
+  for (let i = 0; i < 5; i++) c += CODE_ALPHABET[Math.floor(Math.random()*CODE_ALPHABET.length)];
+  return c;
+}
+
+async function createGame() {
+  if (!SONGS) return setHomeStat('Songdaten laden noch…','');
+  setHomeStat('Spiel wird angelegt…','');
+  const state = {
+    phase: 'lobby',
+    ziel: ZIEL,
+    seats: { p1: { name: myName() }, p2: null },
+    turn: 'p1',
+    deck: shuffled(Object.keys(SONGS)),
+    timelines: { p1: [], p2: [] },
+    current: null,
+    audio: { playing:false, startedAt:0, seek:0 },
+    result: null,
+    winner: null
+  };
+  for (let tries = 0; tries < 6; tries++) {
+    const code = newCode();
+    const { data, error } = await sb.from('games')
+      .insert({ code, state, version: 0 }).select().maybeSingle();
+    if (data) {
+      seat = 'p1';
+      adopt(data);
+      await subscribe(code);
+      return;
+    }
+    if (error && error.code !== '23505') return setHomeStat('Fehler: ' + error.message, 'err');
+  }
+  setHomeStat('Konnte keinen freien Code finden – nochmal versuchen.','err');
+}
+
+async function joinGame() {
+  const code = ($('codeInput').value || '').trim().toUpperCase();
+  if (code.length !== 5) return setHomeStat('Bitte den 5-stelligen Code eingeben.','err');
+  setHomeStat('Suche Spiel…','');
+  const { data, error } = await sb.from('games').select().eq('code', code).maybeSingle();
+  if (error) return setHomeStat('Fehler: ' + error.message, 'err');
+  if (!data)  return setHomeStat('Kein Spiel mit dem Code ' + code + '.','err');
+
+  // Platz schon belegt? Dann bin ich vielleicht der zurückkehrende Spieler.
+  if (data.state.seats.p2) {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (saved?.code === code && saved?.seat) {
+      seat = saved.seat; adopt(data); return subscribe(code);
+    }
+    return setHomeStat('Das Spiel ist schon voll.','err');
+  }
+
+  seat = 'p2';
+  adopt(data);
+  await subscribe(code);
+  await commit(s => { s.seats.p2 = { name: myName() }; return s; });
+}
+
+async function leaveGame() {
+  localStorage.removeItem(STORE_KEY);
+  if (channel) { await sb.removeChannel(channel); channel = null; }
+  clearInterval(pollTimer);
+  stopAudio();
+  G = null; seat = null; lastRenderedCard = null; confettiShownFor = null;
+  setHomeStat('','');
+  show('homeScreen');
+}
+
+// ══ Realtime ═════════════════════════════════════════════════════
+async function subscribe(code) {
+  if (channel) await sb.removeChannel(channel);
+  channel = sb.channel('game:' + code)
+    .on('postgres_changes',
+        { event:'UPDATE', schema:'public', table:'games', filter:'code=eq.'+code },
+        p => adopt(p.new))
+    .subscribe();
+
+  // Fallback: Realtime kann bei Netzwechsel (WLAN → mobil) still abreißen.
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    if (!G) return;
+    const { data } = await sb.from('games').select().eq('code', G.code).maybeSingle();
+    if (data && data.version > G.version) adopt(data);
+  }, 4000);
+}
+
+function adopt(row) {
+  G = { code: row.code, version: row.version, state: row.state };
+  localStorage.setItem(STORE_KEY, JSON.stringify({ code: row.code, seat, name: myName() }));
+  render();
+}
+
+// Schreiben mit optimistischem Sperren: nur wenn die Version noch stimmt.
+// Bei Konflikt neu laden und den Mutator erneut anwenden.
+async function commit(mutate) {
+  for (let i = 0; i < 5; i++) {
+    const next = mutate(structuredClone(G.state));
+    if (!next) return false;
+    const { data } = await sb.from('games')
+      .update({ state: next, version: G.version + 1 })
+      .eq('code', G.code).eq('version', G.version)
+      .select().maybeSingle();
+    if (data) { adopt(data); return true; }
+    const fresh = await sb.from('games').select().eq('code', G.code).maybeSingle();
+    if (!fresh.data) return false;
+    adopt(fresh.data);
+  }
+  return false;
+}
+
+// ══ Spielablauf ══════════════════════════════════════════════════
+async function startGame() {
+  await commit(s => {
+    if (!s.seats.p2) return null;
+    // Jeder startet mit einer aufgedeckten Karte.
+    s.timelines.p1 = [ s.deck.pop() ];
+    s.timelines.p2 = [ s.deck.pop() ];
+    s.turn = Math.random() < .5 ? 'p1' : 'p2';
+    s.phase = 'draw';
+    return s;
+  });
+}
+
+async function drawCard() {
+  await commit(s => {
+    if (s.phase !== 'draw' || s.turn !== seat) return null;
+    s.current = s.deck.pop();
+    s.audio = { playing:false, startedAt:0, seek:0 };
+    s.result = null;
+    s.phase = 'turn';
+    return s;
+  });
+}
+
+// Richtig einsortiert, wenn die Karte zwischen ihre beiden Nachbarn passt.
+// Gleiche Jahre zählen als passend – bei 336 Songs auf 71 Jahrgänge ist
+// das der Normalfall, nicht die Ausnahme.
+function isCorrect(timeline, index, cardId) {
+  const y = yearOf(cardId);
+  const before = index > 0 ? yearOf(timeline[index-1]) : -Infinity;
+  const after  = index < timeline.length ? yearOf(timeline[index]) : Infinity;
+  return before <= y && y <= after;
+}
+
+async function place(index) {
+  await commit(s => {
+    if (s.phase !== 'turn' || s.turn !== seat || !s.current) return null;
+    const tl  = s.timelines[seat];
+    const id  = s.current;
+    const ok  = isCorrect(tl, index, id);
+    if (ok) tl.splice(index, 0, id);
+    s.result = { seat, id, index, correct: ok };
+    s.audio  = { playing:false, startedAt:0, seek:0 };
+    s.phase  = 'result';
+    if (ok && tl.length >= s.ziel) { s.phase = 'over'; s.winner = seat; }
+    return s;
+  });
+}
+
+async function nextTurn() {
+  await commit(s => {
+    if (s.phase !== 'result') return null;
+    s.turn    = other(s.turn);
+    s.current = null;
+    s.result  = null;
+    s.phase   = s.deck.length ? 'draw' : 'over';
+    if (s.phase === 'over' && !s.winner) {
+      const a = s.timelines.p1.length, b = s.timelines.p2.length;
+      s.winner = a === b ? null : (a > b ? 'p1' : 'p2');
+    }
+    return s;
+  });
+}
+
+async function playAgain() {
+  await commit(s => {
+    s.deck      = shuffled(Object.keys(SONGS));
+    s.timelines = { p1: [s.deck.pop()], p2: [s.deck.pop()] };
+    s.turn      = Math.random() < .5 ? 'p1' : 'p2';
+    s.current   = null;
+    s.result    = null;
+    s.winner    = null;
+    s.audio     = { playing:false, startedAt:0, seek:0 };
+    s.phase     = 'draw';
+    return s;
+  });
+}
+
+// ══ Audio ════════════════════════════════════════════════════════
+// Der Spieler am Zug steuert, beide hören. Statt den Ton zu streamen
+// synchronisieren wir nur den Startzeitpunkt: beide laden dieselbe
+// iTunes-Preview und springen an dieselbe Stelle.
+async function togglePlay() {
+  if (!G || G.state.turn !== seat) return;
+  const playing = G.state.audio.playing;
+  const pos = aud.currentTime || 0;
+  await commit(s => {
+    s.audio = playing
+      ? { playing:false, startedAt:0, seek:pos }
+      : { playing:true,  startedAt:serverNow(), seek:(aud.duration && pos >= aud.duration - .3 ? 0 : pos) };
+    return s;
+  });
+}
+
+function targetTime(a) {
+  return a.playing ? a.seek + (serverNow() - a.startedAt) / 1000 : a.seek;
+}
+
+function syncAudio(st) {
+  const s = song(st.current);
+  if (!s) return stopAudio();
+  if (lastRenderedCard !== st.current) {
+    lastRenderedCard = st.current;
+    aud.src = s.pr;
+    aud.load();
+    $('pfill').style.width = '0%';
+    $('tlbl').textContent = '—';
+  }
+  // Die Previews sind unterschiedlich lang – im Katalog überwiegend 90 s,
+  // vereinzelt 30 s. Vor den Metadaten kennen wir die Länge nicht, also
+  // erst dann springen und starten.
+  if (!aud.duration) {
+    // Komplett neu zeichnen statt nur nachsynchronisieren, damit auch der
+    // Statustext aus dem "Lädt…" herauskommt.
+    aud.addEventListener('loadedmetadata', () => { if (G) render(); }, { once:true });
+    return 'laedt';
+  }
+  const want = targetTime(st.audio);
+
+  // Der wartende Spieler schreibt nie in den Zustand. Läuft die Preview
+  // aus, während er zusieht, bleibt dort also "playing: true" stehen. Wer
+  // danach neu lädt oder das Handy entsperrt, würde sonst eine tote
+  // Anzeige sehen – deshalb hier auf "durchgelaufen" erkennen.
+  if (st.audio.playing && want >= aud.duration) {
+    if (!aud.paused) aud.pause();
+    $('pfill').style.width = '100%';
+    $('tlbl').textContent = '0:00';
+    return 'fertig';
+  }
+
+  if (st.audio.playing) {
+    if (aud.paused || Math.abs(aud.currentTime - want) > .7) {
+      aud.currentTime = Math.max(0, want);
+      aud.play().catch(() => setStat('Tippe einmal auf den Bildschirm, um Ton zu erlauben','err'));
+    }
+    return 'laeuft';
+  }
+  if (!aud.paused) {
+    aud.pause();
+    aud.currentTime = Math.max(0, want);
+  }
+  return 'pause';
+}
+
+function fmtTime(sec) {
+  const r = Math.max(0, Math.ceil(sec));
+  return Math.floor(r/60) + ':' + String(r%60).padStart(2,'0');
+}
+
+// Sobald die Länge bekannt ist, im Ruhezustand die Gesamtdauer anzeigen.
+aud.addEventListener('loadedmetadata', () => {
+  if (aud.paused && aud.duration) $('tlbl').textContent = fmtTime(aud.duration);
+});
+
+function stopAudio() {
+  if (lastRenderedCard === null) return;     // schon gestoppt
+  aud.pause(); aud.removeAttribute('src'); aud.load();
+  lastRenderedCard = null;
+}
+
+function onAudioEnded() {
+  $('pfill').style.width = '100%';
+  $('tlbl').textContent = '0:00';
+  if (G && G.state.turn === seat && G.state.audio.playing)
+    commit(s => { s.audio = { playing:false, startedAt:0, seek:0 }; return s; });
+}
+
+// Fortschrittsbalken lokal, ohne Netzwerk
+tickTimer = setInterval(() => {
+  if (!aud.duration || aud.paused) return;
+  $('pfill').style.width = (aud.currentTime / aud.duration * 100) + '%';
+  $('tlbl').textContent = fmtTime(aud.duration - aud.currentTime);
+}, 250);
+
+// ══ Rendering ════════════════════════════════════════════════════
+function render() {
+  if (!G || !SONGS) return;
+  const st = G.state;
+  if (st.phase === 'lobby')      return renderLobby(st);
+  if (st.phase === 'over')       return renderOver(st);
+  renderGame(st);
+}
+
+function renderLobby(st) {
+  show('lobbyScreen');
+  $('lobbyCode').textContent = G.code;
+  $('lobbyHint').textContent = seat === 'p1'
+    ? 'Gib den Code an deinen Mitspieler weiter'
+    : 'Warte, bis dein Mitspieler startet';
+  const seats = $('lobbySeats');
+  seats.innerHTML = '';
+  ['p1','p2'].forEach(k => {
+    const d = document.createElement('div');
+    d.style.cssText = 'display:flex;align-items:center;gap:10px;width:100%;font-size:14px;font-weight:600';
+    if (st.seats[k]) {
+      d.innerHTML = `<span style="color:var(--green)">●</span> ${esc(st.seats[k].name)}` +
+                    (k === seat ? ' <span style="color:var(--muted);font-weight:500">(du)</span>' : '');
+    } else {
+      d.innerHTML = `<span class="dot"></span> <span style="color:var(--muted);font-weight:500">warte auf Mitspieler…</span>`;
+    }
+    seats.appendChild(d);
+  });
+  const ready = !!st.seats.p2;
+  $('btnStart').disabled = !(ready && seat === 'p1');
+  $('btnStart').textContent = seat === 'p1'
+    ? (ready ? 'Spiel starten' : 'Warte auf Mitspieler')
+    : (ready ? 'Warte auf Start…' : 'Warte auf Mitspieler');
+}
+
+function renderGame(st) {
+  show('gameScreen');
+  const mine = st.turn === seat;
+
+  // ── Punktestand ──
+  $('score').innerHTML = ['p1','p2'].map(k => `
+    <div class="seat${st.turn===k?' active':''}">
+      <div class="nm">${esc(st.seats[k]?.name || '—')}${k===seat?' (du)':''}</div>
+      <div class="ct">${st.timelines[k].length}<small> / ${st.ziel}</small></div>
+    </div>`).join('');
+
+  // ── Bühne ──
+  const stage = $('stage');
+  if (st.phase === 'draw') {
+    stage.innerHTML = `<div class="mystery"><div class="mlck">🎴</div>
+      <div class="mhint">${mine ? 'Du bist dran' : esc(st.seats[st.turn].name) + ' ist dran'}</div></div>`;
+  } else if (st.phase === 'turn') {
+    stage.innerHTML = `<div class="mystery"><div class="mlck">🔒</div>
+      <div class="mhint">Wann war das?</div></div>`;
+  } else if (st.phase === 'result') {
+    stage.innerHTML = revealHTML(song(st.result.id), st.result);
+  }
+
+  // ── Player ──
+  const audible = st.phase === 'turn';
+  $('playerBox').style.display = audible ? 'flex' : 'none';
+  $('pbtn').disabled = !(audible && mine);
+  if (audible) {
+    const lauf = syncAudio(st);
+    $('pbtn').classList.toggle('on', lauf === 'laeuft');
+    setStat(
+      lauf === 'laeuft' ? '♫ Ihr hört beide zu'
+      : lauf === 'laedt' ? 'Lädt…'
+      : lauf === 'fertig' ? (mine ? 'Durchgelaufen – nochmal ▶ oder einsortieren' : 'Durchgelaufen')
+      : mine ? 'Tippe ▶ zum Anspielen'
+      : 'Wartet auf ' + st.seats[st.turn].name,
+      lauf === 'laeuft' ? 'ok' : '');
+  } else {
+    $('pbtn').classList.remove('on');
+    stopAudio();
+  }
+
+  // ── Zeitleiste des Spielers am Zug ──
+  const tlSeat = st.phase === 'result' ? st.result.seat : st.turn;
+  $('tlLabel').textContent = tlSeat === seat ? 'Deine Zeitleiste' : 'Zeitleiste von ' + st.seats[tlSeat].name;
+  renderTimeline(st, tlSeat, mine && st.phase === 'turn');
+
+  // ── Gegner kompakt ──
+  const oSeat = other(tlSeat);
+  $('oppo').innerHTML = `<div class="tllabel">${oSeat===seat ? 'Deine Karten' : esc(st.seats[oSeat].name)}</div>
+    <div class="row">${st.timelines[oSeat].map(id => `<span class="chip">${song(id).year}</span>`).join('') ||
+      '<span class="chip">noch leer</span>'}</div>`;
+
+  // ── Aktionen ──
+  renderActions(st, mine);
+
+  if (st.phase === 'result' && st.result.correct && confettiShownFor !== st.result.id + st.result.index) {
+    confettiShownFor = st.result.id + st.result.index;
+    if (st.result.seat === seat) confetti();
+  }
+}
+
+function renderTimeline(st, tlSeat, interactive) {
+  const tl = st.timelines[tlSeat];
+  const el = $('tl');
+  el.innerHTML = '';
+  const freshIdx = (st.phase === 'result' && st.result.correct && st.result.seat === tlSeat) ? st.result.index : -1;
+  let focus = null;   // was der Spieler nach dem Neuzeichnen sehen muss
+
+  for (let i = 0; i <= tl.length; i++) {
+    const gap = document.createElement('button');
+    const sel = interactive && pendingGap === i;
+    gap.className = 'gap' + (interactive ? ' live' : '') + (sel ? ' sel' : '');
+    gap.innerHTML = '<span class="bar"></span>';
+    if (interactive) {
+      gap.addEventListener('click', () => {
+        pendingGap = (pendingGap === i) ? null : i;
+        render();
+      });
+    }
+    el.appendChild(gap);
+    if (sel) focus = gap;
+
+    if (i < tl.length) {
+      const s = song(tl[i]);
+      const c = document.createElement('div');
+      c.className = 'tlcard' + (i === freshIdx ? ' fresh' : '');
+      c.innerHTML = `<div class="f">${s.flag}</div><div class="y">${s.year}</div><div class="t">${esc(s.title)}</div>`;
+      el.appendChild(c);
+      if (i === freshIdx) focus = c;
+    }
+  }
+  if (!tl.length && !interactive) el.innerHTML = '<div class="tlempty">Noch keine Karten</div>';
+
+  // Ab ~4 Karten passt die Leiste nicht mehr auf den Schirm. Die gewählte
+  // Lücke bzw. die gerade einsortierte Karte muss aber sichtbar sein.
+  if (focus) requestAnimationFrame(() =>
+    focus.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' }));
+}
+
+function renderActions(st, mine) {
+  const a = $('gameActions');
+  a.innerHTML = '';
+  const add = (label, cls, fn, disabled) => {
+    const b = document.createElement('button');
+    b.className = 'btn ' + cls;
+    b.textContent = label;
+    b.disabled = !!disabled;
+    if (fn) b.addEventListener('click', fn);
+    a.appendChild(b);
+  };
+
+  if (st.phase === 'draw') {
+    mine ? add('Karte ziehen', 'prim', drawCard)
+         : add('Warte auf ' + st.seats[st.turn].name + '…', '', null, true);
+  } else if (st.phase === 'turn') {
+    if (!mine) add(st.seats[st.turn].name + ' sortiert ein…', '', null, true);
+    else if (pendingGap === null) add('Tippe eine Lücke in der Zeitleiste', '', null, true);
+    else add('Hier einsortieren', 'prim', () => { const g = pendingGap; pendingGap = null; place(g); });
+  } else if (st.phase === 'result') {
+    add('Weiter', 'prim', nextTurn);
+  }
+  add('Spiel verlassen', 'ghost', leaveGame);
+}
+
+function revealHTML(s, res) {
+  return `<div class="revcard">
+    <div class="ry">${s.year}</div>
+    <div class="rt">${esc(s.title)}</div>
+    <div class="ra">${esc(s.artist)}</div>
+    <div class="rmeta">
+      <span class="tag">${s.flag} ${esc(s.country)}</span>
+      <span class="tag g">${s.place && s.place !== '—' ? 'Platz ' + esc(s.place) : 'ESC'}</span>
+    </div>
+    <div class="verdict ${res.correct ? 'ok' : 'err'}">
+      ${res.correct ? '✓ Richtig einsortiert' : '✕ Daneben – Karte kommt zurück'}
+    </div>
+  </div>`;
+}
+
+function renderOver(st) {
+  show('overScreen');
+  stopAudio();
+  const w = st.winner;
+  $('overTitle').textContent = !w ? 'Unentschieden'
+    : (w === seat ? 'Du gewinnst!' : st.seats[w].name + ' gewinnt');
+  $('overSub').textContent =
+    `${st.seats.p1.name} ${st.timelines.p1.length} : ${st.timelines.p2.length} ${st.seats.p2.name}`;
+  if (w === seat) confetti();
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// ── Konfetti (aus index.html übernommen) ─────────────────────────
+function confetti() {
+  const cols = ['#E0326E','#9E22B4','#4FBBDD','#D62E8A','#436EDC'];
+  const c = $('cf');
+  for (let i = 0; i < 36; i++) {
+    const el = document.createElement('div');
+    const sz=5+Math.random()*9, tx=(Math.random()-.5)*300, ty=-(80+Math.random()*220),
+          rot=Math.random()*720, dl=Math.random()*.3;
+    el.style.cssText = `position:absolute;width:${sz}px;height:${sz}px;background:${cols[i%5]};` +
+      `border-radius:${Math.random()>.5?'50%':'2px'};left:${35+Math.random()*30}%;top:55%;` +
+      `animation:cf${i} ${.8+Math.random()*.4}s ${dl}s ease-out forwards`;
+    const st = document.createElement('style');
+    st.textContent = `@keyframes cf${i}{to{transform:translate(${tx}px,${ty}px) rotate(${rot}deg);opacity:0}}`;
+    document.head.appendChild(st); c.appendChild(el);
+    setTimeout(() => { el.remove(); st.remove(); }, 1400);
+  }
+}
+</script>
+</body>
+</html>

@@ -210,6 +210,33 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
    liegen direkt in der Spalte, genau wie vor der Desktop-Ansicht. */
 .rechts { display:contents; }
 
+/* ── Veto-Phase ────────────────────────────────────────────────── */
+.vetobox { position:absolute; inset:0; display:flex; flex-direction:column;
+           align-items:center; justify-content:center; gap:10px; text-align:center;
+           background:var(--surface); border:1px solid var(--border); border-radius:20px;
+           padding:20px; box-shadow:0 8px 28px rgba(40,30,80,.05);
+           animation:pop .3s cubic-bezier(.34,1.56,.64,1) both; }
+.vetobox.scharf { border-color:transparent; box-shadow:0 0 0 2px var(--red), 0 8px 28px rgba(232,0,61,.14); }
+.vetoIcon { font-size:26px; line-height:1; }
+.vetoTitel { font-size:15px; font-weight:700; line-height:1.3; }
+.vetoText { font-size:12px; color:var(--muted); line-height:1.5; max-width:230px; }
+.vetoZeit { font-size:30px; font-weight:700; font-variant-numeric:tabular-nums;
+            background:linear-gradient(135deg,var(--grad-a),var(--grad-b));
+            -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.vetoZeit.knapp { -webkit-text-fill-color:var(--red); }
+
+/* Vetozähler in der Punktestand-Kachel */
+.vzeile { display:flex; align-items:center; gap:8px; }
+.vpunkte { display:flex; gap:3px; }
+.vpunkt { width:7px; height:7px; border-radius:50%; background:var(--text); }
+.vpunkt.weg { background:var(--track); }
+.vlabel { font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
+
+/* Eingeloggte, noch nicht ausgewertete Karte in der Zeitleiste */
+.tlcard.offen { background:var(--surface); border:2px dashed var(--grad-mid); box-shadow:none;
+                display:flex; align-items:center; justify-content:center; }
+.tlcard.offen .fr { font-size:24px; font-weight:700; color:var(--grad-mid); }
+
 /* ── Bestenliste & Statistik ───────────────────────────────────── */
 .statwrap { width:100%; max-width:520px; display:flex; flex-direction:column; gap:12px; flex-shrink:0; }
 .statblock { background:var(--surface); border:1px solid var(--border); border-radius:18px;
@@ -472,6 +499,8 @@ const STORE_KEY = 'duell1408';
 const SOLO_KEY  = 'duell1408solo';      // laufende Solo-Partie
 const BEST_KEY  = 'duell1408best';      // Bestwert im Solo-Modus
 const SOLO_FEHLER = 3;                  // nach dem dritten Fehler ist Schluss
+const VETOS_START = 3;                  // Vetos je Spieler zu Spielbeginn
+const VETO_MS = 15000;                  // Bedenkzeit fürs Veto
 // Vorlauf beim Autostart: beide Geräte bekommen Zeit, die Preview zu laden,
 // damit der Song bei beiden wirklich bei Sekunde 0 beginnt statt mittendrin.
 const VORLAUF_MS = 900;
@@ -500,6 +529,7 @@ let vorlaufTimer = null;       // wartet den Autostart-Vorlauf ab
 let audioAnweisung = null;     // welche Audio-Anweisung ist schon umgesetzt?
 let statSicht = 'ich';         // 'ich' oder 'alle' auf der Statistikseite
 let partieProtokolliert = null; // verhindert doppelte Einträge derselben Partie
+let vetoAblaufFuer = null;     // gegen doppeltes Durchlassen beim Ablauf
 
 const $  = id => document.getElementById(id);
 const other = s => s === 'p1' ? 'p2' : 'p1';
@@ -760,7 +790,11 @@ async function subscribe(code) {
 }
 
 function adopt(row) {
+  const vorher = G && G.state.phase;
   G = { code: row.code, version: row.version, state: row.state };
+  // Bei jedem Phasenwechsel die vorgemerkte Lücke verwerfen: sonst würde
+  // eine Auswahl aus dem eigenen Zug in die Veto-Auswahl hineinwirken.
+  if (vorher !== row.state.phase) pendingGap = null;
   localStorage.setItem(STORE_KEY, JSON.stringify({ code: row.code, seat, name: myName() }));
   render();
 }
@@ -799,6 +833,8 @@ async function startGame() {
     // Jeder startet mit einer aufgedeckten Karte.
     s.timelines.p1 = [ s.deck.pop() ];
     s.timelines.p2 = [ s.deck.pop() ];
+    s.vetos = { p1: VETOS_START, p2: VETOS_START };
+    s.pending = null; s.vetoBis = 0; s.vetoAngemeldet = null;
     s.turn = Math.random() < .5 ? 'p1' : 'p2';
     s.phase = 'draw';
     return s;
@@ -828,31 +864,125 @@ function isCorrect(timeline, index, cardId) {
   return before <= y && y <= after;
 }
 
-async function place(index) {
+// Wertet die eingeloggte Platzierung aus – und, falls eines eingelegt
+// wurde, das Veto des Gegners. Reine Zustandsänderung, damit sie aus
+// mehreren Stellen heraus im Mutator laufen kann.
+//
+// Regel: Ein Veto zieht nur, wenn der Spieler am Zug daneben lag UND der
+// Vetogeber selbst richtig liegt. Gegen eine korrekte Platzierung geht das
+// Veto also immer verloren – das ist der Preis fürs Misstrauen.
+function auswerten(s, vetoZug) {
+  const aktiv   = s.pending.seat;
+  const idx     = s.pending.index;
+  const id      = s.current;
+  const tlAktiv = s.timelines[aktiv];
+  const aktivOk = isCorrect(tlAktiv, idx, id);
+
+  let klau = null;
+  if (vetoZug && !s.solo) {
+    const g = vetoZug.seat;
+    s.vetos[g] = Math.max(0, (s.vetos[g] || 0) - 1);
+    const gOk = !aktivOk && isCorrect(s.timelines[g], vetoZug.index, id);
+    if (gOk) {
+      s.timelines[g].splice(vetoZug.index, 0, id);
+      s.vetos[g]++;                       // korrektes Veto bleibt erhalten
+    }
+    klau = { seat: g, index: vetoZug.index, gelungen: gOk };
+  }
+
+  if (aktivOk) tlAktiv.splice(idx, 0, id);
+
+  s.result = { seat: aktiv, id, index: idx, correct: aktivOk, klau };
+  s.pending = null;
+  s.vetoBis = 0;
+  s.vetoAngemeldet = null;
+  s.audio = { playing:false, startedAt:0, seek:0 };
+  s.phase = 'result';
+
+  if (s.solo) {
+    if (!aktivOk) s.fehler++;
+    // Der Bestwert muss hier fallen, nicht nach dem commit: im Solo-Modus
+    // zeichnet commit() sofort neu, und renderOver liest soloRekord.
+    if (s.fehler >= s.maxFehler) { s.phase = 'over'; merkeBestwert(tlAktiv.length); }
+  } else {
+    for (const k of ['p1','p2']) {
+      if (s.timelines[k].length >= s.ziel) { s.phase = 'over'; s.winner = k; }
+    }
+  }
+  return s;
+}
+
+// Verbindliches Festlegen der Position. Hat der Gegner noch Vetos, folgt
+// erst die Veto-Phase; sonst wird direkt ausgewertet.
+async function einloggen(index) {
   const ok = await commit(s => {
     if (s.phase !== 'turn' || s.turn !== seat || !s.current) return null;
-    const tl  = s.timelines[seat];
-    const id  = s.current;
-    const ok  = isCorrect(tl, index, id);
-    if (ok) tl.splice(index, 0, id);
-    s.result = { seat, id, index, correct: ok };
-    s.audio  = { playing:false, startedAt:0, seek:0 };
-    s.phase  = 'result';
-    if (s.solo) {
-      if (!ok) s.fehler++;
-      // Der Bestwert muss hier fallen, nicht nach dem commit: im Solo-Modus
-      // zeichnet commit() sofort neu, und renderOver liest soloRekord.
-      if (s.fehler >= s.maxFehler) { s.phase = 'over'; merkeBestwert(tl.length); }
-    } else if (ok && tl.length >= s.ziel) {
-      s.phase = 'over'; s.winner = seat;
-    }
+    s.pending = { seat, index };
+    s.audio = { playing:false, startedAt:0, seek:0 };
+    const gegner = other(seat);
+    if (s.solo || !s.vetos || (s.vetos[gegner] || 0) <= 0) return auswerten(s, null);
+    s.phase = 'veto';
+    s.vetoBis = serverNow() + VETO_MS;
+    s.vetoAngemeldet = null;
     return s;
   });
-  // Statistik erst nach erfolgreichem Schreiben – sonst würde ein
-  // verworfener Zug mitgezählt.
-  if (!ok) return;
-  if (G.state.result && G.state.result.seat === seat) tippMerken(G.state.result);
-  if (G.state.phase === 'over') partieMerken();
+  if (ok) nachAuswertung();
+}
+
+// Gegner meldet das Veto an. Damit stoppt der Countdown – das Aussuchen
+// der Lücke soll nicht unter Zeitdruck stehen, und der Spieler am Zug
+// erfährt sofort, dass es ernst wird.
+async function vetoAnmelden() {
+  await commit(s => {
+    if (s.phase !== 'veto' || s.turn === seat || s.vetoAngemeldet) return null;
+    if ((s.vetos?.[seat] || 0) <= 0) return null;
+    s.vetoAngemeldet = seat;
+    s.vetoBis = 0;
+    return s;
+  });
+}
+
+async function vetoZurueck() {
+  await commit(s => {
+    if (s.phase !== 'veto' || s.vetoAngemeldet !== seat) return null;
+    s.vetoAngemeldet = null;
+    s.vetoBis = serverNow() + VETO_MS;
+    return s;
+  });
+}
+
+async function vetoSetzen(index) {
+  const ok = await commit(s => {
+    if (s.phase !== 'veto' || s.vetoAngemeldet !== seat) return null;
+    return auswerten(s, { seat, index });
+  });
+  if (ok) nachAuswertung();
+}
+
+// Durchlassen: entweder der Gegner tippt es an, oder der Countdown läuft
+// ab. Beide Geräte dürfen das schreiben – wer zuerst kommt, gewinnt, der
+// zweite Versuch findet die Phase schon verändert vor und verpufft.
+async function durchlassen() {
+  const ok = await commit(s => {
+    if (s.phase !== 'veto' || s.vetoAngemeldet) return null;
+    return auswerten(s, null);
+  });
+  if (ok) nachAuswertung();
+}
+
+// Läuft genau auf dem Gerät, dessen commit durchgegangen ist – also genau
+// einmal je Auswertung, egal wer sie ausgelöst hat.
+function nachAuswertung() {
+  const st = G.state;
+  const r = st.result;
+  if (r) {
+    tippMerken(r.seat, r.id, r.correct);
+    // Den Tipp des Vetogebers nur zählen, wenn er auch geprüft wurde. Gegen
+    // eine korrekte Platzierung scheitert das Veto per Regel, ohne dass
+    // seine Lücke je angeschaut wurde – das wäre kein Wissensnachweis.
+    if (r.klau && !r.correct) tippMerken(r.klau.seat, r.id, r.klau.gelungen);
+  }
+  if (st.phase === 'over') partieMerken();
 }
 
 // Bestwert ist die Länge der Zeitleiste, wenn der dritte Fehler fällt.
@@ -884,7 +1014,7 @@ async function naechsteKarte() {
     s.phase = 'turn';
     return s;
   });
-  // Deck leer: hier endet die Partie, ohne dass place() beteiligt war.
+  // Deck leer: hier endet die Partie, ohne dass eingeloggt wurde.
   if (ok && G.state.phase === 'over') partieMerken();
 }
 
@@ -893,6 +1023,8 @@ async function playAgain() {
   await commit(s => {
     s.deck      = shuffled(Object.keys(SONGS));
     s.timelines = { p1: [s.deck.pop()], p2: [s.deck.pop()] };
+    s.vetos     = { p1: VETOS_START, p2: VETOS_START };
+    s.pending   = null; s.vetoBis = 0; s.vetoAngemeldet = null;
     s.turn      = Math.random() < .5 ? 'p1' : 'p2';
     s.current   = null;
     s.result    = null;
@@ -915,17 +1047,21 @@ function statName() {
   return (G && seat && G.state.seats?.[seat]?.name) || myName();
 }
 
-function tippMerken(res) {
-  if (!sb) return;
-  const s = song(res.id);
-  if (!s) return;
+// Der Name kommt aus dem Zustand, nicht vom Gerät: bei einem Veto schreibt
+// der Gegner die Auswertung, protokolliert dabei aber den Tipp des Spielers
+// am Zug. Über myName() wäre er dem Falschen zugeschrieben worden.
+function tippMerken(sitz, songId, korrekt) {
+  if (!sb || !G) return;
+  const s = song(songId);
+  const name = G.state.seats?.[sitz]?.name;
+  if (!s || !name) return;
   sb.from('tipps').insert({
-    name:    statName(),
-    modus:   solo() ? 'solo' : 'duell',
-    song_id: res.id,
+    name,
+    modus:   G.state.solo ? 'solo' : 'duell',
+    song_id: songId,
     jahr:    parseInt(s.year, 10),
     land:    s.country,
-    korrekt: !!res.correct
+    korrekt: !!korrekt
   }).then(({ error }) => { if (error) console.warn('Tipp nicht gespeichert:', error.message); });
 }
 
@@ -1181,12 +1317,30 @@ function onAudioEnded() {
     commit(s => { s.audio = { playing:false, startedAt:0, seek:0 }; return s; });
 }
 
-// Fortschrittsbalken lokal, ohne Netzwerk
+// Fortschrittsbalken und Veto-Countdown lokal, ohne Netzwerk
 tickTimer = setInterval(() => {
+  vetoTick();
   if (!aud.duration || aud.paused) return;
   $('pfill').style.width = (aud.currentTime / aud.duration * 100) + '%';
   $('tlbl').textContent = fmtTime(aud.duration - aud.currentTime);
 }, 250);
+
+// Läuft das Fenster ab, lässt der erste Client durch, der es merkt. Der
+// zweite findet die Phase schon verändert vor und sein commit verpufft.
+function vetoTick() {
+  if (!G || G.state.phase !== 'veto' || !G.state.vetoBis) return;
+  const rest = Math.max(0, (G.state.vetoBis - serverNow()) / 1000);
+  const el = $('vetoZeit');
+  if (el) {
+    el.textContent = Math.ceil(rest) + ' s';
+    el.classList.toggle('knapp', rest <= 5);
+  }
+  const marke = (G.code || '') + ':' + G.state.vetoBis;
+  if (rest <= 0 && vetoAblaufFuer !== marke) {
+    vetoAblaufFuer = marke;
+    durchlassen();
+  }
+}
 
 // ══ Rendering ════════════════════════════════════════════════════
 function render() {
@@ -1237,30 +1391,36 @@ function renderGame(st) {
       <div class="seat"><div class="nm">Leben</div>
         <div class="ct leben">${leben}</div></div>`;
   } else {
-    $('score').innerHTML = ['p1','p2'].map(k => `
-      <div class="seat${st.turn===k?' active':''}">
+    $('score').innerHTML = ['p1','p2'].map(k => {
+      const v = st.vetos ? (st.vetos[k] || 0) : 0;
+      const punkte = Array.from({ length: VETOS_START },
+        (_, i) => `<span class="vpunkt${i >= v ? ' weg' : ''}"></span>`).join('');
+      return `<div class="seat${st.turn===k?' active':''}">
         <div class="nm">${esc(st.seats[k]?.name || '—')}${k===seat?' (du)':''}</div>
-        <div class="ct">${st.timelines[k].length}<small> / ${st.ziel}</small></div>
-      </div>`).join('');
+        <div class="vzeile"><div class="ct">${st.timelines[k].length}<small> / ${st.ziel}</small></div>
+          <span class="vlabel">Veto</span><span class="vpunkte">${punkte}</span></div>
+      </div>`;
+    }).join('');
   }
 
   // ── Bühne ──
-  // Vor der Auflösung bleibt sie leer: der Player allein sagt genug.
+  // Beim Ziehen und Anspielen leer: der Player allein sagt genug. In der
+  // Veto-Phase übernimmt sie den Countdown, in der Auflösung die Karte.
   const stage = $('stage');
   const auflösung = st.phase === 'result';
-  stage.innerHTML = auflösung ? revealHTML(st.result.id) : '';
-  stage.style.display = auflösung ? 'block' : 'none';
+  const vetoPhase = st.phase === 'veto';
+  stage.innerHTML = auflösung ? revealHTML(st.result.id) : vetoPhase ? vetoHTML(st, mine) : '';
+  stage.style.display = (auflösung || vetoPhase) ? 'block' : 'none';
 
   const vd = $('verdict');
-  vd.textContent = !auflösung ? ''
-    : st.result.correct ? '✓ Richtig einsortiert' : '✕ Daneben – Karte kommt zurück';
-  vd.className = 'verdict' + (auflösung ? (st.result.correct ? ' ok' : ' err') : '');
+  vd.textContent = auflösung ? verdictText(st, seat) : '';
+  vd.className = 'verdict' + (auflösung ? (verdictGut(st, seat) ? ' ok' : ' err') : '');
 
   // ── Player ──
   // Bleibt auch beim Ziehen stehen (nur ausgegraut), damit der Knopf nicht
   // erst auftaucht und alles darunter verschiebt.
   const audible = st.phase === 'turn';
-  $('playerBox').style.display = auflösung ? 'none' : 'flex';
+  $('playerBox').style.display = (auflösung || vetoPhase) ? 'none' : 'flex';
   $('pbtn').disabled = !(audible && mine);
   if (audible) {
     const lauf = syncAudio(st);
@@ -1283,10 +1443,22 @@ function renderGame(st) {
     ladeNaechsteVor(st);        // Ziehen und Auflösen sind die ruhigen Momente
   }
 
-  // ── Zeitleiste des Spielers am Zug ──
-  const tlSeat = st.phase === 'result' ? st.result.seat : st.turn;
-  $('tlLabel').textContent = tlSeat === seat ? 'Deine Zeitleiste' : 'Zeitleiste von ' + st.seats[tlSeat].name;
-  renderTimeline(st, tlSeat, mine && st.phase === 'turn');
+  // ── Welche Zeitleiste ist zu sehen? ──
+  // Beim Veto-Aussuchen die eigene, denn dorthin wandert die geklaute
+  // Karte. In der Auflösung die, in der die Karte gelandet ist.
+  const klauGelungen = auflösung && st.result.klau?.gelungen;
+  const suchtVeto = vetoPhase && st.vetoAngemeldet === seat;
+  const tlSeat = suchtVeto ? seat
+               : klauGelungen ? st.result.klau.seat
+               : auflösung ? st.result.seat
+               : st.turn;
+  $('tlLabel').textContent = suchtVeto ? 'Wo gehört sie hin? Deine Zeitleiste'
+    : tlSeat === seat ? 'Deine Zeitleiste' : 'Zeitleiste von ' + st.seats[tlSeat].name;
+  // Im Veto-Fenster zeigen wir die eingeloggte Karte als offenen Platzhalter
+  // in der Leiste des Spielers am Zug – nur so ist die Behauptung prüfbar.
+  const platzhalter = (vetoPhase && !suchtVeto && st.pending && st.pending.seat === tlSeat)
+    ? st.pending.index : -1;
+  renderTimeline(st, tlSeat, (mine && st.phase === 'turn') || suchtVeto, platzhalter);
 
   // ── Gegner kompakt (im Solo gibt es keinen) ──
   if (st.solo) {
@@ -1301,17 +1473,27 @@ function renderGame(st) {
   // ── Aktionen ──
   renderActions(st, mine);
 
-  if (st.phase === 'result' && st.result.correct && confettiShownFor !== st.result.id + st.result.index) {
-    confettiShownFor = st.result.id + st.result.index;
-    if (st.result.seat === seat) confetti();
+  // Konfetti für den, der die Karte tatsächlich bekommen hat.
+  if (auflösung) {
+    const marke = st.result.id + ':' + st.result.index;
+    const gewinner = klauGelungen ? st.result.klau.seat : (st.result.correct ? st.result.seat : null);
+    if (gewinner && confettiShownFor !== marke) {
+      confettiShownFor = marke;
+      if (gewinner === seat) confetti();
+    }
   }
 }
 
-function renderTimeline(st, tlSeat, interactive) {
+function renderTimeline(st, tlSeat, interactive, platzhalter = -1) {
   const tl = st.timelines[tlSeat];
   const el = $('tl');
   el.innerHTML = '';
-  const freshIdx = (st.phase === 'result' && st.result.correct && st.result.seat === tlSeat) ? st.result.index : -1;
+  // Frisch einsortiert ist entweder die Karte des Spielers am Zug oder,
+  // bei gelungenem Klau, die des Vetogebers.
+  const r = st.phase === 'result' ? st.result : null;
+  const freshIdx = !r ? -1
+    : r.klau?.gelungen ? (r.klau.seat === tlSeat ? r.klau.index : -1)
+    : (r.correct && r.seat === tlSeat ? r.index : -1);
   let focus = null;   // was der Spieler nach dem Neuzeichnen sehen muss
 
   for (let i = 0; i <= tl.length; i++) {
@@ -1327,6 +1509,14 @@ function renderTimeline(st, tlSeat, interactive) {
     }
     el.appendChild(gap);
     if (sel) focus = gap;
+
+    if (i === platzhalter) {
+      const ph = document.createElement('div');
+      ph.className = 'tlcard offen';
+      ph.innerHTML = '<div class="fr">?</div>';
+      el.appendChild(ph);
+      focus = ph;
+    }
 
     if (i < tl.length) {
       const s = song(tl[i]);
@@ -1364,7 +1554,23 @@ function renderActions(st, mine) {
   } else if (st.phase === 'turn') {
     if (!mine) add(st.seats[st.turn].name + ' sortiert ein…', '', null, true);
     else if (pendingGap === null) add('Tippe eine Lücke in der Zeitleiste', '', null, true);
-    else add('Hier einsortieren', 'prim', () => { const g = pendingGap; pendingGap = null; place(g); });
+    else add('Karte einloggen', 'prim', () => { const g = pendingGap; pendingGap = null; einloggen(g); });
+  } else if (st.phase === 'veto') {
+    const habeVetos = (st.vetos?.[seat] || 0) > 0;
+    if (mine) {
+      add(st.vetoAngemeldet
+            ? st.seats[other(seat)].name + ' legt Veto ein…'
+            : 'Warte auf ' + st.seats[other(seat)].name + '…', '', null, true);
+    } else if (st.vetoAngemeldet === seat) {
+      if (pendingGap === null) add('Tippe die richtige Lücke', '', null, true);
+      else add('Veto hier setzen', 'prim', () => { const g = pendingGap; pendingGap = null; vetoSetzen(g); });
+      add('Doch nicht', '', vetoZurueck);
+    } else if (habeVetos) {
+      add('Veto einlegen', 'prim', vetoAnmelden);
+      add('Durchlassen', '', durchlassen);
+    } else {
+      add('Keine Vetos mehr', '', null, true);
+    }
   } else if (st.phase === 'result') {
     add('Nächste Karte', 'prim', naechsteKarte);
   }
@@ -1413,6 +1619,53 @@ function flagSlug(land) {
 function flagImg(s) {
   return `<img src="flags/${flagSlug(s.country)}.png" alt="" data-fb="${s.flag}"
                onerror="this.outerHTML='&lt;span&gt;'+this.dataset.fb+'&lt;/span&gt;'">`;
+}
+
+// ── Veto-Phase: Anzeige ──────────────────────────────────────────
+function vetoHTML(st, mine) {
+  const gegner = st.seats[other(st.turn)].name;
+  const amZug  = st.seats[st.turn].name;
+  if (st.vetoAngemeldet) {
+    const wer = st.vetoAngemeldet === seat;
+    return `<div class="vetobox scharf">
+      <div class="vetoIcon">✋</div>
+      <div class="vetoTitel">${wer ? 'Dein Veto läuft' : esc(gegner) + ' legt Veto ein!'}</div>
+      <div class="vetoText">${wer
+        ? 'Tippe unten die Lücke, in die die Karte deiner Meinung nach gehört. Liegst du richtig und ' + esc(amZug) + ' falsch, wandert sie zu dir.'
+        : 'Er behauptet, deine Platzierung sei falsch – und zeigt jetzt, wo die Karte hingehört.'}</div>
+    </div>`;
+  }
+  return `<div class="vetobox">
+    <div class="vetoIcon">${mine ? '🔒' : '✋'}</div>
+    <div class="vetoTitel">${mine ? 'Eingeloggt' : 'Veto?'}</div>
+    <div class="vetoZeit" id="vetoZeit">–</div>
+    <div class="vetoText">${mine
+      ? esc(gegner) + ' kann die Platzierung jetzt anfechten.'
+      : 'Glaubst du, ' + esc(amZug) + ' liegt daneben? Das ? in der Zeitleiste zeigt die gewählte Stelle.'}</div>
+  </div>`;
+}
+
+// ── Auflösung: Text ──────────────────────────────────────────────
+function verdictText(st, ich) {
+  const r = st.result;
+  const k = r.klau;
+  const amZug = st.seats?.[r.seat]?.name || '';
+  if (k && k.gelungen) {
+    const dieb = st.seats[k.seat].name;
+    return k.seat === ich ? '✋ Veto! Du klaust die Karte' : '✋ ' + dieb + ' klaut die Karte';
+  }
+  if (r.correct) {
+    return k ? '✓ Richtig – das Veto verpufft' : '✓ Richtig einsortiert';
+  }
+  if (k) return '✕ Beide daneben – Karte verfällt';
+  return '✕ Daneben – Karte kommt zurück';
+}
+
+// Grün nur, wenn die Karte bei mir gelandet ist.
+function verdictGut(st, ich) {
+  const r = st.result;
+  if (r.klau?.gelungen) return r.klau.seat === ich;
+  return r.correct && r.seat === ich;
 }
 
 function revealHTML(id) {

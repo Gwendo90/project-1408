@@ -203,6 +203,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 
 /* ── Gegner-Leiste (kompakt) ──────────────────────────────────── */
 .oppo { width:100%; max-width:400px; flex-shrink:0; }
+/* Auf dem Handy existiert dieser Container nicht als Box: seine Kinder
+   liegen direkt in der Spalte, genau wie vor der Desktop-Ansicht. */
+.rechts { display:contents; }
 .oppo .tllabel { margin-bottom:4px; }
 .oppo .row { display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
 .oppo .row::-webkit-scrollbar { display:none; }
@@ -212,6 +215,67 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .cf { position:fixed; inset:0; pointer-events:none; z-index:999; overflow:hidden; }
 .err-banner { width:100%; max-width:400px; background:#FDECEF; border:1px solid #F5C2CE; color:var(--red);
               border-radius:14px; padding:12px 14px; font-size:13px; line-height:1.5; flex-shrink:0; }
+
+/* ══ Desktop ══════════════════════════════════════════════════════
+   Ausgelöst über die Fensterbreite, nicht über Geräteerkennung: die
+   User-Agent-Auswertung veraltet ständig und trifft weder ein schmal
+   gezogenes Desktop-Fenster noch ein iPad in beiden Ausrichtungen
+   richtig. Wer das Fenster verkleinert, bekommt die Handy-Ansicht.  */
+@media (min-width:900px) {
+
+  /* Einstiegsbildschirme mittig statt oben klebend */
+  #homeScreen, #lobbyScreen, #overScreen { justify-content:center; }
+  .logo img { width:180px; }
+
+  /* Links die Karte, rechts Punktestand, Zeitleiste und Aktionen. Die
+     DOM-Reihenfolge bleibt unangetastet, die Zuordnung macht das Raster.
+     Die Spaltenbreiten begrenzen sich selbst, damit es auf sehr breiten
+     Bildschirmen nicht auseinanderläuft. */
+  #gameScreen {
+    display:grid; align-content:center; justify-content:center;
+    column-gap:34px; row-gap:14px;
+    grid-template-columns:auto minmax(360px,880px);
+    /* Alle Zeilen inhaltsgroß – eine 1fr-Zeile würde die Resthöhe
+       schlucken und die Verdict-Zeile an den Fensterboden schieben. */
+    grid-template-rows:auto auto auto;
+    grid-template-areas:
+      "buehne  score"
+      "buehne  rechts"
+      "verdict rechts";
+    padding:32px 40px;
+  }
+  /* Nicht auf volle Spaltenbreite ziehen – für „Karten 15“ und drei Herzen
+     wären 427 px pro Kachel absurd. */
+  #gameScreen > .score   { grid-area:score;  align-self:start; max-width:480px; }
+  #gameScreen > .buehne  { grid-area:buehne; align-self:start; height:min(46vh,340px); }
+  #gameScreen > .verdict { grid-area:verdict; max-width:none; }
+  #gameScreen > .rechts  { grid-area:rechts; display:flex; flex-direction:column;
+                           justify-content:flex-start; gap:18px; min-width:0; }
+
+  /* Die Breite kommt der Zeitleiste zugute: statt drei Karten wie auf dem
+     Handy sind hier sieben bis acht gleichzeitig sichtbar. Die Größe der
+     Miniaturen bleibt, damit die Titel lesbar sind. */
+  #gameScreen .tlwrap, #gameScreen .oppo, #gameScreen .actions { max-width:none; }
+
+  /* Aktionen nebeneinander – der Abbruch muss am Rechner nicht so breit
+     sein wie der Hauptknopf. */
+  #gameScreen .actions { flex-direction:row; gap:14px; align-items:stretch; }
+  /* width:auto ist nötig: mit den geerbten width:100% würde der Hauptknopf
+     die ganze Zeile beanspruchen und den Abbruch hinausschieben. */
+  #gameScreen .actions .btn { width:auto; }
+  #gameScreen .actions .btn.prim { flex:1; min-width:0; }
+  #gameScreen .actions .btn.ghost { white-space:nowrap; padding:5px 18px; }
+
+  /* Maus statt Finger: hier darf auf Hover reagiert werden. */
+  .gap.live:hover .bar { background:linear-gradient(180deg,var(--grad-a),var(--grad-b));
+                         transform:scaleX(1.8); }
+  .btn { transition:transform .12s, box-shadow .12s, border-color .12s, color .12s; }
+  .btn.prim:not(:disabled):hover { transform:translateY(-1px);
+                                   box-shadow:0 12px 30px rgba(158,34,180,.38); }
+  .btn:not(.prim):not(.ghost):not(:disabled):hover { border-color:var(--grad-mid); }
+  .btn.ghost:hover { color:var(--text); }
+  .pbtn:not(:disabled):hover { transform:scale(1.04); }
+}
 </style>
 </head>
 <body>
@@ -274,12 +338,17 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     </div>
   </div>
   <div class="verdict" id="verdict"></div>
-  <div class="tlwrap">
-    <div class="tllabel" id="tlLabel">Zeitleiste</div>
-    <div class="tl" id="tl"></div>
+  <!-- Auf dem Handy löst sich dieser Container per display:contents auf,
+       die Kinder liegen dann direkt in der Spalte wie vorher. Am Desktop
+       wird er zur rechten Spalte. -->
+  <div class="rechts">
+    <div class="tlwrap">
+      <div class="tllabel" id="tlLabel">Zeitleiste</div>
+      <div class="tl" id="tl"></div>
+    </div>
+    <div class="oppo" id="oppo"></div>
+    <div class="actions" id="gameActions"></div>
   </div>
-  <div class="oppo" id="oppo"></div>
-  <div class="actions" id="gameActions"></div>
 </div>
 
 <!-- ══ ENDE ═══════════════════════════════════════════════════ -->

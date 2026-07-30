@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="1408 Duell">
+<meta name="apple-mobile-web-app-title" content="Project 1408">
 <meta name="theme-color" content="#F1F0EC">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>1408 – Fernduell</title>
+<title>Project 1408 – Online Modus</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -20,14 +20,18 @@
 }
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html,body { height:100%; background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; overflow:hidden; }
-.screen { position:fixed; inset:0; z-index:1; display:flex; flex-direction:column; align-items:center; gap:22px;
+/* height:100dvh statt inset:0 – auf dem iPhone misst inset:0 die grosse
+   Viewport-Hoehe, waehrend Safaris untere Leiste einen Teil verdeckt. Der
+   letzte Knopf verschwand dadurch halb dahinter. */
+.screen { position:fixed; top:0; left:0; right:0; height:100dvh;
+          z-index:1; display:flex; flex-direction:column; align-items:center; gap:22px;
           padding:24px; padding-top:max(env(safe-area-inset-top),40px);
           padding-bottom:calc(max(env(safe-area-inset-bottom),20px) + 16px);
           transition:opacity .3s,transform .3s; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 /* Der Spielbildschirm muss ohne Scrollen auskommen – deshalb enger als
    die Einstiegsbildschirme, die ruhig Luft haben dürfen. */
 #gameScreen { gap:13px; padding-left:20px; padding-right:20px;
-              padding-top:calc(max(env(safe-area-inset-top),12px) + 40px);
+              padding-top:calc(max(env(safe-area-inset-top),10px) + 26px);
               padding-bottom:calc(max(env(safe-area-inset-bottom),12px) + 6px); }
 .screen.hidden { opacity:0; pointer-events:none; transform:scale(.97); }
 .logo { width:100%; display:flex; justify-content:center; flex-shrink:0; }
@@ -38,6 +42,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
          border-radius:20px; padding:22px; display:flex; flex-direction:column; align-items:center;
          gap:14px; flex-shrink:0; box-shadow:0 8px 28px rgba(40,30,80,.05); }
 .h1 { font-size:21px; font-weight:700; letter-spacing:.3px; text-align:center; }
+/* Der Name ist länger als eine Überschrift üblicherweise: mitskalieren,
+   damit er ab 320 px Bildschirmbreite auf eine Zeile passt und der
+   Gedankenstrich nicht am Zeilenende hängen bleibt. */
+#homeTitel { font-size:clamp(16px,5vw,21px); letter-spacing:0; }
 .sub { font-size:13px; color:var(--muted); text-align:center; line-height:1.6; }
 
 /* ── Eingaben & Buttons ───────────────────────────────────────── */
@@ -200,6 +208,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .gap .bar { width:4px; height:46px; border-radius:3px; background:var(--track); transition:all .2s; }
 .gap.live .bar { background:linear-gradient(180deg,var(--grad-a),var(--grad-b)); cursor:pointer; }
 .gap.live:active .bar { transform:scaleX(2); }
+.gap.zu { opacity:.28; }
 .gap.sel .bar { width:15px; height:60px; background:linear-gradient(180deg,var(--grad-a),var(--grad-b));
                 box-shadow:0 6px 18px rgba(158,34,180,.40); }
 .tlempty { font-size:13px; color:var(--muted); padding:14px 0; }
@@ -210,15 +219,25 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
    liegen direkt in der Spalte, genau wie vor der Desktop-Ansicht. */
 .rechts { display:contents; }
 
+/* Punktestand: bis zwei Spieler nebeneinander, ab drei zweispaltig und
+   kompakter, damit die Kacheln nicht zerquetscht werden. */
+.score.viele { display:grid; grid-template-columns:repeat(2,1fr); gap:7px; }
+.score.viele .seat { padding:6px 10px; }
+.score.viele .seat .nm { font-size:11px; }
+.score.viele .seat .ct { font-size:17px; }
+.score.viele .vlabel { display:none; }
+.score.viele .vpunkt { width:6px; height:6px; }
+
+.hinweis { width:100%; max-width:400px; flex-shrink:0; font-size:12px; font-weight:600;
+           color:var(--muted); text-align:center; min-height:0; }
+.hinweis:not(:empty) { padding:2px 0; }
+
 /* Verlassen-Knopf: klein, oben rechts, mit Rückfrage */
-.raus { position:absolute; z-index:5; top:max(env(safe-area-inset-top),12px); right:18px;
-        width:32px; height:32px; padding:0; border-radius:50%; cursor:pointer;
-        border:1px solid var(--border); background:var(--surface); color:var(--muted);
-        font-family:inherit; font-size:14px; font-weight:600; line-height:1;
-        display:flex; align-items:center; justify-content:center; -webkit-appearance:none;
-        transition:color .2s, border-color .2s; }
-.raus.frag { width:auto; padding:0 13px; border-radius:16px; font-size:12px;
-             color:var(--red); border-color:var(--red); }
+.raus { position:absolute; z-index:5; top:max(env(safe-area-inset-top),10px); right:18px;
+        padding:4px 2px; border:none; background:none; cursor:pointer;
+        font-family:inherit; font-size:12px; font-weight:600; line-height:1.2;
+        color:var(--muted); -webkit-appearance:none; transition:color .2s; }
+.raus.frag { color:var(--red); }
 
 /* ── Veto-Phase ────────────────────────────────────────────────── */
 .vetobox { position:absolute; inset:0; display:flex; flex-direction:column;
@@ -322,9 +341,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       "buehne  score"
       "buehne  rechts"
       "verdict rechts";
-    padding:56px 40px 32px;
+    padding:48px 40px 32px;
   }
-  .raus { top:22px; right:32px; }
+  .raus { top:20px; right:32px; font-size:13px; }
   /* Füllt die Spalte: bei 720 px sind das 353 px pro Kachel, und die rechte
      Spalte wirkt als zusammenhängender Block statt halb leer. */
   #gameScreen > .score   { grid-area:score;  align-self:start; max-width:none; }
@@ -371,8 +390,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <div class="screen" id="homeScreen">
   <div class="logo"><img src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408"></div>
   <div class="panel">
-    <div class="h1">Fernduell</div>
-    <div class="sub">Zwei Spieler, zwei Handys.<br>Die App ist die Verbindung.</div>
+    <div class="h1" id="homeTitel">Project 1408 – Online Modus</div>
     <input class="inp" id="nameInput" placeholder="Dein Name" maxlength="14" autocomplete="off">
   </div>
   <div class="actions">
@@ -408,8 +426,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <div class="screen hidden" id="gameScreen">
   <!-- Oben rechts und mit Rückfrage: hier unten bei den Spielknöpfen war
        er zu leicht versehentlich zu treffen. -->
-  <button class="raus" id="btnRaus" aria-label="Spiel verlassen">✕</button>
+  <button class="raus" id="btnRaus">Spiel verlassen</button>
   <div class="score" id="score"></div>
+  <div class="hinweis" id="hinweis"></div>
   <!-- Feste Höhe im Format der Karte. Player und Auflösung liegen darin
        übereinander, damit beim Phasenwechsel nichts verrutscht. -->
   <div class="buehne">
@@ -466,7 +485,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       <div id="statBesten" class="statleer">lädt…</div>
     </div>
     <div class="statblock">
-      <div class="statTitel">Duell-Bilanz</div>
+      <div class="statTitel">Gewinnbilanz</div>
       <div id="statDuell" class="statleer">lädt…</div>
     </div>
 
@@ -547,7 +566,27 @@ let vetoAblaufFuer = null;     // gegen doppeltes Durchlassen beim Ablauf
 let rausFrage = null;          // Rückfrage-Timer des Verlassen-Knopfs
 
 const $  = id => document.getElementById(id);
-const other = s => s === 'p1' ? 'p2' : 'p1';
+const SITZE = ['p1','p2','p3','p4'];
+// Besetzte und nicht ausgestiegene Plätze, in fester Reihenfolge.
+const aktive = st => SITZE.filter(k => st.seats?.[k] && !st.raus?.[k]);
+const mitspieler = (st, ausser) => aktive(st).filter(k => k !== ausser);
+const freierSitz = st => SITZE.find(k => !st.seats?.[k]);
+function naechster(st, von) {
+  const a = aktive(st);
+  if (!a.length) return von;
+  if (a.length < 2) return a[0];
+  const i = a.indexOf(von);
+  if (i >= 0) return a[(i + 1) % a.length];
+  // "von" ist selbst ausgestiegen und steht nicht mehr in der Liste. Dann
+  // ab seinem Platz in der Grundreihenfolge weitersuchen – sonst fiele der
+  // Zug zurück auf den ersten Spieler statt an den Nachbarn zu gehen.
+  const start = SITZE.indexOf(von);
+  for (let n = 1; n <= SITZE.length; n++) {
+    const k = SITZE[(start + n) % SITZE.length];
+    if (a.includes(k)) return k;
+  }
+  return a[0];
+}
 const show = id => document.querySelectorAll('.screen')
   .forEach(s => s.classList.toggle('hidden', s.id !== id));
 const setStat = (m,c) => { const e=$('stat'); e.textContent=m; e.className='stat'+(c?' '+c:''); };
@@ -570,7 +609,7 @@ async function init() {
     const b = $('btnRaus');
     if (b.classList.contains('frag')) { rausZuruecksetzen(); leaveGame(); return; }
     b.classList.add('frag');
-    b.textContent = 'Wirklich raus?';
+    b.textContent = 'Wirklich verlassen?';
     clearTimeout(rausFrage);
     rausFrage = setTimeout(rausZuruecksetzen, 4000);
   });
@@ -700,10 +739,11 @@ async function createGame() {
   const state = {
     phase: 'lobby',
     ziel: ZIEL,
-    seats: { p1: { name: myName() }, p2: null },
+    seats: { p1: { name: myName() }, p2: null, p3: null, p4: null },
+    raus: {},
     turn: 'p1',
     deck: shuffled(Object.keys(SONGS)),
-    timelines: { p1: [], p2: [] },
+    timelines: { p1: [], p2: [], p3: [], p4: [] },
     current: null,
     audio: { playing:false, startedAt:0, seek:0 },
     result: null,
@@ -768,28 +808,65 @@ async function joinGame() {
   if (error) return setHomeStat('Fehler: ' + error.message, 'err');
   if (!data)  return setHomeStat('Kein Spiel mit dem Code ' + code + '.','err');
 
-  // Platz schon belegt? Dann bin ich vielleicht der zurückkehrende Spieler.
-  if (data.state.seats.p2) {
-    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
-    if (saved?.code === code && saved?.seat) {
-      seat = saved.seat; adopt(data); return subscribe(code);
-    }
-    return setHomeStat('Das Spiel ist schon voll.','err');
+  // Zurückkehrender Spieler? Dann den alten Platz wieder einnehmen.
+  const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+  if (saved?.code === code && saved?.seat && data.state.seats[saved.seat]) {
+    seat = saved.seat; adopt(data); return subscribe(code);
   }
+  if (data.state.phase !== 'lobby')
+    return setHomeStat('Das Spiel läuft schon.','err');
+  const platz = freierSitz(data.state);
+  if (!platz) return setHomeStat('Das Spiel ist schon voll.','err');
 
-  seat = 'p2';
+  seat = platz;
   adopt(data);
   await subscribe(code);
-  await commit(s => { s.seats.p2 = { name: myName() }; return s; });
+  // Den Platz erst im Mutator festlegen: in der Zwischenzeit kann ihn
+  // jemand anders belegt haben.
+  const ok = await commit(s => {
+    const frei = s.seats[seat] ? freierSitz(s) : seat;
+    if (!frei) return null;
+    seat = frei;
+    s.seats[frei] = { name: myName() };
+    return s;
+  });
+  if (!ok) { setHomeStat('Das Spiel ist schon voll.','err'); return leaveGame(); }
 }
 
 function rausZuruecksetzen() {
   clearTimeout(rausFrage);
   const b = $('btnRaus');
-  if (b) { b.classList.remove('frag'); b.textContent = '✕'; }
+  if (b) { b.classList.remove('frag'); b.textContent = 'Spiel verlassen'; }
 }
 
 async function leaveGame() {
+  // Aussteigen im laufenden Spiel eintragen, sonst warten die anderen
+  // endlos auf einen Zug, der nie kommt.
+  if (G && !G.state.solo && G.state.phase !== 'over' && sb) {
+    const meinName = G.state.seats?.[seat]?.name || 'Ein Mitspieler';
+    await commit(s => {
+      if (s.phase === 'over' || !s.seats?.[seat]) return null;
+      s.raus = s.raus || {};
+      s.raus[seat] = true;
+      s.timelines[seat] = [];
+      s.hinweis = meinName + ' hat das Spiel verlassen';
+
+      const rest = aktive(s);
+      if (s.phase === 'lobby') { s.seats[seat] = null; delete s.raus[seat]; return s; }
+
+      // Allein weiterzuspielen ergibt keinen Sinn.
+      if (rest.length < 2) { s.verlassen = seat; s.phase = 'over'; }
+      else {
+        // Laufende Runde verwerfen: die Karte des Ausgestiegenen oder ein
+        // von ihm angemeldetes Veto lassen sich nicht sinnvoll fortführen.
+        if (s.turn === seat) s.turn = naechster(s, seat);
+        if (s.phase !== 'draw') { s.current = null; s.result = null; s.phase = 'draw'; }
+        s.pending = null; s.vetoBis = 0; s.vetoAngemeldet = null;
+      }
+      s.audio = { playing:false, startedAt:0, seek:0 };
+      return s;
+    });
+  }
   localStorage.setItem(STORE_KEY, JSON.stringify({ name: myName() }));   // Name behalten
   localStorage.removeItem(SOLO_KEY);
   if (channel) { await sb.removeChannel(channel); channel = null; }
@@ -860,13 +937,16 @@ async function commit(mutate) {
 // ══ Spielablauf ══════════════════════════════════════════════════
 async function startGame() {
   await commit(s => {
-    if (!s.seats.p2) return null;
+    const dabei = aktive(s);
+    if (dabei.length < 2) return null;
     // Jeder startet mit einer aufgedeckten Karte.
-    s.timelines.p1 = [ s.deck.pop() ];
-    s.timelines.p2 = [ s.deck.pop() ];
-    s.vetos = { p1: VETOS_START, p2: VETOS_START };
-    s.pending = null; s.vetoBis = 0; s.vetoAngemeldet = null;
-    s.turn = Math.random() < .5 ? 'p1' : 'p2';
+    s.vetos = {};
+    for (const k of dabei) {
+      s.timelines[k] = [ s.deck.pop() ];
+      s.vetos[k] = VETOS_START;
+    }
+    s.pending = null; s.vetoBis = 0; s.vetoAngemeldet = null; s.hinweis = null;
+    s.turn = dabei[Math.floor(Math.random() * dabei.length)];
     s.phase = 'draw';
     return s;
   });
@@ -941,7 +1021,7 @@ function auswerten(s, vetoZug) {
     // zeichnet commit() sofort neu, und renderOver liest soloRekord.
     if (s.fehler >= s.maxFehler) { s.phase = 'over'; merkeBestwert(tlAktiv.length); }
   } else {
-    for (const k of ['p1','p2']) {
+    for (const k of aktive(s)) {
       if (s.timelines[k].length >= s.ziel) { s.phase = 'over'; s.winner = k; }
     }
   }
@@ -964,8 +1044,8 @@ async function einloggen(index) {
     if (s.phase !== 'turn' || s.turn !== seat || !s.current) return null;
     s.pending = { seat, index };
     s.audio = { playing:false, startedAt:0, seek:0 };
-    const gegner = other(seat);
-    if (s.solo || !s.vetos || (s.vetos[gegner] || 0) <= 0) return auswerten(s, null);
+    const kannVeto = mitspieler(s, seat).some(k => (s.vetos?.[k] || 0) > 0);
+    if (s.solo || !kannVeto) return auswerten(s, null);
     s.phase = 'veto';
     s.vetoBis = serverNow() + VETO_MS;
     s.vetoAngemeldet = null;
@@ -1043,14 +1123,18 @@ function merkeBestwert(n) {
 async function naechsteKarte() {
   const ok = await commit(s => {
     if (s.phase !== 'result') return null;
-    if (!s.solo) s.turn = other(s.turn);
+    if (!s.solo) s.turn = naechster(s, s.turn);
     s.result = null;
+    s.hinweis = null;
     if (!s.deck.length) {
       s.phase = 'over';
       s.current = null;
       if (!s.solo && !s.winner) {
-        const a = s.timelines.p1.length, b = s.timelines.p2.length;
-        s.winner = a === b ? null : (a > b ? 'p1' : 'p2');
+        // Deck leer: die meisten Karten gewinnen, bei Gleichstand niemand.
+        const dabei = aktive(s);
+        const best = Math.max(...dabei.map(k => s.timelines[k].length));
+        const fuehrende = dabei.filter(k => s.timelines[k].length === best);
+        s.winner = fuehrende.length === 1 ? fuehrende[0] : null;
       }
       return s;
     }
@@ -1066,11 +1150,13 @@ async function naechsteKarte() {
 async function playAgain() {
   if (solo()) return startSolo();
   await commit(s => {
-    s.deck      = shuffled(Object.keys(SONGS));
-    s.timelines = { p1: [s.deck.pop()], p2: [s.deck.pop()] };
-    s.vetos     = { p1: VETOS_START, p2: VETOS_START };
-    s.pending   = null; s.vetoBis = 0; s.vetoAngemeldet = null;
-    s.turn      = Math.random() < .5 ? 'p1' : 'p2';
+    s.deck = shuffled(Object.keys(SONGS));
+    const dabei = aktive(s);
+    s.timelines = {}; s.vetos = {};
+    for (const k of SITZE) s.timelines[k] = [];
+    for (const k of dabei) { s.timelines[k] = [s.deck.pop()]; s.vetos[k] = VETOS_START; }
+    s.pending   = null; s.vetoBis = 0; s.vetoAngemeldet = null; s.hinweis = null;
+    s.turn      = dabei[Math.floor(Math.random() * dabei.length)];
     s.current   = null;
     s.result    = null;
     s.winner    = null;
@@ -1117,19 +1203,20 @@ function tippMerken(sitz, songId, korrekt) {
 function partieMerken() {
   if (!sb || !G) return;
   const st = G.state;
-  const schluessel = (G.code || 'solo') + '|' + st.timelines.p1.length + '|' + st.timelines.p2.length;
+  const schluessel = (G.code || 'solo') + '|' +
+    SITZE.map(k => (st.timelines[k] || []).length).join('-');
   if (partieProtokolliert === schluessel) return;
   partieProtokolliert = schluessel;
 
   const zeilen = st.solo
     ? [{ name: st.seats.p1.name, modus: 'solo',
          karten: st.timelines.p1.length, gewonnen: null, gegner: null }]
-    : ['p1','p2'].map(k => ({
+    : aktive(st).map(k => ({
         name:     st.seats[k].name,
         modus:    'duell',
         karten:   st.timelines[k].length,
         gewonnen: st.winner ? st.winner === k : null,
-        gegner:   st.seats[other(k)]?.name || null
+        gegner:   mitspieler(st, k).map(j => st.seats[j].name).join(', ') || null
       }));
 
   sb.from('partien').insert(zeilen)
@@ -1196,7 +1283,7 @@ function zeichneBilanz({ data, error }) {
   const el = $('statDuell');
   if (!data || !data.length) {
     el.className = 'statleer';
-    el.textContent = 'Noch kein Duell beendet.';
+    el.textContent = 'Noch keine Partie zu zweit oder mehr beendet.';
     return;
   }
   const ich = statName();
@@ -1399,12 +1486,12 @@ function render() {
 function renderLobby(st) {
   show('lobbyScreen');
   $('lobbyCode').textContent = G.code;
-  $('lobbyHint').textContent = seat === 'p1'
-    ? 'Gib den Code an deinen Mitspieler weiter'
-    : 'Warte, bis dein Mitspieler startet';
   const seats = $('lobbySeats');
   seats.innerHTML = '';
-  ['p1','p2'].forEach(k => {
+  const dabei = aktive(st);
+  SITZE.forEach((k, i) => {
+    // Freie Plätze nur zeigen, solange noch jemand dazukommen kann.
+    if (!st.seats[k] && i > dabei.length) return;
     const d = document.createElement('div');
     d.style.cssText = 'display:flex;align-items:center;gap:10px;width:100%;font-size:14px;font-weight:600';
     if (st.seats[k]) {
@@ -1415,11 +1502,15 @@ function renderLobby(st) {
     }
     seats.appendChild(d);
   });
-  const ready = !!st.seats.p2;
+  const ready = dabei.length >= 2;
+  const voll  = dabei.length >= SITZE.length;
   $('btnStart').disabled = !(ready && seat === 'p1');
   $('btnStart').textContent = seat === 'p1'
-    ? (ready ? 'Spiel starten' : 'Warte auf Mitspieler')
+    ? (ready ? `Spiel starten (${dabei.length})` : 'Warte auf Mitspieler')
     : (ready ? 'Warte auf Start…' : 'Warte auf Mitspieler');
+  $('lobbyHint').textContent = seat === 'p1'
+    ? (voll ? 'Alle vier Plätze belegt' : 'Gib den Code an deine Mitspieler weiter')
+    : 'Warte, bis gestartet wird';
 }
 
 function renderGame(st) {
@@ -1437,7 +1528,9 @@ function renderGame(st) {
       <div class="seat"><div class="nm">Leben</div>
         <div class="ct leben">${leben}</div></div>`;
   } else {
-    $('score').innerHTML = ['p1','p2'].map(k => {
+    const dabei = aktive(st);
+    $('score').className = 'score' + (dabei.length > 2 ? ' viele' : '');
+    $('score').innerHTML = dabei.map(k => {
       const v = st.vetos ? (st.vetos[k] || 0) : 0;
       const punkte = Array.from({ length: VETOS_START },
         (_, i) => `<span class="vpunkt${i >= v ? ' weg' : ''}"></span>`).join('');
@@ -1448,6 +1541,8 @@ function renderGame(st) {
       </div>`;
     }).join('');
   }
+
+  $('hinweis').textContent = (!st.solo && st.hinweis) ? st.hinweis : '';
 
   // ── Bühne ──
   // Beim Ziehen und Anspielen leer: der Player allein sagt genug. In der
@@ -1509,15 +1604,17 @@ function renderGame(st) {
   // Lückenindizes verschieben sich dadurch nicht.
   const platzhalter = (vetoPhase && st.pending && st.pending.seat === tlSeat)
     ? st.pending.index : -1;
-  renderTimeline(st, tlSeat, (mine && st.phase === 'turn') || suchtVeto, platzhalter);
+  renderTimeline(st, tlSeat, (mine && st.phase === 'turn') || suchtVeto, platzhalter,
+                 suchtVeto ? st.pending.index : -1);
 
   // ── Gegner kompakt (im Solo gibt es keinen) ──
-  if (st.solo) {
+  if (st.solo || tlSeat === seat) {
     $('oppo').innerHTML = '';
   } else {
-    const oSeat = other(tlSeat);
-    $('oppo').innerHTML = `<div class="tllabel">${oSeat===seat ? 'Deine Karten' : esc(st.seats[oSeat].name)}</div>
-      <div class="row">${st.timelines[oSeat].map(id => `<span class="chip">${song(id).year}</span>`).join('') ||
+    // Fremde Leiste im Hauptbereich – dann hier die eigenen Karten zeigen.
+    const mein = st.timelines[seat] || [];
+    $('oppo').innerHTML = `<div class="tllabel">Deine Karten</div>
+      <div class="row">${mein.map(id => `<span class="chip">${song(id).year}</span>`).join('') ||
         '<span class="chip">noch leer</span>'}</div>`;
   }
 
@@ -1535,7 +1632,7 @@ function renderGame(st) {
   }
 }
 
-function renderTimeline(st, tlSeat, interactive, platzhalter = -1) {
+function renderTimeline(st, tlSeat, interactive, platzhalter = -1, gesperrt = -1) {
   const tl = st.timelines[tlSeat];
   const el = $('tl');
   el.innerHTML = '';
@@ -1548,11 +1645,15 @@ function renderTimeline(st, tlSeat, interactive, platzhalter = -1) {
   let focus = null;   // was der Spieler nach dem Neuzeichnen sehen muss
 
   for (let i = 0; i <= tl.length; i++) {
+    // Die angefochtene Stelle selbst ist keine Wahl: dort liegt die Karte
+    // laut Gegenspieler ja schon.
+    const zu = i === gesperrt;
+    const waehlbar = interactive && !zu;
     const gap = document.createElement('button');
-    const sel = interactive && pendingGap === i;
-    gap.className = 'gap' + (interactive ? ' live' : '') + (sel ? ' sel' : '');
+    const sel = waehlbar && pendingGap === i;
+    gap.className = 'gap' + (waehlbar ? ' live' : '') + (sel ? ' sel' : '') + (zu ? ' zu' : '');
     gap.innerHTML = '<span class="bar"></span>';
-    if (interactive) {
+    if (waehlbar) {
       gap.addEventListener('click', () => {
         pendingGap = (pendingGap === i) ? null : i;
         render();
@@ -1610,8 +1711,10 @@ function renderActions(st, mine) {
     const habeVetos = (st.vetos?.[seat] || 0) > 0;
     if (mine) {
       add(st.vetoAngemeldet
-            ? st.seats[other(seat)].name + ' legt Veto ein…'
-            : 'Warte auf ' + st.seats[other(seat)].name + '…', '', null, true);
+            ? esc(st.seats[st.vetoAngemeldet]?.name || 'Jemand') + ' legt Veto ein…'
+            : 'Kann angefochten werden…', '', null, true);
+    } else if (st.vetoAngemeldet && st.vetoAngemeldet !== seat) {
+      add(esc(st.seats[st.vetoAngemeldet]?.name || 'Jemand') + ' war schneller', '', null, true);
     } else if (st.vetoAngemeldet === seat) {
       if (pendingGap === null) add('Tippe die richtige Lücke', '', null, true);
       else add('Veto hier setzen', 'prim', () => { const g = pendingGap; pendingGap = null; vetoSetzen(g); });
@@ -1674,16 +1777,16 @@ function flagImg(s) {
 
 // ── Veto-Phase: Anzeige ──────────────────────────────────────────
 function vetoHTML(st, mine) {
-  const gegner = st.seats[other(st.turn)].name;
-  const amZug  = st.seats[st.turn].name;
+  const amZug = st.seats[st.turn].name;
   if (st.vetoAngemeldet) {
     const wer = st.vetoAngemeldet === seat;
+    const name = st.seats[st.vetoAngemeldet]?.name || 'Jemand';
     return `<div class="vetobox scharf">
       <div class="vetoIcon">✋</div>
-      <div class="vetoTitel">${wer ? 'Dein Veto läuft' : esc(gegner) + ' legt Veto ein!'}</div>
+      <div class="vetoTitel">${wer ? 'Dein Veto läuft' : esc(name) + ' legt Veto ein!'}</div>
       <div class="vetoText">${wer
         ? 'Tippe unten in ' + esc(amZug) + 's Zeitleiste die Lücke, in die die Karte gehört. Liegst du richtig und ' + esc(amZug) + ' falsch, wandert sie zu dir.'
-        : 'Er behauptet, deine Platzierung sei falsch – und zeigt jetzt, wo die Karte hingehört.'}</div>
+        : esc(name) + ' behauptet, die Platzierung sei falsch – und zeigt jetzt, wo die Karte hingehört.'}</div>
     </div>`;
   }
   return `<div class="vetobox">
@@ -1691,8 +1794,8 @@ function vetoHTML(st, mine) {
     <div class="vetoTitel">${mine ? 'Eingeloggt' : 'Veto?'}</div>
     <div class="vetoZeit" id="vetoZeit">–</div>
     <div class="vetoText">${mine
-      ? esc(gegner) + ' kann die Platzierung jetzt anfechten.'
-      : 'Glaubst du, ' + esc(amZug) + ' liegt daneben? Das ? in der Zeitleiste zeigt die gewählte Stelle.'}</div>
+      ? 'Die anderen können die Platzierung jetzt anfechten.'
+      : 'Glaubst du, ' + esc(amZug) + ' liegt daneben? Das ? in der Zeitleiste zeigt die gewählte Stelle. Wer zuerst tippt, bekommt den Zugriff.'}</div>
   </div>`;
 }
 
@@ -1743,18 +1846,34 @@ function renderOver(st) {
     $('overSub').textContent = soloRekord
       ? `${n} Karten in deiner Zeitleiste – so weit warst du noch nie.`
       : `${n} Karten geschafft. Dein Bestwert liegt bei ${bestwert()}.`;
+    $('btnAgain').style.display = '';
     $('btnAgain').textContent = 'Nochmal solo';
     zeigeBestwert();
     if (soloRekord) confetti();
     return;
   }
 
+  // Nur wer noch dabei ist: Ausgestiegene stünden sonst mit 0 Karten da,
+  // was ihren tatsächlichen Stand vor dem Ausstieg verfälscht.
+  const stand = aktive(st)
+    .map(k => `${st.seats[k].name} ${st.timelines[k].length}`).join(' · ');
+
+  // Abbruch: kein Sieger, keine Revanche – der andere ist ja weg.
+  if (st.verlassen) {
+    const ichWars = st.verlassen === seat;
+    $('overTitle').textContent = ichWars ? 'Spiel verlassen'
+      : esc(st.seats[st.verlassen]?.name || 'Dein Mitspieler') + ' ist ausgestiegen';
+    $('overSub').textContent = 'Die Partie wurde abgebrochen. Stand war ' + stand + '.';
+    $('btnAgain').style.display = 'none';
+    return;
+  }
+  $('btnAgain').style.display = '';
+
   const w = st.winner;
   $('btnAgain').textContent = 'Nochmal spielen';
   $('overTitle').textContent = !w ? 'Unentschieden'
-    : (w === seat ? 'Du gewinnst!' : st.seats[w].name + ' gewinnt');
-  $('overSub').textContent =
-    `${st.seats.p1.name} ${st.timelines.p1.length} : ${st.timelines.p2.length} ${st.seats.p2.name}`;
+    : (w === seat ? 'Du gewinnst!' : (st.seats[w]?.name || 'Jemand') + ' gewinnt');
+  $('overSub').textContent = stand;
   if (w === seat) confetti();
 }
 

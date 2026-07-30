@@ -27,7 +27,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 /* Der Spielbildschirm muss ohne Scrollen auskommen – deshalb enger als
    die Einstiegsbildschirme, die ruhig Luft haben dürfen. */
 #gameScreen { gap:13px; padding-left:20px; padding-right:20px;
-              padding-top:max(env(safe-area-inset-top),18px);
+              padding-top:calc(max(env(safe-area-inset-top),12px) + 40px);
               padding-bottom:calc(max(env(safe-area-inset-bottom),12px) + 6px); }
 .screen.hidden { opacity:0; pointer-events:none; transform:scale(.97); }
 .logo { width:100%; display:flex; justify-content:center; flex-shrink:0; }
@@ -210,6 +210,16 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
    liegen direkt in der Spalte, genau wie vor der Desktop-Ansicht. */
 .rechts { display:contents; }
 
+/* Verlassen-Knopf: klein, oben rechts, mit Rückfrage */
+.raus { position:absolute; z-index:5; top:max(env(safe-area-inset-top),12px); right:18px;
+        width:32px; height:32px; padding:0; border-radius:50%; cursor:pointer;
+        border:1px solid var(--border); background:var(--surface); color:var(--muted);
+        font-family:inherit; font-size:14px; font-weight:600; line-height:1;
+        display:flex; align-items:center; justify-content:center; -webkit-appearance:none;
+        transition:color .2s, border-color .2s; }
+.raus.frag { width:auto; padding:0 13px; border-radius:16px; font-size:12px;
+             color:var(--red); border-color:var(--red); }
+
 /* ── Veto-Phase ────────────────────────────────────────────────── */
 .vetobox { position:absolute; inset:0; display:flex; flex-direction:column;
            align-items:center; justify-content:center; gap:10px; text-align:center;
@@ -312,8 +322,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       "buehne  score"
       "buehne  rechts"
       "verdict rechts";
-    padding:32px 40px;
+    padding:56px 40px 32px;
   }
+  .raus { top:22px; right:32px; }
   /* Füllt die Spalte: bei 720 px sind das 353 px pro Kachel, und die rechte
      Spalte wirkt als zusammenhängender Block statt halb leer. */
   #gameScreen > .score   { grid-area:score;  align-self:start; max-width:none; }
@@ -395,6 +406,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 
 <!-- ══ SPIEL ══════════════════════════════════════════════════ -->
 <div class="screen hidden" id="gameScreen">
+  <!-- Oben rechts und mit Rückfrage: hier unten bei den Spielknöpfen war
+       er zu leicht versehentlich zu treffen. -->
+  <button class="raus" id="btnRaus" aria-label="Spiel verlassen">✕</button>
   <div class="score" id="score"></div>
   <!-- Feste Höhe im Format der Karte. Player und Auflösung liegen darin
        übereinander, damit beim Phasenwechsel nichts verrutscht. -->
@@ -530,6 +544,7 @@ let audioAnweisung = null;     // welche Audio-Anweisung ist schon umgesetzt?
 let statSicht = 'ich';         // 'ich' oder 'alle' auf der Statistikseite
 let partieProtokolliert = null; // verhindert doppelte Einträge derselben Partie
 let vetoAblaufFuer = null;     // gegen doppeltes Durchlassen beim Ablauf
+let rausFrage = null;          // Rückfrage-Timer des Verlassen-Knopfs
 
 const $  = id => document.getElementById(id);
 const other = s => s === 'p1' ? 'p2' : 'p1';
@@ -549,6 +564,16 @@ async function init() {
   $('btnCreate').addEventListener('click', createGame);
   $('btnJoin').addEventListener('click', joinGame);
   $('btnSolo').addEventListener('click', startSolo);
+  // Zwei Tipps zum Verlassen: der erste fragt nur nach, nach vier Sekunden
+  // ohne Bestätigung fällt der Knopf in den Ruhezustand zurück.
+  $('btnRaus').addEventListener('click', () => {
+    const b = $('btnRaus');
+    if (b.classList.contains('frag')) { rausZuruecksetzen(); leaveGame(); return; }
+    b.classList.add('frag');
+    b.textContent = 'Wirklich raus?';
+    clearTimeout(rausFrage);
+    rausFrage = setTimeout(rausZuruecksetzen, 4000);
+  });
   $('btnStats').addEventListener('click', zeigeStatistik);
   $('btnStatsOver').addEventListener('click', zeigeStatistik);
   $('btnStatsBack').addEventListener('click', () => {
@@ -758,6 +783,12 @@ async function joinGame() {
   await commit(s => { s.seats.p2 = { name: myName() }; return s; });
 }
 
+function rausZuruecksetzen() {
+  clearTimeout(rausFrage);
+  const b = $('btnRaus');
+  if (b) { b.classList.remove('frag'); b.textContent = '✕'; }
+}
+
 async function leaveGame() {
   localStorage.setItem(STORE_KEY, JSON.stringify({ name: myName() }));   // Name behalten
   localStorage.removeItem(SOLO_KEY);
@@ -882,12 +913,17 @@ function auswerten(s, vetoZug) {
   if (vetoZug && !s.solo) {
     const g = vetoZug.seat;
     s.vetos[g] = Math.max(0, (s.vetos[g] || 0) - 1);
-    const gOk = !aktivOk && isCorrect(s.timelines[g], vetoZug.index, id);
+    // Geprüft wird in der Leiste des Spielers am Zug – dieselbe Aufgabe,
+    // an der er gescheitert ist. Gelingt es, wird die Karte anschließend
+    // an der passenden Stelle in die eigene Leiste einsortiert.
+    const gOk = !aktivOk && isCorrect(tlAktiv, vetoZug.index, id);
+    let ziel = -1;
     if (gOk) {
-      s.timelines[g].splice(vetoZug.index, 0, id);
+      ziel = einsortierIndex(s.timelines[g], id);
+      s.timelines[g].splice(ziel, 0, id);
       s.vetos[g]++;                       // korrektes Veto bleibt erhalten
     }
-    klau = { seat: g, index: vetoZug.index, gelungen: gOk };
+    klau = { seat: g, index: vetoZug.index, zielIndex: ziel, gelungen: gOk };
   }
 
   if (aktivOk) tlAktiv.splice(idx, 0, id);
@@ -914,6 +950,15 @@ function auswerten(s, vetoZug) {
 
 // Verbindliches Festlegen der Position. Hat der Gegner noch Vetos, folgt
 // erst die Veto-Phase; sonst wird direkt ausgewertet.
+// Wohin gehört die Karte in dieser (sortierten) Leiste? Bei gleichen
+// Jahren die vorderste passende Stelle – bleibt in jedem Fall sortiert.
+function einsortierIndex(tl, id) {
+  const y = yearOf(id);
+  let i = 0;
+  while (i < tl.length && yearOf(tl[i]) < y) i++;
+  return i;
+}
+
 async function einloggen(index) {
   const ok = await commit(s => {
     if (s.phase !== 'turn' || s.turn !== seat || !s.current) return null;
@@ -1379,6 +1424,7 @@ function renderLobby(st) {
 
 function renderGame(st) {
   show('gameScreen');
+  if (!$('btnRaus').classList.contains('frag')) rausZuruecksetzen();
   const mine = st.turn === seat;
 
   // ── Punktestand ──
@@ -1448,15 +1494,20 @@ function renderGame(st) {
   // Karte. In der Auflösung die, in der die Karte gelandet ist.
   const klauGelungen = auflösung && st.result.klau?.gelungen;
   const suchtVeto = vetoPhase && st.vetoAngemeldet === seat;
-  const tlSeat = suchtVeto ? seat
-               : klauGelungen ? st.result.klau.seat
+  // Beim Veto wird in der Leiste des Spielers am Zug getippt, nicht in der
+  // eigenen. Nach gelungenem Klau zeigt die Auflösung die Leiste, in der
+  // die Karte tatsächlich gelandet ist.
+  const tlSeat = klauGelungen ? st.result.klau.seat
                : auflösung ? st.result.seat
                : st.turn;
-  $('tlLabel').textContent = suchtVeto ? 'Wo gehört sie hin? Deine Zeitleiste'
-    : tlSeat === seat ? 'Deine Zeitleiste' : 'Zeitleiste von ' + st.seats[tlSeat].name;
-  // Im Veto-Fenster zeigen wir die eingeloggte Karte als offenen Platzhalter
-  // in der Leiste des Spielers am Zug – nur so ist die Behauptung prüfbar.
-  const platzhalter = (vetoPhase && !suchtVeto && st.pending && st.pending.seat === tlSeat)
+  $('tlLabel').textContent = suchtVeto
+      ? 'Wo gehört sie hin? Zeitleiste von ' + st.seats[st.turn].name
+    : tlSeat === seat ? 'Deine Zeitleiste'
+    : 'Zeitleiste von ' + st.seats[tlSeat].name;
+  // Die eingeloggte Karte bleibt als offener Platzhalter sichtbar – auch
+  // beim Aussuchen, damit man die angefochtene Stelle vor Augen hat. Die
+  // Lückenindizes verschieben sich dadurch nicht.
+  const platzhalter = (vetoPhase && st.pending && st.pending.seat === tlSeat)
     ? st.pending.index : -1;
   renderTimeline(st, tlSeat, (mine && st.phase === 'turn') || suchtVeto, platzhalter);
 
@@ -1492,7 +1543,7 @@ function renderTimeline(st, tlSeat, interactive, platzhalter = -1) {
   // bei gelungenem Klau, die des Vetogebers.
   const r = st.phase === 'result' ? st.result : null;
   const freshIdx = !r ? -1
-    : r.klau?.gelungen ? (r.klau.seat === tlSeat ? r.klau.index : -1)
+    : r.klau?.gelungen ? (r.klau.seat === tlSeat ? r.klau.zielIndex : -1)
     : (r.correct && r.seat === tlSeat ? r.index : -1);
   let focus = null;   // was der Spieler nach dem Neuzeichnen sehen muss
 
@@ -1574,7 +1625,7 @@ function renderActions(st, mine) {
   } else if (st.phase === 'result') {
     add('Nächste Karte', 'prim', naechsteKarte);
   }
-  add(st.solo ? 'Solo beenden' : 'Spiel verlassen', 'ghost', leaveGame);
+
 }
 
 // ── Kartenverläufe ───────────────────────────────────────────────
@@ -1631,7 +1682,7 @@ function vetoHTML(st, mine) {
       <div class="vetoIcon">✋</div>
       <div class="vetoTitel">${wer ? 'Dein Veto läuft' : esc(gegner) + ' legt Veto ein!'}</div>
       <div class="vetoText">${wer
-        ? 'Tippe unten die Lücke, in die die Karte deiner Meinung nach gehört. Liegst du richtig und ' + esc(amZug) + ' falsch, wandert sie zu dir.'
+        ? 'Tippe unten in ' + esc(amZug) + 's Zeitleiste die Lücke, in die die Karte gehört. Liegst du richtig und ' + esc(amZug) + ' falsch, wandert sie zu dir.'
         : 'Er behauptet, deine Platzierung sei falsch – und zeigt jetzt, wo die Karte hingehört.'}</div>
     </div>`;
   }

@@ -520,10 +520,13 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <audio id="aud" preload="auto" playsinline></audio>
 
 <script src="duell-config.js"></script>
+<!-- Supabase liegt als eigenständige Datei im Repo statt von einem CDN zu
+     kommen. Ein Modul mit fehlgeschlagenem Import wird gar nicht erst
+     ausgeführt – dann reagiert kein einziger Knopf mehr, ohne jede
+     Fehlermeldung. Als klassisches Skript kann das nicht passieren. -->
+<script src="supabase.js"></script>
 <script type="module">
-// Feste Version statt @2: ein automatisches Minor-Update soll das Spiel
-// nicht mitten in einer Runde kaputtmachen.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.111.0';
+const createClient = window.supabase?.createClient;
 
 // ══ Konstanten ═══════════════════════════════════════════════════
 const ZIEL = window.DUELL_ZIEL || 10;
@@ -653,6 +656,8 @@ async function init() {
   await loadSongs();
 
   try {
+    if (!createClient)
+      throw new Error('supabase.js wurde nicht geladen – liegt die Datei neben duell.html?');
     if (!window.SUPABASE_URL || window.SUPABASE_URL.includes('DEIN-PROJEKT'))
       throw new Error('Supabase ist noch nicht konfiguriert – trag URL und Key in duell-config.js ein.');
     sb = createClient(window.SUPABASE_URL, window.SUPABASE_KEY, {

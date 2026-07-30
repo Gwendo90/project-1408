@@ -152,7 +152,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
    zu schieben. Breiter als die Karte, damit die Zeitanzeige Platz hat. */
 .punten { position:absolute; left:50%; transform:translateX(-50%); width:min(100vw - 40px,400px);
           top:calc(50% + 50px); display:flex; flex-direction:column; align-items:center; gap:10px; }
-.pbtn { width:74px; height:74px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center;
+/* flex-shrink:0 ist eine Sicherung: in einem zu schmalen Container würde
+   der Button sonst zu einer Ellipse zusammengedrückt statt sichtbar
+   überzulaufen – ein Layoutfehler wäre dann schwer zu erkennen. */
+.pbtn { width:74px; height:74px; flex-shrink:0; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center;
         justify-content:center; -webkit-appearance:none; transition:transform .15s;
         background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
         box-shadow:0 12px 34px rgba(158,34,180,.35); }
@@ -232,9 +235,14 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
      Die Spaltenbreiten begrenzen sich selbst, damit es auf sehr breiten
      Bildschirmen nicht auseinanderläuft. */
   #gameScreen {
+    /* Feste Spaltenbreite statt auto: beim Ziehen und Anspielen ist die
+       Bühne leer (Player und Balken sind absolut positioniert), eine
+       auto-Spalte fiele dann auf null zusammen und der Player rutschte
+       aus dem Bild. */
+    --kartengroesse:min(46vh,340px);
     display:grid; align-content:center; justify-content:center;
     column-gap:34px; row-gap:14px;
-    grid-template-columns:auto minmax(360px,880px);
+    grid-template-columns:var(--kartengroesse) minmax(360px,880px);
     /* Alle Zeilen inhaltsgroß – eine 1fr-Zeile würde die Resthöhe
        schlucken und die Verdict-Zeile an den Fensterboden schieben. */
     grid-template-rows:auto auto auto;
@@ -247,10 +255,13 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   /* Nicht auf volle Spaltenbreite ziehen – für „Karten 15“ und drei Herzen
      wären 427 px pro Kachel absurd. */
   #gameScreen > .score   { grid-area:score;  align-self:start; max-width:480px; }
-  #gameScreen > .buehne  { grid-area:buehne; align-self:start; height:min(46vh,340px); }
+  #gameScreen > .buehne  { grid-area:buehne; align-self:start;
+                           width:var(--kartengroesse); height:var(--kartengroesse); }
   #gameScreen > .verdict { grid-area:verdict; max-width:none; }
   #gameScreen > .rechts  { grid-area:rechts; display:flex; flex-direction:column;
                            justify-content:flex-start; gap:18px; min-width:0; }
+  /* Auf dem Handy darf der Balken breiter als die Karte sein, hier nicht. */
+  #gameScreen .punten    { width:var(--kartengroesse); }
 
   /* Die Breite kommt der Zeitleiste zugute: statt drei Karten wie auf dem
      Handy sind hier sieben bis acht gleichzeitig sichtbar. Die Größe der

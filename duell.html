@@ -24,6 +24,11 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
           padding:24px; padding-top:max(env(safe-area-inset-top),40px);
           padding-bottom:calc(max(env(safe-area-inset-bottom),20px) + 16px);
           transition:opacity .3s,transform .3s; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+/* Der Spielbildschirm muss ohne Scrollen auskommen – deshalb enger als
+   die Einstiegsbildschirme, die ruhig Luft haben dürfen. */
+#gameScreen { gap:13px; padding-left:20px; padding-right:20px;
+              padding-top:max(env(safe-area-inset-top),18px);
+              padding-bottom:calc(max(env(safe-area-inset-bottom),12px) + 6px); }
 .screen.hidden { opacity:0; pointer-events:none; transform:scale(.97); }
 .logo { width:100%; display:flex; justify-content:center; flex-shrink:0; }
 .logo img { width:150px; height:auto; display:block; }
@@ -40,15 +45,15 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
        font-family:inherit; font-size:16px; font-weight:500; color:var(--text); -webkit-appearance:none; text-align:center; }
 .inp:focus { outline:none; border-color:var(--grad-mid); }
 .inp.code { text-transform:uppercase; letter-spacing:6px; font-weight:700; font-size:22px; }
-.btn { width:100%; padding:16px; border-radius:14px; cursor:pointer; font-family:inherit; font-size:15px;
+.btn { width:100%; padding:14px; border-radius:14px; cursor:pointer; font-family:inherit; font-size:15px;
        font-weight:600; -webkit-appearance:none; text-align:center; border:1px solid var(--border);
        background:var(--surface); color:var(--text); }
 .btn:disabled { opacity:.4; cursor:default; }
 .btn.prim { border:none; color:white; background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
             box-shadow:0 10px 26px rgba(158,34,180,.30); }
 .btn.prim:active { opacity:.9; transform:scale(.98); }
-.btn.ghost { background:transparent; border:none; color:var(--muted); font-size:13px; padding:8px; }
-.actions { width:100%; max-width:400px; display:flex; flex-direction:column; gap:10px; flex-shrink:0; }
+.btn.ghost { background:transparent; border:none; color:var(--muted); font-size:12px; padding:5px; }
+.actions { width:100%; max-width:400px; display:flex; flex-direction:column; gap:7px; flex-shrink:0; }
 .divider { display:flex; align-items:center; gap:12px; width:100%; color:var(--muted); font-size:12px; }
 .divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
 
@@ -63,7 +68,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 /* ── Punktestand ──────────────────────────────────────────────── */
 .score { width:100%; max-width:400px; display:flex; gap:10px; flex-shrink:0; }
 .seat { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:14px;
-        padding:10px 12px; display:flex; flex-direction:column; gap:2px; position:relative; overflow:hidden; }
+        padding:8px 12px; display:flex; flex-direction:column; gap:1px; position:relative; overflow:hidden; }
 .seat.active { border-color:transparent; box-shadow:0 0 0 2px var(--grad-mid); }
 .seat.active::before { content:''; position:absolute; top:0; left:0; right:0; height:3px;
         background:linear-gradient(90deg,var(--grad-a),var(--grad-b)); }
@@ -79,7 +84,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 /* ── Bühne: Mystery / Reveal ──────────────────────────────────── */
 /* Quadratisch wie die Karte – die Höhe steht damit fest, egal welche
    Phase gerade läuft. Beide Kinder liegen deckungsgleich darin. */
-.buehne { position:relative; width:100%; max-width:400px; aspect-ratio:1/1; flex-shrink:0; }
+/* Höhe führt, Breite folgt: so bleibt die Karte quadratisch, füllt aber
+   nicht mehr die halbe Seite. Der Deckel greift auf grossen Displays. */
+.buehne { position:relative; aspect-ratio:1/1; height:min(33vh,270px);
+          max-width:100%; margin:0 auto; flex-shrink:0; }
 .stage  { position:absolute; inset:0; container-type:inline-size; }
 @keyframes pop { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
 
@@ -129,8 +137,8 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 
 /* Eigene Zeile unter der Bühne mit fester Höhe. Läge sie in der Bühne,
    ragte sie unten heraus und würde die Zeitleisten-Überschrift überdecken. */
-.verdict { width:100%; max-width:400px; height:22px; flex-shrink:0;
-           font-size:15px; font-weight:700; display:flex;
+.verdict { width:100%; max-width:400px; height:19px; flex-shrink:0;
+           font-size:14px; font-weight:700; display:flex;
            align-items:center; justify-content:center; gap:8px; }
 .verdict.ok  { color:var(--green); }
 .verdict.err { color:var(--red); }
@@ -140,9 +148,11 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
    dort, wo später die Mitte der aufgelösten Karte liegt. Balken und
    Statuszeile hängen darunter, ohne ihn zu verschieben. */
 .player { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
-.punten { position:absolute; left:0; right:0; top:calc(50% + 58px);
-          display:flex; flex-direction:column; align-items:center; gap:12px; }
-.pbtn { width:84px; height:84px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center;
+/* Balken und Status hängen unter dem Button, ohne ihn aus der Kartenmitte
+   zu schieben. Breiter als die Karte, damit die Zeitanzeige Platz hat. */
+.punten { position:absolute; left:50%; transform:translateX(-50%); width:min(100vw - 40px,400px);
+          top:calc(50% + 50px); display:flex; flex-direction:column; align-items:center; gap:10px; }
+.pbtn { width:74px; height:74px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center;
         justify-content:center; -webkit-appearance:none; transition:transform .15s;
         background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
         box-shadow:0 12px 34px rgba(158,34,180,.35); }
@@ -151,7 +161,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .pbtn.on { animation:pulse 2.4s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{box-shadow:0 12px 34px rgba(158,34,180,.35)}
                    50%{box-shadow:0 12px 44px rgba(158,34,180,.6),0 0 0 14px rgba(158,34,180,.06)} }
-.pbtn svg { width:32px; height:32px; fill:white; margin-left:3px; }
+.pbtn svg { width:29px; height:29px; fill:white; margin-left:3px; }
 .pbtn.on svg { margin-left:0; }
 .iplay{display:block;} .ipause{display:none;}
 .pbtn.on .iplay{display:none;} .pbtn.on .ipause{display:block;}
@@ -164,13 +174,13 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 
 /* ── Zeitleiste ───────────────────────────────────────────────── */
 .tlwrap { width:100%; max-width:400px; flex-shrink:0; }
-.tllabel { font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
-           color:var(--muted); margin-bottom:8px; padding-left:2px; }
-.tl { display:flex; align-items:stretch; gap:0; overflow-x:auto; padding:4px 2px 12px;
+.tllabel { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+           color:var(--muted); margin-bottom:5px; padding-left:2px; }
+.tl { display:flex; align-items:stretch; gap:0; overflow-x:auto; padding:3px 2px 8px;
       -webkit-overflow-scrolling:touch; scrollbar-width:none; }
 .tl::-webkit-scrollbar { display:none; }
 /* Miniaturen derselben Kartenfront */
-.tlcard { flex:0 0 auto; width:92px; aspect-ratio:1/1; border-radius:13px; overflow:hidden;
+.tlcard { flex:0 0 auto; width:82px; aspect-ratio:1/1; border-radius:12px; overflow:hidden;
           background:linear-gradient(135deg,#ED4F4F,#745BFF); color:#111114;
           padding:8px 7px; display:flex; flex-direction:column; align-items:center;
           justify-content:center; gap:2px; text-align:center;
@@ -182,19 +192,19 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .tlcard .f img { width:20px; height:20px; display:block; }
 .tlcard.fresh { animation:pop .45s cubic-bezier(.34,1.56,.64,1) both;
                 box-shadow:0 0 0 3px var(--green), 0 5px 14px rgba(90,50,140,.22); }
-.gap { flex:0 0 auto; width:34px; display:flex; align-items:center; justify-content:center;
+.gap { flex:0 0 auto; width:30px; display:flex; align-items:center; justify-content:center;
        background:none; border:none; padding:0; font-family:inherit; }
-.gap .bar { width:4px; height:52px; border-radius:3px; background:var(--track); transition:all .2s; }
+.gap .bar { width:4px; height:46px; border-radius:3px; background:var(--track); transition:all .2s; }
 .gap.live .bar { background:linear-gradient(180deg,var(--grad-a),var(--grad-b)); cursor:pointer; }
 .gap.live:active .bar { transform:scaleX(2); }
-.gap.sel .bar { width:16px; height:66px; background:linear-gradient(180deg,var(--grad-a),var(--grad-b));
+.gap.sel .bar { width:15px; height:60px; background:linear-gradient(180deg,var(--grad-a),var(--grad-b));
                 box-shadow:0 6px 18px rgba(158,34,180,.40); }
 .tlempty { font-size:13px; color:var(--muted); padding:14px 0; }
 
 /* ── Gegner-Leiste (kompakt) ──────────────────────────────────── */
 .oppo { width:100%; max-width:400px; flex-shrink:0; }
-.oppo .tllabel { margin-bottom:6px; }
-.oppo .row { display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; padding-bottom:4px; }
+.oppo .tllabel { margin-bottom:4px; }
+.oppo .row { display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
 .oppo .row::-webkit-scrollbar { display:none; }
 .chip { flex:0 0 auto; font-size:11px; font-weight:600; padding:5px 9px; border-radius:50px;
         background:var(--surface); border:1px solid var(--border); color:var(--muted); }

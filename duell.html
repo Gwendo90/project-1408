@@ -242,7 +242,11 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     --kartengroesse:min(46vh,340px);
     display:grid; align-content:center; justify-content:center;
     column-gap:34px; row-gap:14px;
-    grid-template-columns:var(--kartengroesse) minmax(360px,880px);
+    /* Deckel bei 720 statt 880: die rechte Spalte beanspruchte sonst mehr
+       Breite als ihr Inhalt nutzt, wodurch rechts eine Leerfläche entstand
+       und das Spiel nach links gedrückt wirkte. Schmaler heißt: es bleibt
+       Platz übrig, und justify-content:center kann tatsächlich zentrieren. */
+    grid-template-columns:var(--kartengroesse) minmax(340px,720px);
     /* Alle Zeilen inhaltsgroß – eine 1fr-Zeile würde die Resthöhe
        schlucken und die Verdict-Zeile an den Fensterboden schieben. */
     grid-template-rows:auto auto auto;
@@ -252,9 +256,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       "verdict rechts";
     padding:32px 40px;
   }
-  /* Nicht auf volle Spaltenbreite ziehen – für „Karten 15“ und drei Herzen
-     wären 427 px pro Kachel absurd. */
-  #gameScreen > .score   { grid-area:score;  align-self:start; max-width:480px; }
+  /* Füllt die Spalte: bei 720 px sind das 353 px pro Kachel, und die rechte
+     Spalte wirkt als zusammenhängender Block statt halb leer. */
+  #gameScreen > .score   { grid-area:score;  align-self:start; max-width:none; }
   #gameScreen > .buehne  { grid-area:buehne; align-self:start;
                            width:var(--kartengroesse); height:var(--kartengroesse); }
   #gameScreen > .verdict { grid-area:verdict; max-width:none; }
@@ -274,8 +278,11 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   /* width:auto ist nötig: mit den geerbten width:100% würde der Hauptknopf
      die ganze Zeile beanspruchen und den Abbruch hinausschieben. */
   #gameScreen .actions .btn { width:auto; }
-  #gameScreen .actions .btn.prim { flex:1; min-width:0; }
-  #gameScreen .actions .btn.ghost { white-space:nowrap; padding:5px 18px; }
+  /* Alle Hauptknöpfe gleich breit, egal ob aktiv („Karte ziehen“) oder
+     als Hinweis ausgegraut („Tippe eine Lücke…“). Vorher dehnte sich nur
+     der aktive, weil allein er die Klasse prim trägt. */
+  #gameScreen .actions .btn:not(.ghost) { flex:1; min-width:0; }
+  #gameScreen .actions .btn.ghost { flex:0 0 auto; white-space:nowrap; padding:5px 18px; }
 
   /* Maus statt Finger: hier darf auf Hover reagiert werden. */
   .gap.live:hover .bar { background:linear-gradient(180deg,var(--grad-a),var(--grad-b));

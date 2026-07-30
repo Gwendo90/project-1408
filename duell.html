@@ -209,6 +209,37 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 /* Auf dem Handy existiert dieser Container nicht als Box: seine Kinder
    liegen direkt in der Spalte, genau wie vor der Desktop-Ansicht. */
 .rechts { display:contents; }
+
+/* ── Bestenliste & Statistik ───────────────────────────────────── */
+.statwrap { width:100%; max-width:520px; display:flex; flex-direction:column; gap:12px; flex-shrink:0; }
+.statblock { background:var(--surface); border:1px solid var(--border); border-radius:18px;
+             padding:15px 17px; box-shadow:0 6px 22px rgba(40,30,80,.04); }
+.statTitel { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
+             color:var(--muted); margin-bottom:9px; }
+.statleer { font-size:13px; color:var(--muted); padding:4px 0; }
+.zeile { display:flex; align-items:center; gap:10px; font-size:13px; padding:6px 0; }
+.zeile + .zeile { border-top:1px solid var(--border); }
+.zeile.selbst .znam { color:var(--grad-mid); }
+.rang { width:20px; flex-shrink:0; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums; }
+.znam { flex:1; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.zdat { font-size:11px; color:var(--muted); flex-shrink:0; font-variant-numeric:tabular-nums; }
+.zwert { font-weight:700; flex-shrink:0; font-variant-numeric:tabular-nums; min-width:26px; text-align:right; }
+.quote { display:flex; align-items:center; gap:9px; padding:4px 0; font-size:13px; }
+.qlabel { width:104px; flex-shrink:0; font-weight:600; overflow:hidden;
+          text-overflow:ellipsis; white-space:nowrap; }
+/* display:block ist nötig: als inline-Element würden width und height am
+   Füllstand nicht greifen und der Balken bliebe überall gleich leer. */
+.qbar { flex:1; display:block; height:8px; background:var(--track); border-radius:4px;
+        overflow:hidden; min-width:30px; }
+.qfill { display:block; height:100%; border-radius:4px;
+         background:linear-gradient(90deg,var(--grad-a),var(--grad-b)); }
+.qzahl { width:78px; flex-shrink:0; text-align:right; font-size:11px; color:var(--muted);
+         font-variant-numeric:tabular-nums; }
+.seg { display:flex; gap:5px; width:100%; max-width:520px; background:var(--surface);
+       border:1px solid var(--border); border-radius:13px; padding:4px; }
+.segbtn { flex:1; border:none; background:none; font-family:inherit; font-size:13px; font-weight:600;
+          color:var(--muted); padding:9px 6px; border-radius:9px; cursor:pointer; -webkit-appearance:none; }
+.segbtn.on { color:#fff; background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); }
 .oppo .tllabel { margin-bottom:4px; }
 .oppo .row { display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
 .oppo .row::-webkit-scrollbar { display:none; }
@@ -315,6 +346,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div class="divider">alleine</div>
     <button class="btn" id="btnSolo">Solo spielen</button>
     <div class="sub" id="soloBest"></div>
+    <button class="btn ghost" id="btnStats">Bestenliste &amp; Statistik</button>
   </div>
   <div class="stat" id="homeStat"></div>
 </div>
@@ -379,7 +411,40 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   </div>
   <div class="actions">
     <button class="btn prim" id="btnAgain">Nochmal spielen</button>
+    <button class="btn" id="btnStatsOver">Bestenliste ansehen</button>
     <button class="btn ghost" id="btnHome">Zurück zum Start</button>
+  </div>
+</div>
+
+<!-- ══ BESTENLISTE & STATISTIK ════════════════════════════════ -->
+<div class="screen hidden" id="statsScreen">
+  <div class="logo"><img src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408"></div>
+  <div class="statwrap">
+    <div class="statblock">
+      <div class="statTitel">Solo-Bestenliste</div>
+      <div id="statBesten" class="statleer">lädt…</div>
+    </div>
+    <div class="statblock">
+      <div class="statTitel">Duell-Bilanz</div>
+      <div id="statDuell" class="statleer">lädt…</div>
+    </div>
+
+    <div class="seg" id="statSeg">
+      <button class="segbtn on" data-sicht="ich">Meine Trefferquote</button>
+      <button class="segbtn" data-sicht="alle">Alle zusammen</button>
+    </div>
+
+    <div class="statblock">
+      <div class="statTitel">Nach Jahrzehnt</div>
+      <div id="statJahrzehnt" class="statleer">lädt…</div>
+    </div>
+    <div class="statblock">
+      <div class="statTitel">Nach Land</div>
+      <div id="statLand" class="statleer">lädt…</div>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="btn ghost" id="btnStatsBack">Zurück</button>
   </div>
 </div>
 
@@ -433,6 +498,8 @@ let confettiShownFor = null;
 let soloRekord = false;        // war die letzte Solo-Partie ein Bestwert?
 let vorlaufTimer = null;       // wartet den Autostart-Vorlauf ab
 let audioAnweisung = null;     // welche Audio-Anweisung ist schon umgesetzt?
+let statSicht = 'ich';         // 'ich' oder 'alle' auf der Statistikseite
+let partieProtokolliert = null; // verhindert doppelte Einträge derselben Partie
 
 const $  = id => document.getElementById(id);
 const other = s => s === 'p1' ? 'p2' : 'p1';
@@ -452,6 +519,22 @@ async function init() {
   $('btnCreate').addEventListener('click', createGame);
   $('btnJoin').addEventListener('click', joinGame);
   $('btnSolo').addEventListener('click', startSolo);
+  $('btnStats').addEventListener('click', zeigeStatistik);
+  $('btnStatsOver').addEventListener('click', zeigeStatistik);
+  $('btnStatsBack').addEventListener('click', () => {
+    // Zurück dorthin, wo man herkam. Beim Endbildschirm nur einblenden,
+    // nicht neu zeichnen – renderOver würde sonst erneut Konfetti werfen.
+    if (!G) show('homeScreen');
+    else if (G.state.phase === 'over') show('overScreen');
+    else render();
+  });
+  $('statSeg').addEventListener('click', e => {
+    const b = e.target.closest('.segbtn');
+    if (!b || b.dataset.sicht === statSicht) return;
+    statSicht = b.dataset.sicht;
+    [...$('statSeg').children].forEach(x => x.classList.toggle('on', x === b));
+    zeigeStatistik();
+  });
   $('btnLeaveLobby').addEventListener('click', leaveGame);
   $('btnHome').addEventListener('click', leaveGame);
   $('btnStart').addEventListener('click', startGame);
@@ -746,7 +829,7 @@ function isCorrect(timeline, index, cardId) {
 }
 
 async function place(index) {
-  await commit(s => {
+  const ok = await commit(s => {
     if (s.phase !== 'turn' || s.turn !== seat || !s.current) return null;
     const tl  = s.timelines[seat];
     const id  = s.current;
@@ -765,6 +848,11 @@ async function place(index) {
     }
     return s;
   });
+  // Statistik erst nach erfolgreichem Schreiben – sonst würde ein
+  // verworfener Zug mitgezählt.
+  if (!ok) return;
+  if (G.state.result && G.state.result.seat === seat) tippMerken(G.state.result);
+  if (G.state.phase === 'over') partieMerken();
 }
 
 // Bestwert ist die Länge der Zeitleiste, wenn der dritte Fehler fällt.
@@ -778,7 +866,7 @@ function merkeBestwert(n) {
 // Karte aufdecken. Vorher waren das zwei Tipps ("Weiter", dann "Karte
 // ziehen"), was sich doppelt anfühlte.
 async function naechsteKarte() {
-  await commit(s => {
+  const ok = await commit(s => {
     if (s.phase !== 'result') return null;
     if (!s.solo) s.turn = other(s.turn);
     s.result = null;
@@ -796,6 +884,8 @@ async function naechsteKarte() {
     s.phase = 'turn';
     return s;
   });
+  // Deck leer: hier endet die Partie, ohne dass place() beteiligt war.
+  if (ok && G.state.phase === 'over') partieMerken();
 }
 
 async function playAgain() {
@@ -811,6 +901,156 @@ async function playAgain() {
     s.phase     = 'draw';
     return s;
   });
+}
+
+// ══ Statistik schreiben ══════════════════════════════════════════
+// Beide Funktionen laufen absichtlich ohne await im Spielablauf: ein
+// langsames Netz soll den Zug nicht aufhalten, und ein Fehlschlag darf
+// das Spiel nicht stören. Schlimmster Fall: ein Eintrag fehlt.
+
+// Der Name aus der laufenden Partie geht vor dem Eingabefeld: dort könnte
+// zwischenzeitlich etwas anderes stehen, die Statistik würde dann dem
+// falschen Spieler zugeschrieben.
+function statName() {
+  return (G && seat && G.state.seats?.[seat]?.name) || myName();
+}
+
+function tippMerken(res) {
+  if (!sb) return;
+  const s = song(res.id);
+  if (!s) return;
+  sb.from('tipps').insert({
+    name:    statName(),
+    modus:   solo() ? 'solo' : 'duell',
+    song_id: res.id,
+    jahr:    parseInt(s.year, 10),
+    land:    s.country,
+    korrekt: !!res.correct
+  }).then(({ error }) => { if (error) console.warn('Tipp nicht gespeichert:', error.message); });
+}
+
+// Im Duell schreibt der Client, der die Partie beendet hat, beide Zeilen.
+// Sonst würden entweder zwei Einträge je Spieler entstehen oder – wenn
+// jeder nur sich selbst einträgt – der Eintrag des Gegners fehlen, falls
+// dessen Gerät die Partie nie zu Ende sieht.
+function partieMerken() {
+  if (!sb || !G) return;
+  const st = G.state;
+  const schluessel = (G.code || 'solo') + '|' + st.timelines.p1.length + '|' + st.timelines.p2.length;
+  if (partieProtokolliert === schluessel) return;
+  partieProtokolliert = schluessel;
+
+  const zeilen = st.solo
+    ? [{ name: st.seats.p1.name, modus: 'solo',
+         karten: st.timelines.p1.length, gewonnen: null, gegner: null }]
+    : ['p1','p2'].map(k => ({
+        name:     st.seats[k].name,
+        modus:    'duell',
+        karten:   st.timelines[k].length,
+        gewonnen: st.winner ? st.winner === k : null,
+        gegner:   st.seats[other(k)]?.name || null
+      }));
+
+  sb.from('partien').insert(zeilen)
+    .then(({ error }) => { if (error) console.warn('Partie nicht gespeichert:', error.message); });
+}
+
+// ══ Statistik anzeigen ═══════════════════════════════════════════
+async function zeigeStatistik() {
+  show('statsScreen');
+  if (!sb) {
+    ['statBesten','statDuell','statJahrzehnt','statLand'].forEach(id => {
+      $(id).className = 'statleer';
+      $(id).textContent = 'Ohne Verbindung zur Datenbank nicht verfügbar.';
+    });
+    return;
+  }
+  const wer = statSicht === 'ich' ? statName() : null;
+  ['statBesten','statDuell','statJahrzehnt','statLand'].forEach(id => {
+    $(id).className = 'statleer'; $(id).textContent = 'lädt…';
+  });
+
+  const [besten, bilanz, jz, land] = await Promise.all([
+    sb.rpc('bestenliste', { p_limit: 10 }),
+    sb.rpc('duellbilanz'),
+    sb.rpc('quote_jahrzehnt', { p_name: wer }),
+    sb.rpc('quote_land',      { p_name: wer })
+  ]);
+
+  zeichneBesten(besten);
+  zeichneBilanz(bilanz);
+  zeichneQuote('statJahrzehnt', jz, r => r.jahrzehnt + 'er', 0);
+  zeichneQuote('statLand',      land, r => r.land, 3, 10);
+}
+
+function statFehler(id, error) {
+  $(id).className = 'statleer';
+  $(id).textContent = /does not exist|schema cache/i.test(error.message || '')
+    ? 'Tabellen fehlen noch – supabase-statistik.sql einspielen.'
+    : 'Fehler: ' + error.message;
+}
+
+function zeichneBesten({ data, error }) {
+  if (error) return statFehler('statBesten', error);
+  const el = $('statBesten');
+  if (!data || !data.length) {
+    el.className = 'statleer';
+    el.textContent = 'Noch keine Solo-Partie beendet.';
+    return;
+  }
+  const ich = statName();
+  el.className = '';
+  el.innerHTML = data.map((r, i) => `
+    <div class="zeile${r.name === ich ? ' selbst' : ''}">
+      <span class="rang">${i + 1}</span>
+      <span class="znam">${esc(r.name)}</span>
+      <span class="zdat">${new Date(r.beendet_am).toLocaleDateString('de-DE',
+        { day:'2-digit', month:'2-digit', year:'2-digit' })}</span>
+      <span class="zwert">${r.karten}</span>
+    </div>`).join('');
+}
+
+function zeichneBilanz({ data, error }) {
+  if (error) return statFehler('statDuell', error);
+  const el = $('statDuell');
+  if (!data || !data.length) {
+    el.className = 'statleer';
+    el.textContent = 'Noch kein Duell beendet.';
+    return;
+  }
+  const ich = statName();
+  el.className = '';
+  el.innerHTML = data.map(r => `
+    <div class="zeile${r.name === ich ? ' selbst' : ''}">
+      <span class="znam">${esc(r.name)}</span>
+      <span class="zdat">${r.spiele} ${r.spiele === 1 ? 'Spiel' : 'Spiele'}</span>
+      <span class="zwert">${r.siege} ✓</span>
+    </div>`).join('');
+}
+
+// mindestens: unter so vielen Tipps ist eine Quote nicht aussagekräftig
+function zeichneQuote(id, { data, error }, beschriftung, mindestens, grenze) {
+  if (error) return statFehler(id, error);
+  const el = $(id);
+  let rows = (data || []).filter(r => Number(r.gesamt) >= (mindestens || 0));
+  if (grenze) rows = rows.slice(0, grenze);
+  if (!rows.length) {
+    el.className = 'statleer';
+    el.textContent = mindestens
+      ? `Noch zu wenig Daten – ab ${mindestens} Tipps je Land wird gezählt.`
+      : 'Noch keine Tipps erfasst.';
+    return;
+  }
+  el.className = '';
+  el.innerHTML = rows.map(r => {
+    const g = Number(r.gesamt), k = Number(r.richtig);
+    const p = Math.round(k / g * 100);
+    return `<div class="quote">
+      <span class="qlabel">${esc(beschriftung(r))}</span>
+      <span class="qbar"><span class="qfill" style="width:${p}%"></span></span>
+      <span class="qzahl">${p} % · ${k}/${g}</span>
+    </div>`;
+  }).join('');
 }
 
 // ══ Audio ════════════════════════════════════════════════════════

@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#F1F0EC">
+<title>Project 1408 – So geht's online</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Farben und Bausteine sind bewusst dieselben wie in anleitung.html –
+     die beiden Anleitungen sollen als ein Paar erkennbar sein. Die
+     Spielelemente darin (Karten, Lücken, Leben, Vetobox) sind dagegen aus
+     duell.html übernommen, damit die Anleitung zeigt, was man dort sieht. */
+  :root{
+    --ink:#1b1422;
+    --ink-soft:#5b5366;
+    --bg:#F1F0EC;
+    --card:#ffffff;
+    --line:#E4E3DE;
+    --blue:#4FBBDD;    /* ESC 2026 Cyan   */
+    --purple:#9E22B4;  /* ESC 2026 Purpur */
+    --pink:#E0326E;    /* ESC 2026 Magenta */
+    --grad:linear-gradient(120deg,var(--pink),var(--purple) 52%,var(--blue));
+    --shadow:0 18px 40px -22px rgba(40,20,60,.45);
+    --radius:22px;
+    --track:#CDCCC7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+  body{
+    font-family:"Quicksand",system-ui,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.55;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:540px;margin:0 auto;padding:0 20px}
+  h1,h2,h3,.num,.year{font-family:"Poppins",system-ui,sans-serif}
+
+  /* ── weicher Hintergrundschimmer ── */
+  .glow{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  .glow::before,.glow::after{content:"";position:absolute;width:60vw;height:60vw;border-radius:50%;filter:blur(80px);opacity:.18}
+  .glow::before{background:var(--pink);top:-15vw;left:-20vw}
+  .glow::after{background:var(--blue);bottom:-10vw;right:-20vw}
+
+  /* ── Zurück: oben links, wie der „So geht's“-Knopf im Spiel ──
+     position:fixed statt absolute – der Weg zurück ins Spiel soll auf jeder
+     Höhe der Seite erreichbar sein, ohne erst hochzuscrollen. Weil dabei
+     auch der Farbverlaufs-Banner darunter durchläuft, braucht die Schrift
+     eine eigene Fläche; sonst wäre sie auf Pink nicht mehr zu lesen. */
+  .back-link{position:fixed;top:max(env(safe-area-inset-top),12px);left:12px;z-index:10;
+    display:inline-flex;align-items:center;gap:6px;padding:8px 14px 8px 11px;border-radius:999px;
+    background:rgba(255,255,255,.88);border:1px solid var(--line);
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    box-shadow:0 6px 18px -8px rgba(40,20,60,.4);
+    font-family:"Poppins";font-weight:600;font-size:.82rem;color:var(--ink-soft);text-decoration:none;
+    transition:color .2s,box-shadow .2s,transform .12s}
+  .back-link:hover{color:var(--ink);box-shadow:0 9px 24px -8px rgba(40,20,60,.5)}
+  .back-link:active{transform:scale(.97)}
+  .back-link svg{width:15px;height:15px;flex:0 0 auto}
+
+  /* ── Kopf ──
+     Oben mehr Luft als in anleitung.html: der Zurück-Knopf schwebt jetzt
+     über der Seite und läge auf dem Handy sonst auf der Bildmarke. */
+  header{text-align:center;padding:60px 0 30px}
+  .brand{width:min(80%,320px);height:auto;margin:0 auto 24px;display:block;animation:floaty 4.5s ease-in-out infinite}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  h1{font-weight:800;font-size:clamp(2.1rem,8.5vw,3rem);line-height:1.04;margin:0 0 .45em;letter-spacing:-.02em}
+  .lead{color:var(--ink-soft);font-size:1.04rem;font-weight:500;max-width:32ch;margin:0 auto}
+
+  section{padding:30px 0}
+  .kicker{font-family:"Poppins";font-weight:700;font-size:.78rem;letter-spacing:.18em;text-transform:uppercase;color:var(--pink);margin-bottom:14px;text-align:center}
+  h2{font-weight:800;font-size:1.6rem;text-align:center;letter-spacing:-.01em;margin-bottom:22px}
+
+  /* ── Prinzip-Banner ── */
+  .goal-top{display:flex;align-items:center;gap:18px;background:var(--grad);color:#fff;border-radius:var(--radius);
+    padding:20px 24px;box-shadow:0 22px 44px -22px rgba(158,34,180,.8)}
+  .goal-top .gi{flex:0 0 auto;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;
+    background:rgba(255,255,255,.16)}
+  .goal-top .gi svg{width:27px;height:27px}
+  .goal-top h2{color:#fff;margin:0 0 2px;font-size:1.18rem;text-align:left}
+  .goal-top p{font-weight:500;opacity:.95;margin:0;font-size:.92rem;line-height:1.4}
+
+  /* ── Schritte ── */
+  .steps{display:flex;flex-direction:column;gap:14px}
+  .step{display:flex;gap:16px;align-items:flex-start;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+  .num{flex:0 0 40px;height:40px;border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:1.15rem;background:var(--grad)}
+  .step h3{font-size:1.08rem;font-weight:700;margin-bottom:2px}
+  .step p{color:var(--ink-soft);font-size:.96rem;font-weight:500}
+  .step p b{color:var(--ink);font-weight:700}
+
+  /* ── Zeitleiste: Nachbau aus duell.html ── */
+  .tl-stage{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:26px 16px 22px;overflow:hidden}
+  .tl-rail{display:flex;align-items:center;justify-content:center;position:relative}
+  /* Miniatur der Kartenfront – Maße und Verläufe stammen aus duell.html */
+  /* Die Höhen sind knapp: Flagge, Jahr und zwei Zeilen Titel müssen in
+     82 px passen, sonst schneidet overflow:hidden die zweite Titelzeile an. */
+  .mini{width:82px;height:82px;flex:0 0 auto;border-radius:12px;overflow:hidden;color:#111114;
+    padding:7px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    text-align:center;box-shadow:0 5px 14px rgba(90,50,140,.22)}
+  /* Herzflaggen aus flags/, wie im Spiel. Fehlt eine Datei, springt per
+     onerror das Emoji ein. */
+  .mini .f{height:18px;line-height:1;margin-bottom:1px;font-size:14px}
+  .mini .f img{width:18px;height:18px;display:block}
+  .mini .y{font-family:"Poppins";font-size:21px;font-weight:700;line-height:1;letter-spacing:-.02em}
+  .mini .t{font-size:8px;font-weight:600;line-height:1.25;opacity:.78;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .bargap{flex:0 0 auto;width:28px;display:flex;align-items:center;justify-content:center}
+  .bargap .bar{width:4px;height:46px;border-radius:3px;background:var(--track)}
+  /* Die gewählte Lücke: erst der dicke Balken, dann fällt die Karte hinein. */
+  .drop{position:relative;flex:0 0 auto;width:28px;height:82px;
+    transition:width .55s cubic-bezier(.2,.8,.2,1)}
+  .drop .selbar{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:15px;height:60px;border-radius:3px;background:linear-gradient(180deg,var(--pink),var(--blue));
+    box-shadow:0 6px 18px rgba(158,34,180,.40);transition:opacity .25s}
+  .drop .mini{position:absolute;inset:0;width:auto;height:auto;opacity:0;transform:translateY(-34px);
+    box-shadow:0 13px 26px -8px rgba(158,34,180,.65);
+    transition:opacity .4s .18s,transform .5s .18s cubic-bezier(.2,.8,.2,1)}
+  /* Das Fähnchen sitzt am .drop, nicht an der Karte: .mini hat
+     overflow:hidden und würde es abschneiden. */
+  .drop::after{content:"neu";position:absolute;top:-9px;left:50%;z-index:2;background:var(--grad);
+    color:#fff;font-family:"Poppins";font-weight:700;font-size:.5rem;letter-spacing:.08em;text-transform:uppercase;
+    padding:2px 8px;border-radius:999px;box-shadow:0 4px 10px -3px rgba(224,50,110,.6);white-space:nowrap;
+    opacity:0;transform:translateX(-50%) scale(.7);transition:opacity .3s .5s,transform .3s .5s cubic-bezier(.2,.8,.2,1)}
+  .tl-rail.done .drop{width:82px}
+  .tl-rail.done .drop::after{opacity:1;transform:translateX(-50%) scale(1)}
+  .tl-rail.done .selbar{opacity:0}
+  .tl-rail.done .drop .mini{opacity:1;transform:translateY(0)}
+  .tl-base{height:3px;border-radius:3px;background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent);margin:16px 8px 0}
+  .tl-cap{display:flex;justify-content:space-between;color:var(--ink-soft);font-size:.74rem;font-weight:600;margin:8px 10px 0}
+  .tl-note{text-align:center;color:var(--ink-soft);font-size:.95rem;font-weight:500;margin-top:16px;max-width:36ch;margin-left:auto;margin-right:auto}
+  .tl-note b{color:var(--ink);font-weight:700}
+  .tl-note+.tl-note{margin-top:10px}
+
+  /* ── Modus-Karten ── */
+  .mode{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:22px 20px;margin-bottom:16px;position:relative;overflow:hidden}
+  .mode::before{content:"";position:absolute;top:0;left:0;right:0;height:4px}
+  .mode.solo::before{background:linear-gradient(90deg,var(--pink),var(--purple))}
+  .mode.multi::before{background:linear-gradient(90deg,var(--purple),var(--blue))}
+  .mh{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .mi{width:40px;height:40px;border-radius:12px;background:var(--grad);display:grid;place-items:center;flex:0 0 auto}
+  .mi svg{width:22px;height:22px}
+  .mode h3{font-family:"Poppins";font-weight:700;font-size:1.14rem;line-height:1.2}
+  .mode .mtag{font-size:.8rem;font-weight:600;color:var(--ink-soft)}
+  .mode>p{color:var(--ink-soft);font-size:.96rem;font-weight:500;margin-top:8px}
+  .mode>p b{color:var(--ink);font-weight:700}
+  /* „So startest du“ – der Weg durch den Startbildschirm */
+  .howto{margin-top:14px;padding:13px 15px;border-radius:14px;background:#faf2f6;
+    font-size:.92rem;font-weight:500;color:var(--ink-soft)}
+  .howto .ht{font-family:"Poppins";font-weight:700;font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--purple);display:block;margin-bottom:5px}
+  .howto b{color:var(--ink);font-weight:700}
+  /* Der Punkt liegt absolut statt als Flex-Kind: bei display:flex würde der
+     fette Einstieg jedes Punktes zu einer eigenen Spalte werden, weil <b>
+     und der Text dahinter zwei getrennte Flex-Elemente sind. */
+  .facts{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:9px}
+  .facts li{position:relative;padding-left:17px;font-size:.94rem;font-weight:500;color:var(--ink-soft)}
+  .facts li::before{content:"";position:absolute;left:0;top:.6em;width:7px;height:7px;border-radius:50%;background:var(--grad)}
+  .facts b{color:var(--ink);font-weight:700}
+
+  /* Leben im ESC-Herzstil, wie im Punktestand des Spiels */
+  .leben{display:flex;align-items:center;gap:7px;margin-top:14px;padding:11px 15px;border-radius:14px;background:#faf2f6}
+  .leben svg{width:20px;height:21px;display:block;fill:var(--ink);flex:0 0 auto}
+  .leben svg.weg{fill:var(--track);opacity:.55}
+  .leben span{font-size:.88rem;font-weight:600;color:var(--ink-soft);margin-left:5px}
+
+  /* Spielcode, wie ihn die Lobby zeigt */
+  .codebox{margin-top:14px;padding:15px;border-radius:14px;background:#faf2f6;text-align:center}
+  .codebox .cl{font-size:.78rem;font-weight:600;color:var(--ink-soft)}
+  .codebox .cc{font-family:"Poppins";font-size:2rem;font-weight:700;letter-spacing:9px;padding-left:9px;
+    background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+  /* ── Vergleichstabelle ── */
+  .cmp-wrap{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:6px 13px 10px;overflow-x:auto}
+  .cmp{width:100%;border-collapse:collapse;font-size:.9rem;min-width:340px}
+  .cmp th,.cmp td{padding:11px 7px;text-align:left;vertical-align:top;border-top:1px solid var(--line)}
+  .cmp thead th{border-top:none;font-family:"Poppins";font-weight:700;font-size:.68rem;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-soft)}
+  .cmp thead th:nth-child(2){color:var(--pink)}
+  .cmp thead th:nth-child(3){color:var(--blue)}
+  .cmp td:first-child{font-weight:700;color:var(--ink);white-space:nowrap}
+  .cmp td{color:var(--ink-soft);font-weight:500}
+
+  /* ── Sonderregeln ── */
+  .rule{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:22px 20px;margin-bottom:16px}
+  .rule .rh{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+  .rule .ri{width:38px;height:38px;border-radius:11px;background:var(--grad);display:grid;place-items:center;flex:0 0 auto}
+  .rule .ri svg{width:21px;height:21px}
+  .rule h3{font-family:"Poppins";font-weight:700;font-size:1.12rem}
+  .rule p{color:var(--ink-soft);font-size:.97rem;font-weight:500}
+  .rule p+p{margin-top:9px}
+  .rule p b{color:var(--ink);font-weight:700}
+
+  /* Vetobox, nachgebaut aus duell.html */
+  .vbox{margin:16px 0 4px;border:1px solid var(--line);border-radius:18px;padding:20px;text-align:center;
+    display:flex;flex-direction:column;align-items:center;gap:8px;background:#fff;
+    box-shadow:0 0 0 2px rgba(232,0,61,.14)}
+  .vicon{font-size:26px;line-height:1}
+  .vtitel{font-family:"Poppins";font-size:1rem;font-weight:700}
+  .vzeit{font-family:"Poppins";font-size:2.1rem;font-weight:700;line-height:1;
+    background:linear-gradient(135deg,var(--pink),var(--blue));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .vsub{font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-top:-4px}
+  .vtext{font-size:.88rem;color:var(--ink-soft);font-weight:500;line-height:1.5;max-width:30ch}
+  /* Vetozähler wie in der Punktestand-Kachel */
+  .vzeile{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px}
+  .vpunkte{display:flex;gap:4px}
+  .vpunkt{width:8px;height:8px;border-radius:50%;background:var(--ink)}
+  .vpunkt.weg{background:var(--track)}
+  .vlabel{font-family:"Poppins";font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+
+  /* Wann zieht ein Veto? */
+  .matrix{display:grid;grid-template-columns:1fr;gap:9px;margin-top:14px}
+  .mrow{display:flex;gap:11px;align-items:flex-start;padding:11px 14px;border-radius:13px;background:#faf2f6;
+    font-size:.92rem;font-weight:500;color:var(--ink-soft)}
+  .mrow .mk{flex:0 0 auto;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
+    font-size:.7rem;font-weight:700;color:#fff;margin-top:.1em}
+  .mrow.ja .mk{background:#16a34a}
+  .mrow.nein .mk{background:var(--pink)}
+  .mrow b{color:var(--ink);font-weight:700}
+
+  /* ── Gut zu wissen ── */
+  .notes{display:flex;flex-direction:column;gap:12px}
+  .note{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px 17px;
+    box-shadow:0 6px 22px -14px rgba(40,20,60,.4)}
+  .note h4{font-family:"Poppins";font-weight:700;font-size:.97rem;margin-bottom:3px}
+  .note p{color:var(--ink-soft);font-size:.92rem;font-weight:500}
+
+  /* ── Abschluss ── */
+  .cta{padding:30px 4px 8px;text-align:center}
+  .cta h2{font-size:1.5rem;margin:.1em 0 .3em;color:var(--ink)}
+  .start-card{max-width:340px;margin:24px auto 0;background:#fff;border:1px solid var(--line);border-radius:22px;
+    padding:32px 26px;display:flex;flex-direction:column;align-items:center;gap:17px;box-shadow:0 12px 40px rgba(40,30,80,.07)}
+  .start-icon{width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,rgba(224,50,110,.12),rgba(79,187,221,.14));animation:breathe 3s ease-in-out infinite}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+  .start-sub{font-size:.9rem;color:var(--ink-soft);text-align:center;line-height:1.5;max-width:235px;font-weight:500}
+  .start-btn{width:100%;background:var(--grad);border:none;border-radius:15px;color:#fff;font-family:inherit;
+    text-decoration:none;box-sizing:border-box;font-size:1rem;font-weight:600;padding:16px;cursor:pointer;
+    box-shadow:0 10px 26px rgba(158,34,180,.3);display:flex;align-items:center;justify-content:center;gap:10px;-webkit-appearance:none}
+  .start-btn:active{opacity:.9;transform:scale(.98)}
+  .offline-hint{margin-top:18px;font-size:.86rem;color:var(--ink-soft);font-weight:500}
+  .offline-hint a{color:var(--purple);font-weight:700}
+
+  footer{text-align:center;padding:34px 0 48px;color:var(--ink-soft);font-size:.85rem;font-weight:500}
+  footer svg{width:26px;height:26px;display:block;margin:0 auto 10px}
+
+  @media(min-width:700px){
+    .wrap{max-width:600px}
+    .back-link{top:22px;left:32px;font-size:.88rem}
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .brand,.start-icon{animation:none}
+    .drop,.drop .selbar,.drop .mini{transition:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- ESC-Herz, aus duell.html übernommen. Einmal als Symbol, damit der Pfad
+     nicht pro Herz wiederholt wird – und vor der ersten Verwendung, damit
+     <use> nicht vorwärts referenzieren muss. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="escherz" viewBox="0 0 95.2 100">
+    <path fill-rule="evenodd" d="M70.3,0.0 L62.76,1.93 L55.54,5.94 L47.83,13.0 L42.86,19.9 L38.84,15.09 L31.62,11.4 L24.24,10.59 L18.78,12.2 L12.68,15.89 L7.7,20.87 L3.37,28.09 L1.44,33.55 L0.0,42.54 L0.32,52.49 L2.41,61.0 L6.26,68.7 L10.11,73.84 L17.01,80.42 L36.92,93.74 L43.66,100.0 L44.94,99.2 L47.35,94.22 L52.49,88.12 L71.75,70.63 L82.99,58.75 L89.57,49.12 L93.74,39.0 L95.02,31.94 L94.86,23.27 L93.42,16.85 L90.53,10.75 L85.55,4.98 L81.54,2.25 L76.24,0.32 L70.47,0.0ZM78.65,11.4 L81.86,17.01 L83.47,26.0 L82.83,33.71 L80.26,41.89 L76.57,48.96 L71.27,56.66 L48.15,82.34 L42.86,90.69 L38.52,85.87 L25.52,75.28 L16.85,65.97 L11.56,56.5 L9.47,46.87 L9.95,37.24 L12.52,27.93 L16.53,21.51 L21.99,17.17 L26.0,15.89 L28.89,15.89 L34.03,17.5 L38.36,21.51 L40.93,27.45 L43.02,28.57 L43.98,27.93 L46.87,21.19 L50.72,16.05 L55.86,11.24 L60.51,8.35 L65.33,6.74 L70.3,6.58 L74.8,8.03 L78.65,11.24Z"/>
+  </symbol>
+</svg>
+
+<div class="glow"></div>
+
+<a class="back-link" href="duell.html">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 18l-6-6 6-6"/>
+  </svg>
+  Zurück
+</a>
+
+<div class="wrap">
+
+  <header>
+    <img class="brand" src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408">
+    <h1>So geht's online</h1>
+    <p class="lead">Song hören, Jahr schätzen, einsortieren – allein oder gegen bis zu drei Mitspieler.</p>
+  </header>
+
+  <!-- ══ Das Prinzip ═══════════════════════════════════════════ -->
+  <section>
+    <div class="goal-top">
+      <div class="gi">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+        </svg>
+      </div>
+      <div>
+        <h2>Hören. Schätzen. Einsortieren.</h2>
+        <p>Du hörst einen Ausschnitt, ohne das Jahr zu sehen. Triffst du die richtige Stelle in deiner Zeitleiste, darfst du die Karte behalten.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ Der Ablauf ════════════════════════════════════════════ -->
+  <section>
+    <div class="kicker">Eine Runde</div>
+    <h2>In 4 Schritten</h2>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div><h3>Karte ziehen</h3><p>Wer dran ist, tippt auf <b>„Karte ziehen“</b>. Der Ausschnitt startet von selbst – auf allen Geräten gleichzeitig.</p></div></div>
+      <div class="step"><div class="num">2</div><div><h3>Zuhören</h3><p>Bis zu 90 Sekunden Song. Interpret, Titel, Land und Jahr bleiben so lange verdeckt.</p></div></div>
+      <div class="step"><div class="num">3</div><div><h3>Lücke tippen</h3><p>Tippe in deiner Zeitleiste die Lücke an, in die der Song gehört, und bestätige mit <b>„Karte einloggen“</b>. Damit legst du dich verbindlich fest.</p></div></div>
+      <div class="step"><div class="num">4</div><div><h3>Auflösen</h3><p>Die Karte dreht sich um. Sitzt sie richtig, bleibt sie liegen – sonst verfällt sie. Danach ist der Nächste dran.</p></div></div>
+    </div>
+  </section>
+
+  <!-- ══ Zeitleiste ════════════════════════════════════════════ -->
+  <section>
+    <div class="kicker">Das Herzstück</div>
+    <h2>Deine Zeitleiste</h2>
+    <div class="tl-stage">
+      <div class="tl-rail" id="rail">
+        <div class="bargap"><span class="bar"></span></div>
+        <div class="mini" style="background:linear-gradient(135deg,#FFF6AD,#FFA9F8)">
+          <div class="f"><img src="flags/schweiz.png" width="20" height="20" alt=""
+               onerror="this.outerHTML='🇨🇭'"></div>
+          <div class="y">1956</div><div class="t">Refrain</div>
+        </div>
+        <div class="drop">
+          <span class="selbar"></span>
+          <div class="mini" style="background:linear-gradient(135deg,#ED4F4F,#745BFE)">
+            <div class="f"><img src="flags/schweden.png" width="20" height="20" alt=""
+                 onerror="this.outerHTML='🇸🇪'"></div>
+            <div class="y">1974</div><div class="t">Waterloo</div>
+          </div>
+        </div>
+        <div class="mini" style="background:linear-gradient(135deg,#5DE5FE,#FEC2F5)">
+          <div class="f"><img src="flags/finnland.png" width="20" height="20" alt=""
+               onerror="this.outerHTML='🇫🇮'"></div>
+          <div class="y">2006</div><div class="t">Hard Rock Hallelujah</div>
+        </div>
+        <div class="bargap"><span class="bar"></span></div>
+      </div>
+      <div class="tl-base"></div>
+      <div class="tl-cap"><span>← früher</span><span>später →</span></div>
+      <p class="tl-note">Zwischen deinen Karten sitzen <b>Lücken</b>. Tippe eine an – der Balken wird dick – und logge die Karte ein. Richtig liegt sie, wenn das Jahr <b>zwischen die beiden Nachbarn</b> passt.</p>
+      <p class="tl-note"><b>Gleiche Jahre zählen als passend.</b> 336 Songs verteilen sich auf 71 Jahrgänge – zwei Karten aus demselben Jahr dürfen also in beliebiger Reihenfolge nebeneinanderliegen.</p>
+    </div>
+  </section>
+
+  <!-- ══ Die zwei Modi ═════════════════════════════════════════ -->
+  <section>
+    <div class="kicker">Zwei Wege</div>
+    <h2>Solo oder Mehrspieler</h2>
+
+    <div class="mode solo">
+      <div class="mh">
+        <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6"/></svg></span>
+        <div>
+          <h3>Solo</h3>
+          <span class="mtag">1 Spieler · kein Code nötig</span>
+        </div>
+      </div>
+      <p>Endlos Karten ziehen und die Zeitleiste so weit treiben, wie es geht. Gewertet wird, <b>wie viele Karten am Ende liegen</b>.</p>
+
+      <div class="howto">
+        <span class="ht">So startest du</span>
+        Namen eintippen, auf <b>„Solo spielen“</b> tippen – fertig. Kein Warten, keine Mitspieler.
+      </div>
+
+      <div class="leben" aria-label="Drei Leben, keins verbraucht">
+        <svg viewBox="0 0 95.2 100" aria-hidden="true"><use href="#escherz"></use></svg>
+        <svg viewBox="0 0 95.2 100" aria-hidden="true"><use href="#escherz"></use></svg>
+        <svg viewBox="0 0 95.2 100" class="weg" aria-hidden="true"><use href="#escherz"></use></svg>
+        <span>Drei Leben – nach dem dritten Fehler ist Schluss</span>
+      </div>
+
+      <ul class="facts">
+        <li><b>Kein festes Ziel.</b> Es geht weiter, solange du triffst – nicht nur bis zehn Karten.</li>
+        <li><b>Dein Bestwert</b> steht auf dem Startbildschirm und bleibt auf diesem Gerät gespeichert.</li>
+        <li><b>Kein Veto.</b> Es ist niemand da, der dir eine Karte wegschnappen könnte.</li>
+        <li><b>Läuft auch ohne Server.</b> Solo braucht keine Verbindung zur Datenbank – nur die Songs.</li>
+      </ul>
+    </div>
+
+    <div class="mode multi">
+      <div class="mh">
+        <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8" r="3.2"/><path d="M2 20c0-3.3 2.9-5.6 6.5-5.6S15 16.7 15 20"/><circle cx="17" cy="9.5" r="2.6"/><path d="M15.6 14.9c2.9-.6 6.4 1 6.4 4.5"/></svg></span>
+        <div>
+          <h3>Mehrspieler</h3>
+          <span class="mtag">2 bis 4 Spieler · je ein eigenes Gerät</span>
+        </div>
+      </div>
+      <p>Reihum ziehen, und wer zuerst <b>zehn Karten</b> in der Zeitleiste hat, gewinnt. Ihr müsst nicht im selben Raum sitzen – der Song läuft bei allen synchron.</p>
+
+      <div class="howto">
+        <span class="ht">So startet ihr</span>
+        Eine Person tippt <b>„Neues Spiel starten“</b> und bekommt einen fünfstelligen Code. Die anderen tragen ihn unter <b>„Spiel beitreten“</b> ein. Sobald mindestens zwei in der Lobby sind, geht es mit <b>„Spiel starten“</b> los.
+      </div>
+
+      <div class="codebox">
+        <div class="cl">Spielcode</div>
+        <div class="cc">K7QMD</div>
+      </div>
+
+      <ul class="facts">
+        <li><b>Jeder beginnt mit einer aufgedeckten Karte.</b> Die zählt bereits mit.</li>
+        <li><b>Fehler kosten keine Leben</b> – nur die Karte. Sie verfällt und der Nächste ist dran.</li>
+        <li><b>Drei Vetos pro Spieler:</b> Du kannst dem, der dran ist, die Karte wegschnappen. Mehr dazu gleich.</li>
+        <li><b>Geht das Deck aus,</b> gewinnt, wer die meisten Karten hat. Bei Gleichstand endet es unentschieden.</li>
+      </ul>
+    </div>
+
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <thead>
+          <tr><th>&nbsp;</th><th>Solo</th><th>Mehrspieler</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Spieler</td><td>1</td><td>2–4, je ein Gerät</td></tr>
+          <tr><td>Start</td><td>„Solo spielen“</td><td>Code erstellen oder beitreten</td></tr>
+          <tr><td>Schluss</td><td>nach dem 3. Fehler</td><td>bei 10 Karten</td></tr>
+          <tr><td>Fehler</td><td>kostet ein Leben</td><td>kostet nur die Karte</td></tr>
+          <tr><td>Veto</td><td>–</td><td>3 pro Spieler</td></tr>
+          <tr><td>Gewertet</td><td>gesammelte Karten</td><td>Sieg oder Niederlage</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══ Veto ══════════════════════════════════════════════════ -->
+  <section>
+    <div class="kicker">Nur im Mehrspieler</div>
+    <h2>Kartenklau per Veto</h2>
+
+    <div class="rule">
+      <div class="rh">
+        <span class="ri"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="7.6"/><path d="M12 10.4V14l2.4 1.8"/><path d="M9.4 2.4h5.2"/><path d="M12 2.4v4"/></svg></span>
+        <h3>15 Sekunden Einspruch</h3>
+      </div>
+      <p>Sobald sich jemand mit <b>„Karte einloggen“</b> festgelegt hat, läuft für alle anderen ein Countdown. Ein <b>?</b> in der Zeitleiste zeigt, welche Stelle gewählt wurde – das Jahr bleibt weiter verdeckt.</p>
+      <p><b>Wer zuerst tippt, bekommt den Zugriff</b>, die anderen sind für diese Karte raus. Meldet sich niemand, wird automatisch aufgelöst.</p>
+
+      <div class="vbox">
+        <div class="vicon">✋</div>
+        <div class="vtitel">Veto?</div>
+        <div class="vzeit">15</div>
+        <div class="vsub">Sekunden</div>
+        <div class="vtext">Glaubst du, Jenny liegt daneben? Das ? in der Zeitleiste zeigt die gewählte Stelle. Wer zuerst tippt, bekommt den Zugriff.</div>
+      </div>
+    </div>
+
+    <div class="rule">
+      <div class="rh">
+        <span class="ri"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.6 4.5 5.9v5.7c0 4.4 3.1 8 7.5 9.4 4.4-1.4 7.5-5 7.5-9.4V5.9z"/><path d="M8.9 11.8l2.3 2.3 4.1-4.6"/></svg></span>
+        <h3>Wann zieht ein Veto?</h3>
+      </div>
+      <p>Du tippst die Lücke in der <b>Zeitleiste des Spielers am Zug</b> – dieselbe Aufgabe, an der er gerade sitzt. Die angefochtene Stelle selbst ist gesperrt, dort liegt die Karte laut ihm ja schon.</p>
+
+      <div class="matrix">
+        <div class="mrow ja"><span class="mk">✓</span><div><b>Er daneben, du richtig</b> – die Karte wandert in deine Zeitleiste, und dein Veto bleibt dir erhalten.</div></div>
+        <div class="mrow nein"><span class="mk">✕</span><div><b>Er richtig</b> – das Veto verpufft, egal wo du getippt hast. Das ist der Preis fürs Misstrauen.</div></div>
+        <div class="mrow nein"><span class="mk">✕</span><div><b>Beide daneben</b> – die Karte verfällt, dein Veto ist verbraucht.</div></div>
+      </div>
+
+      <div class="vzeile" aria-label="Zwei von drei Vetos übrig">
+        <span class="vlabel">Veto</span>
+        <span class="vpunkte"><span class="vpunkt"></span><span class="vpunkt"></span><span class="vpunkt weg"></span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ Gut zu wissen ═════════════════════════════════════════ -->
+  <section>
+    <div class="kicker">Kleinigkeiten</div>
+    <h2>Gut zu wissen</h2>
+    <div class="notes">
+      <div class="note">
+        <h4>Alle hören dasselbe</h4>
+        <p>Der Ausschnitt läuft auf allen Geräten synchron. Falls dein Handy stumm bleibt: einmal auf den Bildschirm tippen, dann erlaubt der Browser den Ton.</p>
+      </div>
+      <div class="note">
+        <h4>Bestenliste &amp; Statistik</h4>
+        <p>Auf dem Startbildschirm: die Solo-Bestenliste, die Gewinnbilanz und deine Trefferquote nach Jahrzehnt und Land.</p>
+      </div>
+      <div class="note">
+        <h4>Zwischendurch aussteigen</h4>
+        <p>Oben rechts „Spiel verlassen“, zweimal tippen. Die anderen spielen weiter – bleibt nur noch einer übrig, endet die Partie.</p>
+      </div>
+      <div class="note">
+        <h4>Am Rechner spielen</h4>
+        <p>Ab einer gewissen Fensterbreite liegt die Karte links und die Zeitleiste rechts. Ziehst du das Fenster schmaler, kommt die Handy-Ansicht zurück.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ Los geht's ════════════════════════════════════════════ -->
+  <section>
+    <div class="cta">
+      <div class="kicker">Bereit?</div>
+      <h2>Es kann losgehen</h2>
+      <div class="start-card">
+        <div class="start-icon">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="url(#sg)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <defs><linearGradient id="sg" x1="0" y1="0" x2="24" y2="24">
+              <stop offset="0" stop-color="#E0326E"/><stop offset=".52" stop-color="#9E22B4"/><stop offset="1" stop-color="#4FBBDD"/>
+            </linearGradient></defs>
+            <circle cx="12" cy="12" r="9.2"/>
+            <path d="M10 8.6l6 3.4-6 3.4z"/>
+          </svg>
+        </div>
+        <div class="start-sub">Namen eintragen und entscheiden: allein loslegen oder einen Code an die Mitspieler schicken.</div>
+        <a class="start-btn" href="duell.html">Lets Go!</a>
+      </div>
+      <p class="offline-hint">Ihr spielt mit den gedruckten Karten? Dann geht es hier zur <a href="anleitung.html">Anleitung fürs Kartenspiel</a>.</p>
+    </div>
+  </section>
+
+  <footer>
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#E0326E"/><stop offset=".52" stop-color="#9E22B4"/><stop offset="1" stop-color="#4FBBDD"/>
+      </linearGradient></defs>
+      <path d="M50 86C16 62 6 41 19 26c10-12 24-7 31 5 7-12 21-17 31-5 13 15 3 36-31 60Z" fill="none" stroke="url(#fg)" stroke-width="8" stroke-linejoin="round"/>
+    </svg>
+    Viel Spaß beim Raten &amp; Happy Birthday
+  </footer>
+
+</div>
+
+<script>
+  // Die Karte fällt in die gewählte Lücke, sobald die Zeitleiste im Bild ist.
+  (function(){
+    var rail = document.getElementById('rail');
+    if(!rail) return;
+    var los = function(){ rail.classList.add('done'); };
+    if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){ los(); return; }
+    if(!('IntersectionObserver' in window)){ los(); return; }
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ setTimeout(los, 350); io.disconnect(); } });
+    }, {threshold:.5});
+    io.observe(rail);
+  })();
+</script>
+</body>
+</html>

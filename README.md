@@ -23,8 +23,9 @@ Es gibt zwei getrennte Anwendungen im Repo:
 | **Offline-Modus** | `index.html` | Ergänzt das gedruckte Spiel. QR-Code auf der Karte scannen → Song wird abgespielt → auflösen. Kein Backend, keine Spiellogik. |
 | **Online-Modus** | `duell.html` | Vollständiges Spiel im Browser, 1–4 Spieler auf getrennten Geräten. Backend: Supabase. |
 
-Beide teilen sich `songs.json` und die Bildmarken. `anleitung.html` ist die gedruckte
-Spielanleitung als Webseite.
+Beide teilen sich `songs.json` und die Bildmarken. Dazu je eine Anleitung als Webseite:
+`anleitung.html` für das gedruckte Spiel, `anleitung-online.html` für den Online-Modus —
+erreichbar über den „So geht's"-Knopf oben links auf dem Startbildschirm von `duell.html`.
 
 ---
 
@@ -37,7 +38,8 @@ duell-config.js         Supabase-URL und öffentlicher Key
 supabase.js             Supabase-Bibliothek, eigenständig (siehe Fallstricke!)
 songs.json              336 Songs mit Vorschau-URLs
 flags/                  44 Herzflaggen als PNG, 128×128
-anleitung.html          Spielanleitung
+anleitung.html          Spielanleitung fürs gedruckte Kartenspiel
+anleitung-online.html   Spielanleitung für den Online-Modus (Prinzip, Solo vs. Mehrspieler, Veto)
 Logo.png / Logo.svg     Bildmarke (Logo.svg NICHT verwenden, siehe Fallstricke)
 manifest.json           PWA-Manifest (Pfade sind kaputt, siehe Offene Punkte)
 icon-192/512.png, apple-touch-icon.png

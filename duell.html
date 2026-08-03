@@ -239,6 +239,16 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
         color:var(--muted); -webkit-appearance:none; transition:color .2s; }
 .raus.frag { color:var(--red); }
 
+/* Gegenstück dazu, oben links auf dem Startbildschirm: führt zur Anleitung
+   für den Online-Modus. Dieselbe Zurückhaltung wie beim Verlassen-Knopf –
+   die Knöpfe in der Mitte sollen den Blick behalten. */
+.hilfe { position:absolute; z-index:5; top:max(env(safe-area-inset-top),10px); left:18px;
+         display:inline-flex; align-items:center; gap:6px; padding:4px 2px;
+         font-family:inherit; font-size:12px; font-weight:600; line-height:1.2;
+         color:var(--muted); text-decoration:none; transition:color .2s; }
+.hilfe svg { width:14px; height:14px; flex-shrink:0; display:block; }
+.hilfe:active { opacity:.6; }
+
 /* ── Veto-Phase ────────────────────────────────────────────────── */
 .vetobox { position:absolute; inset:0; display:flex; flex-direction:column;
            align-items:center; justify-content:center; gap:10px; text-align:center;
@@ -344,6 +354,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     padding:48px 40px 32px;
   }
   .raus { top:20px; right:32px; font-size:13px; }
+  .hilfe { top:20px; left:32px; font-size:13px; }
+  .hilfe svg { width:15px; height:15px; }
+  .hilfe:hover { color:var(--text); }
   /* Füllt die Spalte: bei 720 px sind das 353 px pro Kachel, und die rechte
      Spalte wirkt als zusammenhängender Block statt halb leer. */
   #gameScreen > .score   { grid-area:score;  align-self:start; max-width:none; }
@@ -388,6 +401,15 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 
 <!-- ══ START ══════════════════════════════════════════════════ -->
 <div class="screen" id="homeScreen">
+  <a class="hilfe" href="anleitung-online.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9.6"/>
+      <path d="M9.3 9.2a2.8 2.8 0 015.4.9c0 1.9-2.7 2.4-2.7 4"/>
+      <path d="M12 17.4h.01"/>
+    </svg>
+    So geht's
+  </a>
   <div class="logo"><img src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408"></div>
   <div class="panel">
     <div class="h1" id="homeTitel">Project 1408 – Online Modus</div>

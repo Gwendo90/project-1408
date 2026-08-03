@@ -39,13 +39,11 @@
     -webkit-font-smoothing:antialiased;
   }
   .wrap{max-width:540px;margin:0 auto;padding:0 20px}
-  h1,h2,h3,.num,.year{font-family:"Poppins",system-ui,sans-serif}
+  h1,h2,h3,h4,.num{font-family:"Poppins",system-ui,sans-serif}
 
-  /* ── weicher Hintergrundschimmer ── */
-  .glow{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
-  .glow::before,.glow::after{content:"";position:absolute;width:60vw;height:60vw;border-radius:50%;filter:blur(80px);opacity:.18}
-  .glow::before{background:var(--pink);top:-15vw;left:-20vw}
-  .glow::after{background:var(--blue);bottom:-10vw;right:-20vw}
+  /* Kein Hintergrundschimmer wie in anleitung.html: der Online-Modus hat
+     das flache Grau der App, und die Anleitung soll sich nicht anders
+     anfühlen als der Bildschirm, auf den sie führt. */
 
   /* ── Zurück: oben links, wie der „So geht's“-Knopf im Spiel ──
      position:fixed statt absolute – der Weg zurück ins Spiel soll auf jeder
@@ -69,8 +67,7 @@
   header{text-align:center;padding:60px 0 30px}
   .brand{width:min(80%,320px);height:auto;margin:0 auto 24px;display:block;animation:floaty 4.5s ease-in-out infinite}
   @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-  h1{font-weight:800;font-size:clamp(2.1rem,8.5vw,3rem);line-height:1.04;margin:0 0 .45em;letter-spacing:-.02em}
-  .lead{color:var(--ink-soft);font-size:1.04rem;font-weight:500;max-width:32ch;margin:0 auto}
+  h1{font-weight:800;font-size:clamp(2.1rem,8.5vw,3rem);line-height:1.04;margin:0;letter-spacing:-.02em}
 
   section{padding:30px 0}
   .kicker{font-family:"Poppins";font-weight:700;font-size:.78rem;letter-spacing:.18em;text-transform:uppercase;color:var(--pink);margin-bottom:14px;text-align:center}
@@ -164,6 +161,11 @@
   .facts li{position:relative;padding-left:17px;font-size:.94rem;font-weight:500;color:var(--ink-soft)}
   .facts li::before{content:"";position:absolute;left:0;top:.6em;width:7px;height:7px;border-radius:50%;background:var(--grad)}
   .facts b{color:var(--ink);font-weight:700}
+  /* Einzelner Hinweis als Fliesstext: ein Aufzählungspunkt allein sieht aus
+     wie eine Liste, der die übrigen Punkte fehlen. Typografie wie .facts li,
+     damit er neben der Liste im Mehrspieler-Teil nicht aus der Reihe fällt. */
+  .fazit{margin-top:14px;font-size:.94rem;font-weight:500;color:var(--ink-soft)}
+  .fazit b{color:var(--ink);font-weight:700}
 
   /* Leben im ESC-Herzstil, wie im Punktestand des Spiels */
   .leben{display:flex;align-items:center;gap:7px;margin-top:14px;padding:11px 15px;border-radius:14px;background:#faf2f6}
@@ -177,28 +179,17 @@
   .codebox .cc{font-family:"Poppins";font-size:2rem;font-weight:700;letter-spacing:9px;padding-left:9px;
     background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 
-  /* ── Vergleichstabelle ── */
-  .cmp-wrap{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
-    padding:6px 13px 10px;overflow-x:auto}
-  .cmp{width:100%;border-collapse:collapse;font-size:.9rem;min-width:340px}
-  .cmp th,.cmp td{padding:11px 7px;text-align:left;vertical-align:top;border-top:1px solid var(--line)}
-  .cmp thead th{border-top:none;font-family:"Poppins";font-weight:700;font-size:.68rem;letter-spacing:.12em;
-    text-transform:uppercase;color:var(--ink-soft)}
-  .cmp thead th:nth-child(2){color:var(--pink)}
-  .cmp thead th:nth-child(3){color:var(--blue)}
-  .cmp td:first-child{font-weight:700;color:var(--ink);white-space:nowrap}
-  .cmp td{color:var(--ink-soft);font-weight:500}
-
-  /* ── Sonderregeln ── */
-  .rule{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
-    padding:22px 20px;margin-bottom:16px}
-  .rule .rh{display:flex;align-items:center;gap:11px;margin-bottom:10px}
-  .rule .ri{width:38px;height:38px;border-radius:11px;background:var(--grad);display:grid;place-items:center;flex:0 0 auto}
-  .rule .ri svg{width:21px;height:21px}
-  .rule h3{font-family:"Poppins";font-weight:700;font-size:1.12rem}
-  .rule p{color:var(--ink-soft);font-size:.97rem;font-weight:500}
-  .rule p+p{margin-top:9px}
-  .rule p b{color:var(--ink);font-weight:700}
+  /* ── Unterabschnitt innerhalb einer Modus-Karte ──
+     Abgesetzt über eine Trennlinie, nicht über eine zweite weisse Fläche:
+     eine Karte in der Karte wirkt schnell unruhig. */
+  .sub{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+  .sub .sh{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+  .sub .si{width:34px;height:34px;border-radius:10px;background:var(--grad);display:grid;place-items:center;flex:0 0 auto}
+  .sub .si svg{width:19px;height:19px}
+  .sub h4{font-family:"Poppins";font-weight:700;font-size:1.05rem;line-height:1.2}
+  .sub p{color:var(--ink-soft);font-size:.95rem;font-weight:500}
+  .sub p+p{margin-top:9px}
+  .sub p b{color:var(--ink);font-weight:700}
 
   /* Vetobox, nachgebaut aus duell.html */
   .vbox{margin:16px 0 4px;border:1px solid var(--line);border-radius:18px;padding:20px;text-align:center;
@@ -276,8 +267,6 @@
   </symbol>
 </svg>
 
-<div class="glow"></div>
-
 <a class="back-link" href="duell.html">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
     <path d="M15 18l-6-6 6-6"/>
@@ -290,7 +279,6 @@
   <header>
     <img class="brand" src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408">
     <h1>So geht's online</h1>
-    <p class="lead">Song hören, Jahr schätzen, einsortieren – allein oder gegen bis zu drei Mitspieler.</p>
   </header>
 
   <!-- ══ Das Prinzip ═══════════════════════════════════════════ -->
@@ -371,7 +359,7 @@
 
       <div class="howto">
         <span class="ht">So startest du</span>
-        Namen eintippen, auf <b>„Solo spielen“</b> tippen – fertig. Kein Warten, keine Mitspieler.
+        Namen eintippen, auf <b>„Solo spielen“</b> tippen – fertig.
       </div>
 
       <div class="leben" aria-label="Drei Leben, keins verbraucht">
@@ -381,12 +369,7 @@
         <span>Drei Leben – nach dem dritten Fehler ist Schluss</span>
       </div>
 
-      <ul class="facts">
-        <li><b>Kein festes Ziel.</b> Es geht weiter, solange du triffst – nicht nur bis zehn Karten.</li>
-        <li><b>Dein Bestwert</b> steht auf dem Startbildschirm und bleibt auf diesem Gerät gespeichert.</li>
-        <li><b>Kein Veto.</b> Es ist niemand da, der dir eine Karte wegschnappen könnte.</li>
-        <li><b>Läuft auch ohne Server.</b> Solo braucht keine Verbindung zur Datenbank – nur die Songs.</li>
-      </ul>
+      <p class="fazit"><b>Dein Bestwert wird gespeichert.</b> Kannst du den Highscore knacken?</p>
     </div>
 
     <div class="mode multi">
@@ -411,67 +394,46 @@
 
       <ul class="facts">
         <li><b>Jeder beginnt mit einer aufgedeckten Karte.</b> Die zählt bereits mit.</li>
-        <li><b>Fehler kosten keine Leben</b> – nur die Karte. Sie verfällt und der Nächste ist dran.</li>
+        <li>Hast du die Karte <b>richtig</b> einsortiert, erweitert sie deine Zeitleiste. <b>Falsche</b> Karten werden aus dem Spiel entfernt.</li>
         <li><b>Drei Vetos pro Spieler:</b> Du kannst dem, der dran ist, die Karte wegschnappen. Mehr dazu gleich.</li>
-        <li><b>Geht das Deck aus,</b> gewinnt, wer die meisten Karten hat. Bei Gleichstand endet es unentschieden.</li>
       </ul>
-    </div>
 
-    <div class="cmp-wrap">
-      <table class="cmp">
-        <thead>
-          <tr><th>&nbsp;</th><th>Solo</th><th>Mehrspieler</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Spieler</td><td>1</td><td>2–4, je ein Gerät</td></tr>
-          <tr><td>Start</td><td>„Solo spielen“</td><td>Code erstellen oder beitreten</td></tr>
-          <tr><td>Schluss</td><td>nach dem 3. Fehler</td><td>bei 10 Karten</td></tr>
-          <tr><td>Fehler</td><td>kostet ein Leben</td><td>kostet nur die Karte</td></tr>
-          <tr><td>Veto</td><td>–</td><td>3 pro Spieler</td></tr>
-          <tr><td>Gewertet</td><td>gesammelte Karten</td><td>Sieg oder Niederlage</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+      <!-- Kartenklau steht hier drin statt in einem eigenen Abschnitt: es
+           gibt ihn nur im Mehrspieler-Modus. -->
+      <div class="sub">
+        <div class="sh">
+          <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="7.6"/><path d="M12 10.4V14l2.4 1.8"/><path d="M9.4 2.4h5.2"/><path d="M12 2.4v4"/></svg></span>
+          <h4>Kartenklau per Veto</h4>
+        </div>
+        <p>Sobald sich jemand mit <b>„Karte einloggen“</b> festgelegt hat, läuft für alle anderen ein Countdown von 15 Sekunden. Ein <b>?</b> in der Zeitleiste zeigt, welche Stelle gewählt wurde – das Jahr bleibt weiter verdeckt.</p>
+        <p><b>Wer zuerst tippt,</b> darf die Karte des aktiven Spielers an der Stelle einsortieren, die er für richtig hält. Wird kein Veto eingelegt, wird die Karte automatisch aufgelöst.</p>
 
-  <!-- ══ Veto ══════════════════════════════════════════════════ -->
-  <section>
-    <div class="kicker">Nur im Mehrspieler</div>
-    <h2>Kartenklau per Veto</h2>
-
-    <div class="rule">
-      <div class="rh">
-        <span class="ri"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="7.6"/><path d="M12 10.4V14l2.4 1.8"/><path d="M9.4 2.4h5.2"/><path d="M12 2.4v4"/></svg></span>
-        <h3>15 Sekunden Einspruch</h3>
-      </div>
-      <p>Sobald sich jemand mit <b>„Karte einloggen“</b> festgelegt hat, läuft für alle anderen ein Countdown. Ein <b>?</b> in der Zeitleiste zeigt, welche Stelle gewählt wurde – das Jahr bleibt weiter verdeckt.</p>
-      <p><b>Wer zuerst tippt, bekommt den Zugriff</b>, die anderen sind für diese Karte raus. Meldet sich niemand, wird automatisch aufgelöst.</p>
-
-      <div class="vbox">
-        <div class="vicon">✋</div>
-        <div class="vtitel">Veto?</div>
-        <div class="vzeit">15</div>
-        <div class="vsub">Sekunden</div>
-        <div class="vtext">Glaubst du, Jenny liegt daneben? Das ? in der Zeitleiste zeigt die gewählte Stelle. Wer zuerst tippt, bekommt den Zugriff.</div>
-      </div>
-    </div>
-
-    <div class="rule">
-      <div class="rh">
-        <span class="ri"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.6 4.5 5.9v5.7c0 4.4 3.1 8 7.5 9.4 4.4-1.4 7.5-5 7.5-9.4V5.9z"/><path d="M8.9 11.8l2.3 2.3 4.1-4.6"/></svg></span>
-        <h3>Wann zieht ein Veto?</h3>
-      </div>
-      <p>Du tippst die Lücke in der <b>Zeitleiste des Spielers am Zug</b> – dieselbe Aufgabe, an der er gerade sitzt. Die angefochtene Stelle selbst ist gesperrt, dort liegt die Karte laut ihm ja schon.</p>
-
-      <div class="matrix">
-        <div class="mrow ja"><span class="mk">✓</span><div><b>Er daneben, du richtig</b> – die Karte wandert in deine Zeitleiste, und dein Veto bleibt dir erhalten.</div></div>
-        <div class="mrow nein"><span class="mk">✕</span><div><b>Er richtig</b> – das Veto verpufft, egal wo du getippt hast. Das ist der Preis fürs Misstrauen.</div></div>
-        <div class="mrow nein"><span class="mk">✕</span><div><b>Beide daneben</b> – die Karte verfällt, dein Veto ist verbraucht.</div></div>
+        <div class="vbox">
+          <div class="vicon">✋</div>
+          <div class="vtitel">Veto?</div>
+          <div class="vzeit">15</div>
+          <div class="vsub">Sekunden</div>
+          <div class="vtext">Glaubst du, Jenny liegt daneben? Das ? in der Zeitleiste zeigt die gewählte Stelle. Wer zuerst tippt, bekommt den Zugriff.</div>
+        </div>
       </div>
 
-      <div class="vzeile" aria-label="Zwei von drei Vetos übrig">
-        <span class="vlabel">Veto</span>
-        <span class="vpunkte"><span class="vpunkt"></span><span class="vpunkt"></span><span class="vpunkt weg"></span></span>
+      <div class="sub">
+        <div class="sh">
+          <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.6 4.5 5.9v5.7c0 4.4 3.1 8 7.5 9.4 4.4-1.4 7.5-5 7.5-9.4V5.9z"/><path d="M8.9 11.8l2.3 2.3 4.1-4.6"/></svg></span>
+          <h4>Wann zieht ein Veto?</h4>
+        </div>
+        <p>Du tippst die Lücke in der <b>Zeitleiste des Spielers am Zug</b> – dieselbe Aufgabe, an der er gerade sitzt. Die angefochtene Stelle selbst ist gesperrt, dort liegt die Karte laut ihm ja schon.</p>
+
+        <div class="matrix">
+          <div class="mrow ja"><span class="mk">✓</span><div><b>Er daneben, du richtig</b> – die Karte wandert in deine Zeitleiste, und dein Veto bleibt dir erhalten.</div></div>
+          <div class="mrow nein"><span class="mk">✕</span><div><b>Er richtig</b> – das Veto verpufft, egal wo du getippt hast. Das ist der Preis fürs Misstrauen.</div></div>
+          <div class="mrow nein"><span class="mk">✕</span><div><b>Beide daneben</b> – die Karte verfällt, dein Veto ist verbraucht.</div></div>
+        </div>
+
+        <div class="vzeile" aria-label="Zwei von drei Vetos übrig">
+          <span class="vlabel">Veto</span>
+          <span class="vpunkte"><span class="vpunkt"></span><span class="vpunkt"></span><span class="vpunkt weg"></span></span>
+        </div>
       </div>
     </div>
   </section>

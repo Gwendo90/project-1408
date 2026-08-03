@@ -1,4 +1,4 @@
-# Project 1408
+11# Project 1408
 
 Ein selbstgebautes Eurovision-Kartenspiel nach Hitster-Art — als **gedrucktes Kartenspiel** mit
 QR-Codes und als **Web-App** auf GitHub Pages.
@@ -221,6 +221,14 @@ Versatz von ein, zwei Sekunden ist unhörbar — ein fehlender Songanfang fällt
 
 Jede Audio-Anweisung wird **genau einmal** umgesetzt (`audioAnweisung` als Signatur). Ein
 fortlaufender Abgleich auf die Sollposition würde den Start von vorn sofort wegkorrigieren.
+
+**Der Ton läuft durch die Veto-Phase weiter.** Wer über ein Veto nachdenkt, muss den Song
+dabei noch hören — sonst entscheidet er aus der Erinnerung. `einloggen()` fasst `audio`
+deshalb nicht an; angehalten wird erst in `auswerten()`. Weil die Signatur dadurch über den
+Phasenwechsel hinweg gleich bleibt, spielt die Datei ohne Sprung weiter, statt neu zu starten.
+Der Player selbst ist in dieser Phase ausgeblendet, die Bühne gehört dem Countdown —
+`audible` in `renderGame()` muss die Phase trotzdem einschließen, sonst räumt `stopAudio()`
+das `<audio>`-Element ab.
 
 ### Kartenoptik
 

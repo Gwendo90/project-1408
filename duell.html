@@ -1070,9 +1070,11 @@ async function einloggen(index) {
   const ok = await commit(s => {
     if (s.phase !== 'turn' || s.turn !== seat || !s.current) return null;
     s.pending = { seat, index };
-    s.audio = { playing:false, startedAt:0, seek:0 };
     const kannVeto = mitspieler(s, seat).some(k => (s.vetos?.[k] || 0) > 0);
+    // Geht es ohne Veto-Fenster direkt weiter, hält auswerten() den Ton an.
     if (s.solo || !kannVeto) return auswerten(s, null);
+    // Sonst läuft er absichtlich weiter: wer über ein Veto nachdenkt, muss
+    // den Song dabei noch hören. Angehalten wird erst in auswerten().
     s.phase = 'veto';
     s.vetoBis = serverNow() + VETO_MS;
     s.vetoAngemeldet = null;
@@ -1587,7 +1589,10 @@ function renderGame(st) {
   // ── Player ──
   // Bleibt auch beim Ziehen stehen (nur ausgegraut), damit der Knopf nicht
   // erst auftaucht und alles darunter verschiebt.
-  const audible = st.phase === 'turn';
+  // Auch in der Veto-Phase: der Song trägt die Entscheidung, ob jemand
+  // Einspruch erhebt. Der Player bleibt dabei ausgeblendet – die Bühne
+  // gehört dem Countdown –, der Ton läuft aber unverändert weiter.
+  const audible = st.phase === 'turn' || st.phase === 'veto';
   $('playerBox').style.display = (auflösung || vetoPhase) ? 'none' : 'flex';
   $('pbtn').disabled = !(audible && mine);
   if (audible) {

@@ -1478,9 +1478,30 @@ function onAudioEnded() {
     commit(s => { s.audio = { playing:false, startedAt:0, seek:0 }; return s; });
 }
 
+// Safari auf dem iPhone hält die Wiedergabe gelegentlich von sich aus an –
+// am Rechner passiert das nicht. In der Veto-Phase fasst sonst nichts mehr
+// das Audio-Element an (der Zustand ändert sich ja nicht), also käme der Ton
+// nie zurück und der Song bräche genau dort ab, wo man ihn zum Abwägen
+// bräuchte. Deshalb hier gegenprüfen und notfalls neu anstoßen.
+//
+// Bewusst ohne currentTime: nur weiterspielen, nie zurückspringen. Der
+// laufende Abgleich auf die Sollposition ist genau das, was audioAnweisung
+// vermeiden soll (siehe dort) – hier geht es allein um pausiert/läuft.
+function weiterspielen() {
+  if (!G || !G.state.audio?.playing || !aud.paused) return;
+  const ph = G.state.phase;
+  if (ph !== 'turn' && ph !== 'veto') return;
+  if (lastRenderedCard === null) return syncAudio(G.state);  // Quelle abgeräumt
+  if (!aud.duration) return;                                 // lädt noch
+  const want = targetTime(G.state.audio);
+  if (want < 0 || want >= aud.duration) return;              // Vorlauf bzw. durchgelaufen
+  aud.play().catch(() => {});
+}
+
 // Fortschrittsbalken und Veto-Countdown lokal, ohne Netzwerk
 tickTimer = setInterval(() => {
   vetoTick();
+  weiterspielen();
   if (!aud.duration || aud.paused) return;
   $('pfill').style.width = (aud.currentTime / aud.duration * 100) + '%';
   $('tlbl').textContent = fmtTime(aud.duration - aud.currentTime);

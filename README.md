@@ -230,6 +230,14 @@ Der Player selbst ist in dieser Phase ausgeblendet, die Bühne gehört dem Count
 `audible` in `renderGame()` muss die Phase trotzdem einschließen, sonst räumt `stopAudio()`
 das `<audio>`-Element ab.
 
+**`weiterspielen()` im 250-ms-Takt ist die Absicherung dafür.** Safari auf dem iPhone hält die
+Wiedergabe gelegentlich von sich aus an; am Rechner tritt das nicht auf. Weil in der Veto-Phase
+sonst nichts mehr das Element anfasst — der Zustand ändert sich ja nicht —, käme der Ton ohne
+diese Prüfung nie zurück. Die Funktion nimmt die Wiedergabe nur wieder auf und **fasst
+`currentTime` nicht an**: Zurückspringen wäre genau der fortlaufende Abgleich, den
+`audioAnweisung` verhindern soll. Sie greift ausschließlich in `turn` und `veto`, nie während
+Vorlauf oder nach dem Durchlaufen.
+
 ### Kartenoptik
 
 Die gedruckten Karten sind ausgemessen und in CSS nachgebaut:

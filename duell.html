@@ -278,10 +278,29 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .vetoIcon { font-size:26px; line-height:1; }
 .vetoTitel { font-size:15px; font-weight:700; line-height:1.3; }
 .vetoText { font-size:12px; color:var(--muted); line-height:1.5; max-width:230px; }
-.vetoZeit { font-size:30px; font-weight:700; font-variant-numeric:tabular-nums;
-            background:linear-gradient(135deg,var(--grad-a),var(--grad-b));
-            -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
-.vetoZeit.knapp { -webkit-text-fill-color:var(--red); }
+/* Countdown als Ring: der Verlauf füllt sich im Uhrzeigersinn, die Sekunden
+   stehen in der Mitte. Der Fortschritt läuft über stroke-dashoffset – eine
+   Alternative über conic-gradient könnte den Verlauf nicht gleichzeitig
+   diagonal führen und den Kreis anschneiden. */
+.vetoRing { position:relative; width:74px; height:74px; flex-shrink:0; }
+.vetoRing svg { width:100%; height:100%; display:block; overflow:visible; }
+.vetoRing circle { fill:none; stroke-width:4; }
+.vetoRing .spur { stroke:var(--track); opacity:.45; }
+/* Der Übergang federt die 250-ms-Schritte des Ticks zu einem gleichmäßigen
+   Lauf ab – linear, damit er nicht am Ende jedes Schritts stockt. */
+.vetoRing .fuellung { stroke:url(#vetoGrad); stroke-linecap:round;
+                      transition:stroke-dashoffset .25s linear; }
+/* stop-color als CSS-Eigenschaft, nicht als Attribut: nur so greifen die
+   Farbvariablen aus :root. Ausgewählt über die Verlaufs-ID statt über
+   .vetoRing – sonst fällt der Strich auf Schwarz zurück, sobald die Defs
+   einmal woanders stehen. */
+#vetoGrad stop.a { stop-color:var(--grad-a); }
+#vetoGrad stop.m { stop-color:var(--grad-mid); }
+#vetoGrad stop.b { stop-color:var(--grad-b); }
+.vetoZeit { position:absolute; inset:0; display:grid; place-items:center;
+            font-size:21px; font-weight:700; font-variant-numeric:tabular-nums;
+            color:var(--text); transition:color .2s; }
+.vetoZeit.knapp { color:var(--red); }
 
 /* Vetozähler in der Punktestand-Kachel */
 .vzeile { display:flex; align-items:center; gap:8px; }
@@ -578,6 +597,10 @@ const BEST_KEY  = 'duell1408best';      // Bestwert im Solo-Modus
 const SOLO_FEHLER = 3;                  // nach dem dritten Fehler ist Schluss
 const VETOS_START = 3;                  // Vetos je Spieler zu Spielbeginn
 const VETO_MS = 15000;                  // Bedenkzeit fürs Veto
+// Fortschrittsring des Countdowns. Radius im 44er-Viewport, Umfang daraus –
+// so steht die Zahl an einer Stelle und nicht als Konstante im CSS daneben.
+const VETO_R = 19;
+const VETO_U = 2 * Math.PI * VETO_R;
 // Vorlauf beim Autostart: beide Geräte bekommen Zeit, die Preview zu laden,
 // damit der Song bei beiden wirklich bei Sekunde 0 beginnt statt mittendrin.
 const VORLAUF_MS = 900;
@@ -1541,14 +1564,25 @@ tickTimer = setInterval(() => {
 
 // Läuft das Fenster ab, lässt der erste Client durch, der es merkt. Der
 // zweite findet die Phase schon verändert vor und sein commit verpufft.
+// Wie viel des Fensters ist herum? 0 = gerade eröffnet, 1 = abgelaufen.
+// Der Ring füllt sich entlang dieses Werts.
+function vetoAnteil(st) {
+  if (!st.vetoBis) return 0;
+  const rest = Math.max(0, (st.vetoBis - serverNow()) / 1000);
+  return Math.min(1, Math.max(0, 1 - rest / (VETO_MS / 1000)));
+}
+
 function vetoTick() {
   if (!G || G.state.phase !== 'veto' || !G.state.vetoBis) return;
   const rest = Math.max(0, (G.state.vetoBis - serverNow()) / 1000);
   const el = $('vetoZeit');
   if (el) {
-    el.textContent = Math.ceil(rest) + ' s';
+    el.textContent = Math.ceil(rest);
     el.classList.toggle('knapp', rest <= 5);
   }
+  const ring = $('vetoRing');
+  if (ring) ring.setAttribute('stroke-dashoffset',
+                              (VETO_U * (1 - vetoAnteil(G.state))).toFixed(2));
   const marke = (G.code || '') + ':' + G.state.vetoBis;
   if (rest <= 0 && vetoAblaufFuer !== marke) {
     vetoAblaufFuer = marke;
@@ -1876,10 +1910,34 @@ function vetoHTML(st, mine) {
         : esc(name) + ' behauptet, die Platzierung sei falsch – und zeigt jetzt, wo die Karte hingehört.'}</div>
     </div>`;
   }
+  // Kein eigenes Symbol mehr: der Ring ist hier der Blickfang, und die Box
+  // hat auf kleinen Displays keine Höhe für beides.
+  //
+  // Sekunden und Füllstand stehen schon im Markup, nicht erst nach dem
+  // ersten Tick: sonst steht bis zu einer Viertelsekunde ein Platzhalter da
+  // und der Ring springt sichtbar von leer auf seinen Stand.
+  const sek = st.vetoBis
+    ? Math.max(0, Math.ceil((st.vetoBis - serverNow()) / 1000))
+    : null;
   return `<div class="vetobox">
-    <div class="vetoIcon">${mine ? '🔒' : '✋'}</div>
     <div class="vetoTitel">${mine ? 'Eingeloggt' : 'Veto?'}</div>
-    <div class="vetoZeit" id="vetoZeit">–</div>
+    <div class="vetoRing">
+      <svg viewBox="0 0 44 44" aria-hidden="true">
+        <defs>
+          <linearGradient id="vetoGrad" x1="0" y1="0" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+            <stop class="a" offset="0"/><stop class="m" offset=".55"/><stop class="b" offset="1"/>
+          </linearGradient>
+        </defs>
+        <circle class="spur" cx="22" cy="22" r="${VETO_R}"/>
+        <!-- rotate als SVG-Attribut, nicht per CSS-transform: transform-origin
+             verhält sich auf SVG-Elementen je nach Browser unterschiedlich. -->
+        <circle class="fuellung" id="vetoRing" cx="22" cy="22" r="${VETO_R}"
+                transform="rotate(-90 22 22)"
+                stroke-dasharray="${VETO_U.toFixed(2)}"
+                stroke-dashoffset="${(VETO_U * (1 - vetoAnteil(st))).toFixed(2)}"/>
+      </svg>
+      <span class="vetoZeit${sek !== null && sek <= 5 ? ' knapp' : ''}" id="vetoZeit">${sek ?? '–'}</span>
+    </div>
     <div class="vetoText">${mine
       ? 'Die anderen können die Platzierung jetzt anfechten.'
       : 'Glaubst du, ' + esc(amZug) + ' liegt daneben? Das ? in der Zeitleiste zeigt die gewählte Stelle. Wer zuerst tippt, bekommt den Zugriff.'}</div>

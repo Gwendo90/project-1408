@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Project 1408">
 <meta name="theme-color" content="#F1F0EC">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Project 1408 – Online Modus</title>
+<title>1408 Online Spiel</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -42,10 +42,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
          border-radius:20px; padding:22px; display:flex; flex-direction:column; align-items:center;
          gap:14px; flex-shrink:0; box-shadow:0 8px 28px rgba(40,30,80,.05); }
 .h1 { font-size:21px; font-weight:700; letter-spacing:.3px; text-align:center; }
-/* Der Name ist länger als eine Überschrift üblicherweise: mitskalieren,
-   damit er ab 320 px Bildschirmbreite auf eine Zeile passt und der
-   Gedankenstrich nicht am Zeilenende hängen bleibt. */
-#homeTitel { font-size:clamp(16px,5vw,21px); letter-spacing:0; }
 .sub { font-size:13px; color:var(--muted); text-align:center; line-height:1.6; }
 
 /* ── Eingaben & Buttons ───────────────────────────────────────── */
@@ -457,7 +453,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   </a>
   <div class="logo"><img src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408"></div>
   <div class="panel">
-    <div class="h1" id="homeTitel">Project 1408 – Online Modus</div>
     <input class="inp" id="nameInput" placeholder="Dein Name" maxlength="14" autocomplete="off">
   </div>
   <div class="actions">

@@ -1044,9 +1044,17 @@ function auswerten(s, vetoZug) {
 
   if (s.solo) {
     if (!aktivOk) s.fehler++;
+    // Nach dem letzten Leben bleibt die Auflösung stehen, statt sofort zum
+    // Endbildschirm zu springen: sonst sieht man nie, welches Jahr es war –
+    // also genau bei dem Fehler nicht, der die Partie beendet hat. Zum
+    // Ergebnis geht es erst auf Tastendruck (siehe naechsteKarte).
+    //
+    // Gewertet wird trotzdem sofort. Wer den Tab an dieser Stelle zumacht,
+    // soll seinen Lauf nicht verlieren.
+    //
     // Der Bestwert muss hier fallen, nicht nach dem commit: im Solo-Modus
     // zeichnet commit() sofort neu, und renderOver liest soloRekord.
-    if (s.fehler >= s.maxFehler) { s.phase = 'over'; merkeBestwert(tlAktiv.length); }
+    if (s.fehler >= s.maxFehler) { s.soloAus = true; merkeBestwert(tlAktiv.length); }
   } else {
     for (const k of aktive(s)) {
       if (s.timelines[k].length >= s.ziel) { s.phase = 'over'; s.winner = k; }
@@ -1136,7 +1144,9 @@ function nachAuswertung() {
     // seine Lücke je angeschaut wurde – das wäre kein Wissensnachweis.
     if (r.klau && !r.correct) tippMerken(r.klau.seat, r.id, r.klau.gelungen);
   }
-  if (st.phase === 'over') partieMerken();
+  // soloAus zählt wie 'over': die Partie ist entschieden, nur der
+  // Endbildschirm wartet noch auf den Spieler.
+  if (st.phase === 'over' || st.soloAus) partieMerken();
 }
 
 // Bestwert ist die Länge der Zeitleiste, wenn der dritte Fehler fällt.
@@ -1152,6 +1162,9 @@ function merkeBestwert(n) {
 async function naechsteKarte() {
   const ok = await commit(s => {
     if (s.phase !== 'result') return null;
+    // Solo nach dem letzten Leben: die Karte wurde gezeigt, jetzt zum
+    // Ergebnis. Gewertet ist die Partie längst (siehe auswerten).
+    if (s.soloAus) { s.phase = 'over'; s.result = null; return s; }
     if (!s.solo) s.turn = naechster(s, s.turn);
     s.result = null;
     s.hinweis = null;
@@ -1779,7 +1792,9 @@ function renderActions(st, mine) {
       add('Keine Vetos mehr', '', null, true);
     }
   } else if (st.phase === 'result') {
-    add('Nächste Karte', 'prim', naechsteKarte);
+    // Nach dem letzten Leben kommt keine Karte mehr – der Knopf führt zum
+    // Ergebnis, und das soll er auch sagen.
+    add(st.soloAus ? 'Ergebnis ansehen' : 'Nächste Karte', 'prim', naechsteKarte);
   }
 
 }
@@ -1865,6 +1880,8 @@ function verdictText(st, ich) {
     return k ? '✓ Richtig – das Veto verpufft' : '✓ Richtig einsortiert';
   }
   if (k) return '✕ Beide daneben – Karte verfällt';
+  // Solo nach dem letzten Leben: zurück kommt hier nichts mehr.
+  if (st.soloAus) return '✕ Daneben – das war dein letztes Leben';
   return '✕ Daneben – Karte kommt zurück';
 }
 

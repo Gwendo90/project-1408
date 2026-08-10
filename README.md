@@ -121,6 +121,13 @@ Endlos ziehen, nach drei Fehlern ist Schluss (`SOLO_FEHLER`). Gezählt werden di
 Karten, Bestwert lokal in `localStorage`. **Kein Veto, kein Backend nötig** — Solo läuft auch,
 wenn Supabase nicht erreichbar ist.
 
+**Das letzte Leben beendet die Partie nicht sofort.** Sonst verschwände genau die Karte
+ungesehen, an der man gescheitert ist. Stattdessen setzt `auswerten()` nur `soloAus`, die
+Auflösung bleibt stehen, und erst „Ergebnis ansehen" schaltet in `naechsteKarte()` auf `over`.
+**Gewertet wird trotzdem sofort** (Bestwert und `partien`-Zeile fallen weiterhin in
+`auswerten()` bzw. `nachAuswertung()`) — wer den Tab an dieser Stelle zumacht, verliert
+seinen Lauf nicht.
+
 ### Noch nicht umgesetzt
 
 Die **Chips** aus der gedruckten Anleitung: Wer dran ist, kann zusätzlich zum Jahr ein Merkmal
@@ -172,7 +179,8 @@ deutlich einfacher zu handhaben als normalisierte Tabellen, und Realtime schickt
   audio:     { playing, startedAt, seek },
   result:    { seat, id, index, correct, klau },
   hinweis:   'Jenny hat das Spiel verlassen',
-  winner, verlassen, solo, fehler, maxFehler
+  winner, verlassen, solo, fehler, maxFehler,
+  soloAus                             // Solo entschieden, Auflösung noch sichtbar
 }
 ```
 
@@ -362,3 +370,7 @@ weil die Bühne dort leer ist (Player und Balken sind absolut positioniert) und 
   Nach dem Start wird der Ausstieg sauber behandelt.
 * **Veto-Statistik:** Erfolgreiche Klaus werden nicht getrennt erfasst; dafür bräuchte `tipps`
   eine Spalte mehr.
+* **Doppelte Solo-Zeile bei Neuladen:** Wer die Seite genau auf der letzten Auflösung neu lädt
+  und dann „Ergebnis ansehen" tippt, schreibt eine zweite `partien`-Zeile. `partieProtokolliert`
+  ist eine Modulvariable und überlebt das Neuladen nicht. Enges Zeitfenster, unschöne, aber
+  harmlose Folge: ein Doppeleintrag in der Bestenliste.

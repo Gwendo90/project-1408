@@ -266,14 +266,21 @@ Die gedruckten Karten sind ausgemessen und in CSS nachgebaut:
   über Violett nach `#FC2786` unten rechts. Auf dem Schirm läuft das Band weiter nach außen
   (r=48…90 bei 100 als halber Kartenbreite) und **Strich wie Abstand sind etwa doppelt so
   groß** wie im Druckverhältnis — maßstabsgetreu wirken die Rillen am Bildschirm wie ein feines
-  Raster statt wie Rillen. Restzeit und Status stehen **unter** der Karte, nicht darauf – auf hellem
-  Grund also wieder schwarz. Ihr Platz ist die Zeile der Auflösung: die ist leer, solange der
-  Player zu sehen ist, und der Player verschwindet, sobald sie gefüllt wird.
+  Raster statt wie Rillen. Die Statuszeile steht **unter** der Karte, nicht darauf – auf hellem Grund
+  also wieder schwarz. Ihr Platz ist die Zeile der Auflösung: die ist leer, solange der Player
+  zu sehen ist, und der Player verschwindet, sobald sie gefüllt wird. Eine Restzeit wird nicht
+  angezeigt; wie weit der Song ist, sagt der Ring.
 * **Der Fortschritt ist der Rahmen des Knopfes**, nicht mehr ein Balken darunter. Der Knopf
   selbst ist schwarz wie die Karte — sichtbar sind nur das Zeichen und der Bogen, der sich
   füllt. Ungefüllt bleibt der Rahmen schwarz, deshalb liegt bewusst **keine Spur** darunter.
   Der Ring sitzt bei r=40 im 200er-Viewport und trifft damit genau die Knopfkante (40 % der
   Karte); wer eines von beiden ändert, muss das andere mitziehen.
+* **Der Fortschrittsring benutzt einen zurückgedrehten Verlauf** (`#ringGradFest`). Ein Verlauf
+  mit `gradientUnits="userSpaceOnUse"` rechnet im Koordinatensystem des nutzenden Elements —
+  das `rotate(-90)`, mit dem der Ring bei zwölf Uhr beginnt, dreht ihn also mit. Seine Farben
+  standen dadurch um 90° versetzt zu den Ringen daneben (gemessen: oben Magenta statt
+  Blauviolett). `gradientTransform="rotate(90 …)"` hebt das auf, und der Bogen blendet sich in
+  den Ringkranz ein, statt sich davon abzusetzen.
 * **Herzflaggen** in `flags/`, Dateiname aus dem deutschen Ländernamen abgeleitet
   (`flagSlug()` in `duell.html` **muss identisch zu `slug()` in `build_flags.py` bleiben**).
   Fehlt eine Datei, springt per `onerror` das Emoji ein.

@@ -178,18 +178,23 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 /* pointer-events:none ist zwingend: das SVG liegt als positioniertes Element
    über dem Knopf und fing sonst jeden Klick ab – der Ton ließ sich dann
    weder anhalten noch neu starten. */
-.ringe { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+/* z-index sichert die Reihenfolge: ein transform auf dem Knopf – etwa ein
+   Vergrößern beim Überfahren – erzeugt einen Stapelkontext, der ihn sonst
+   über das SVG hebt. Seine schwarze Fläche verdeckt dann genau den
+   Fortschrittsring, der auf seiner Kante sitzt. */
+.ringe { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1; }
 .ringe circle { fill:none; }
 .ringe .deko circle { stroke:url(#ringGrad); stroke-width:3; }
 /* Der Rahmen des Knopfes ist der Fortschritt. Ungefüllt bleibt er schwarz
    wie der Grund – deshalb gibt es bewusst keine Spur darunter. */
-.ringe .pfill { stroke:url(#ringGrad); stroke-width:3.4; stroke-linecap:round;
+.ringe .pfill { stroke:url(#ringGradFest); stroke-width:3.4; stroke-linecap:round;
                 transition:stroke-dashoffset .25s linear; }
 /* Farben der gedruckten Rückseite, am Ring abgetastet: oben links Cyan,
-   unten rechts Pink. stop-color muss aus dem CSS kommen. */
-#ringGrad stop.r1 { stop-color:#30B7FE; }
-#ringGrad stop.r2 { stop-color:#9B4FFA; }
-#ringGrad stop.r3 { stop-color:#FC2786; }
+   unten rechts Pink. stop-color muss aus dem CSS kommen. Über die Klasse
+   ausgewählt, damit beide Verläufe im Ringkranz dieselben Farben ziehen. */
+.ringe stop.r1 { stop-color:#30B7FE; }
+.ringe stop.r2 { stop-color:#9B4FFA; }
+.ringe stop.r3 { stop-color:#FC2786; }
 
 /* Schwarz wie die Karte: sichtbar ist nur das Zeichen und der Rahmen, der
    sich füllt. Größe in Prozent der Karte, damit der Ring an r=40 im
@@ -203,7 +208,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .pbtn.on svg { margin-left:0; }
 .iplay{display:block;} .ipause{display:none;}
 .pbtn.on .iplay{display:none;} .pbtn.on .ipause{display:block;}
-.tlbl { font-size:13px; line-height:1.15; color:var(--muted); text-align:center; font-variant-numeric:tabular-nums; }
 .stat { font-size:13px; line-height:1.25; color:var(--muted); text-align:center; min-height:16px; }
 .stat.err{color:var(--red);}
 /* Die Statuszeile steht auf der schwarzen Kartenrückseite, also hell. Kein
@@ -465,7 +469,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
                                    box-shadow:0 12px 30px rgba(158,34,180,.38); }
   .btn:not(.prim):not(.ghost):not(:disabled):hover { border-color:var(--grad-mid); }
   .btn.ghost:hover { color:var(--text); }
-  .pbtn:not(:disabled):hover { transform:scale(1.04); }
 }
 </style>
 </head>
@@ -535,6 +538,15 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
           <linearGradient id="ringGrad" x1="24" y1="24" x2="176" y2="176" gradientUnits="userSpaceOnUse">
             <stop class="r1" offset="0"/><stop class="r2" offset=".5"/><stop class="r3" offset="1"/>
           </linearGradient>
+          <!-- Derselbe Verlauf, um 90° zurückgedreht. userSpaceOnUse rechnet im
+               Koordinatensystem des nutzenden Elements – das rotate(-90) des
+               Fortschrittsrings würde den Verlauf sonst mitdrehen, und seine
+               Farben stünden versetzt zu den Ringen daneben (gemessen: oben
+               Magenta statt Blauviolett). -->
+          <linearGradient id="ringGradFest" x1="24" y1="24" x2="176" y2="176"
+                          gradientUnits="userSpaceOnUse" gradientTransform="rotate(90 100 100)">
+            <stop class="r1" offset="0"/><stop class="r2" offset=".5"/><stop class="r3" offset="1"/>
+          </linearGradient>
         </defs>
         <!-- Acht Ringe wie im Druck, aber bis fast an den Kartenrand: r=48…90
              bei 100 als halber Kartenbreite. Strich und Abstand sind doppelt
@@ -560,7 +572,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
         <svg class="ipause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
       </button>
       <div class="punten">
-        <div class="tlbl" id="tlbl">—</div>
         <div class="stat" id="stat">—</div>
       </div>
     </div>
@@ -1494,7 +1505,6 @@ function syncAudio(st) {
     aud.src = s.pr;
     aud.load();
     setFortschritt(0);
-    $('tlbl').textContent = '—';
   }
   // Die Previews sind unterschiedlich lang – im Katalog überwiegend 90 s,
   // vereinzelt 30 s. Vor den Metadaten kennen wir die Länge nicht, also
@@ -1524,7 +1534,6 @@ function syncAudio(st) {
   if (st.audio.playing && want >= aud.duration) {
     if (!aud.paused) aud.pause();
     setFortschritt(1);
-    $('tlbl').textContent = '0:00';
     return 'fertig';
   }
 
@@ -1562,15 +1571,6 @@ function setFortschritt(anteil) {
   el.setAttribute('stroke-dashoffset', (PLAY_U * (1 - a)).toFixed(2));
 }
 
-function fmtTime(sec) {
-  const r = Math.max(0, Math.ceil(sec));
-  return Math.floor(r/60) + ':' + String(r%60).padStart(2,'0');
-}
-
-// Sobald die Länge bekannt ist, im Ruhezustand die Gesamtdauer anzeigen.
-aud.addEventListener('loadedmetadata', () => {
-  if (aud.paused && aud.duration) $('tlbl').textContent = fmtTime(aud.duration);
-});
 
 // Beide Geräte kennen die Deck-Reihenfolge, also lässt sich die nächste
 // Preview schon laden, während noch aufgelöst wird. Der Browser hat sie
@@ -1598,7 +1598,6 @@ function stopAudio() {
 
 function onAudioEnded() {
   setFortschritt(1);
-  $('tlbl').textContent = '0:00';
   if (G && G.state.turn === seat && G.state.audio.playing)
     commit(s => { s.audio = { playing:false, startedAt:0, seek:0 }; return s; });
 }
@@ -1629,7 +1628,6 @@ tickTimer = setInterval(() => {
   weiterspielen();
   if (!aud.duration || aud.paused) return;
   setFortschritt(aud.currentTime / aud.duration);
-  $('tlbl').textContent = fmtTime(aud.duration - aud.currentTime);
 }, 250);
 
 // Läuft das Fenster ab, lässt der erste Client durch, der es merkt. Der
@@ -1765,7 +1763,6 @@ function renderGame(st) {
     clearTimeout(vorlaufTimer);
     stopAudio();
     setFortschritt(0);
-    $('tlbl').textContent = '—';
     setStat(st.phase === 'draw' && !mine ? 'Wartet auf ' + st.seats[st.turn].name : '', '');
     ladeNaechsteVor(st);        // Ziehen und Auflösen sind die ruhigen Momente
   }

@@ -258,6 +258,13 @@ Die gedruckten Karten sind ausgemessen und in CSS nachgebaut:
   Container-Queries (`cqw`), damit die Typografie an der Karte hängt und nicht am Viewport.
 * Die Breite streut in DM Sans stärker als in der Druckschrift; der Mittelwert von 64,2 % wird
   mit `letter-spacing:-.045em` getroffen. Ein exakter Treffer bräuchte die Originalschrift.
+* **Der Playbutton ist die Kartenrückseite.** Dort sitzt der QR-Code auf schwarzem Grund,
+  umgeben von acht dünnen Ringen im Verlauf; hier steht der Knopf an der Stelle des Codes.
+  Am gedruckten Motiv ausgemessen (480 px): Ringe bei r=136…198, Abstand 8,8 px, Strich 4,3 px,
+  Verlauf diagonal von `#30B7FE` oben links über Violett nach `#FC2786` unten rechts. Auf dem
+  Schirm sind die Ringe etwas kräftiger und gedimmt, damit der **äußerste** sich als
+  Fortschritt des Songs abhebt — er hat den früheren Balken abgelöst. Scheibe und Knopf sind in
+  Prozent bemessen (58 % der Bühne, 47 % der Scheibe), damit beide am Rechner mitwachsen.
 * **Herzflaggen** in `flags/`, Dateiname aus dem deutschen Ländernamen abgeleitet
   (`flagSlug()` in `duell.html` **muss identisch zu `slug()` in `build_flags.py` bleiben**).
   Fehlt eine Datei, springt per `onerror` das Emoji ein.

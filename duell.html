@@ -297,10 +297,14 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 #vetoGrad stop.a { stop-color:var(--grad-a); }
 #vetoGrad stop.m { stop-color:var(--grad-mid); }
 #vetoGrad stop.b { stop-color:var(--grad-b); }
-.vetoZeit { position:absolute; inset:0; display:grid; place-items:center;
-            font-size:21px; font-weight:700; font-variant-numeric:tabular-nums;
+/* Zahl und Einheit als eigene Elemente: vetoTick schreibt nur in .vetoZeit,
+   ein gemeinsames textContent würde die Einheit bei jedem Tick löschen. */
+.vetoMitte { position:absolute; inset:0; display:flex; flex-direction:column;
+             align-items:center; justify-content:center; line-height:1; }
+.vetoZeit { font-size:21px; font-weight:700; font-variant-numeric:tabular-nums;
             color:var(--text); transition:color .2s; }
 .vetoZeit.knapp { color:var(--red); }
+.vetoEinheit { font-size:9px; font-weight:600; color:var(--muted); margin-top:3px; }
 
 /* Vetozähler in der Punktestand-Kachel */
 .vzeile { display:flex; align-items:center; gap:8px; }
@@ -1839,7 +1843,7 @@ function renderActions(st, mine) {
       else add('Veto hier setzen', 'prim', () => { const g = pendingGap; pendingGap = null; vetoSetzen(g); });
       add('Doch nicht', '', vetoZurueck);
     } else if (habeVetos) {
-      add('Veto einlegen', 'prim', vetoAnmelden);
+      add('Veto', 'prim', vetoAnmelden);
       add('Durchlassen', '', durchlassen);
     } else {
       add('Keine Vetos mehr', '', null, true);
@@ -1910,8 +1914,9 @@ function vetoHTML(st, mine) {
         : esc(name) + ' behauptet, die Platzierung sei falsch – und zeigt jetzt, wo die Karte hingehört.'}</div>
     </div>`;
   }
-  // Kein eigenes Symbol mehr: der Ring ist hier der Blickfang, und die Box
-  // hat auf kleinen Displays keine Höhe für beides.
+  // Weder Symbol noch Überschrift: der Ring sagt schon, dass die Zeit läuft,
+  // und eine Zeile darunter, worum es geht. Alles weitere überfrachtet die
+  // Box – sie steht nur fünfzehn Sekunden.
   //
   // Sekunden und Füllstand stehen schon im Markup, nicht erst nach dem
   // ersten Tick: sonst steht bis zu einer Viertelsekunde ein Platzhalter da
@@ -1920,7 +1925,6 @@ function vetoHTML(st, mine) {
     ? Math.max(0, Math.ceil((st.vetoBis - serverNow()) / 1000))
     : null;
   return `<div class="vetobox">
-    <div class="vetoTitel">${mine ? 'Eingeloggt' : 'Veto?'}</div>
     <div class="vetoRing">
       <svg viewBox="0 0 44 44" aria-hidden="true">
         <defs>
@@ -1936,11 +1940,14 @@ function vetoHTML(st, mine) {
                 stroke-dasharray="${VETO_U.toFixed(2)}"
                 stroke-dashoffset="${(VETO_U * (1 - vetoAnteil(st))).toFixed(2)}"/>
       </svg>
-      <span class="vetoZeit${sek !== null && sek <= 5 ? ' knapp' : ''}" id="vetoZeit">${sek ?? '–'}</span>
+      <span class="vetoMitte">
+        <span class="vetoZeit${sek !== null && sek <= 5 ? ' knapp' : ''}" id="vetoZeit">${sek ?? '–'}</span>
+        <span class="vetoEinheit">Sek.</span>
+      </span>
     </div>
     <div class="vetoText">${mine
-      ? 'Die anderen können die Platzierung jetzt anfechten.'
-      : 'Glaubst du, ' + esc(amZug) + ' liegt daneben? Das ? in der Zeitleiste zeigt die gewählte Stelle. Wer zuerst tippt, bekommt den Zugriff.'}</div>
+      ? 'Wird dein Tipp angefochten?'
+      : 'Liegt ' + esc(amZug) + ' mit dem Tipp richtig?'}</div>
   </div>`;
 }
 

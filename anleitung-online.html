@@ -195,12 +195,20 @@
   .vbox{margin:16px 0 4px;border:1px solid var(--line);border-radius:18px;padding:20px;text-align:center;
     display:flex;flex-direction:column;align-items:center;gap:8px;background:#fff;
     box-shadow:0 0 0 2px rgba(232,0,61,.14)}
-  .vicon{font-size:26px;line-height:1}
-  .vtitel{font-family:"Poppins";font-size:1rem;font-weight:700}
-  .vzeit{font-family:"Poppins";font-size:2.1rem;font-weight:700;line-height:1;
-    background:linear-gradient(135deg,var(--pink),var(--blue));
-    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  .vsub{font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-top:-4px}
+  /* Countdown-Ring wie im Spiel: der Verlauf füllt sich im Uhrzeigersinn. */
+  .vring{position:relative;width:84px;height:84px;flex:0 0 auto}
+  .vring svg{width:100%;height:100%;display:block}
+  .vring circle{fill:none;stroke-width:4}
+  .vring .vspur{stroke:var(--line)}
+  .vring .vfuell{stroke:url(#vg);stroke-linecap:round}
+  /* stop-color muss aus dem CSS kommen, sonst greifen die Farbvariablen nicht. */
+  #vg stop.a{stop-color:var(--pink)}
+  #vg stop.m{stop-color:var(--purple)}
+  #vg stop.b{stop-color:var(--blue)}
+  .vmitte{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;line-height:1}
+  .vzahl{font-family:"Poppins";font-size:1.5rem;font-weight:700;color:var(--ink)}
+  .veinheit{font-size:.6rem;font-weight:600;color:var(--ink-soft);margin-top:3px}
   .vtext{font-size:.88rem;color:var(--ink-soft);font-weight:500;line-height:1.5;max-width:30ch}
   /* Vetozähler wie in der Punktestand-Kachel */
   .vzeile{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px}
@@ -409,11 +417,19 @@
         <p><b>Wer zuerst tippt,</b> darf die Karte des aktiven Spielers an der Stelle einsortieren, die er für richtig hält. Wird kein Veto eingelegt, wird die Karte automatisch aufgelöst.</p>
 
         <div class="vbox">
-          <div class="vicon">✋</div>
-          <div class="vtitel">Veto?</div>
-          <div class="vzeit">15</div>
-          <div class="vsub">Sekunden</div>
-          <div class="vtext">Glaubst du, Jenny liegt daneben? Das ? in der Zeitleiste zeigt die gewählte Stelle. Wer zuerst tippt, bekommt den Zugriff.</div>
+          <div class="vring">
+            <svg viewBox="0 0 44 44" aria-hidden="true">
+              <defs><linearGradient id="vg" x1="0" y1="0" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+                <stop class="a" offset="0"/><stop class="m" offset=".55"/><stop class="b" offset="1"/>
+              </linearGradient></defs>
+              <circle class="vspur" cx="22" cy="22" r="19"/>
+              <!-- ein Drittel herum: 119.38 × (1 − 1/3) -->
+              <circle class="vfuell" cx="22" cy="22" r="19" transform="rotate(-90 22 22)"
+                      stroke-dasharray="119.38" stroke-dashoffset="79.59"/>
+            </svg>
+            <span class="vmitte"><span class="vzahl">10</span><span class="veinheit">Sek.</span></span>
+          </div>
+          <div class="vtext">Liegt Jenny mit dem Tipp richtig?</div>
         </div>
       </div>
 

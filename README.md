@@ -258,13 +258,22 @@ Die gedruckten Karten sind ausgemessen und in CSS nachgebaut:
   Container-Queries (`cqw`), damit die Typografie an der Karte hängt und nicht am Viewport.
 * Die Breite streut in DM Sans stärker als in der Druckschrift; der Mittelwert von 64,2 % wird
   mit `letter-spacing:-.045em` getroffen. Ein exakter Treffer bräuchte die Originalschrift.
-* **Der Playbutton ist die Kartenrückseite.** Dort sitzt der QR-Code auf schwarzem Grund,
-  umgeben von acht dünnen Ringen im Verlauf; hier steht der Knopf an der Stelle des Codes.
-  Am gedruckten Motiv ausgemessen (480 px): Ringe bei r=136…198, Abstand 8,8 px, Strich 4,3 px,
-  Verlauf diagonal von `#30B7FE` oben links über Violett nach `#FC2786` unten rechts. Auf dem
-  Schirm sind die Ringe etwas kräftiger und gedimmt, damit der **äußerste** sich als
-  Fortschritt des Songs abhebt — er hat den früheren Balken abgelöst. Scheibe und Knopf sind in
-  Prozent bemessen (58 % der Bühne, 47 % der Scheibe), damit beide am Rechner mitwachsen.
+* **Der Playbutton ist die Kartenrückseite.** Er hat Form, Größe und Eckenradius der
+  aufgedeckten Karte — beim Auflösen wird die Karte umgedreht, nicht ausgetauscht. Auf der
+  gedruckten Rückseite sitzt der QR-Code auf schwarzem Grund, umringt von acht dünnen Ringen
+  im Verlauf; hier steht der Knopf an seiner Stelle. Am Druckmotiv ausgemessen (480 px):
+  Ringe bei r=136…198, Abstand 8,8 px, Strich 4,3 px, Verlauf diagonal von `#30B7FE` oben links
+  über Violett nach `#FC2786` unten rechts. Auf dem Schirm läuft das Band weiter nach außen
+  (r=48…90 bei 100 als halber Kartenbreite) und **Strich wie Abstand sind etwa doppelt so
+  groß** wie im Druckverhältnis — maßstabsgetreu wirken die Rillen am Bildschirm wie ein feines
+  Raster statt wie Rillen. Restzeit und Status stehen **unter** der Karte, nicht darauf – auf hellem
+  Grund also wieder schwarz. Ihr Platz ist die Zeile der Auflösung: die ist leer, solange der
+  Player zu sehen ist, und der Player verschwindet, sobald sie gefüllt wird.
+* **Der Fortschritt ist der Rahmen des Knopfes**, nicht mehr ein Balken darunter. Der Knopf
+  selbst ist schwarz wie die Karte — sichtbar sind nur das Zeichen und der Bogen, der sich
+  füllt. Ungefüllt bleibt der Rahmen schwarz, deshalb liegt bewusst **keine Spur** darunter.
+  Der Ring sitzt bei r=40 im 200er-Viewport und trifft damit genau die Knopfkante (40 % der
+  Karte); wer eines von beiden ändert, muss das andere mitziehen.
 * **Herzflaggen** in `flags/`, Dateiname aus dem deutschen Ländernamen abgeleitet
   (`flagSlug()` in `duell.html` **muss identisch zu `slug()` in `build_flags.py` bleiben**).
   Fehlt eine Datei, springt per `onerror` das Emoji ein.
@@ -360,6 +369,13 @@ Viewport-Höhe; Safaris untere Leiste verdeckt dann den letzten Knopf.
 **Werkzeug-Latenz beim Testen.** Zwischen zwei Aufrufen eines Automatisierungswerkzeugs können
 über 10 Sekunden vergehen. Das 15-Sekunden-Veto-Fenster läuft dabei ab. Für interaktive Tests
 `vetoBis` künstlich weit setzen.
+
+**Das Ring-SVG braucht `pointer-events:none`.** Es liegt als absolut positioniertes Element
+über dem Playbutton und paint daher darüber — und fängt ohne diese Regel auch jeden Klick ab.
+Der Ton startete dann zwar automatisch, ließ sich aber weder anhalten noch nach dem Durchlauf
+erneut abspielen; der Knopf sah dabei völlig normal aus. Nachweisbar über
+`document.elementFromPoint()` in der Knopfmitte: liefert es `<svg class="ringe">` statt des
+Knopfes, ist genau das der Fehler.
 
 **Rollbalken: entweder `scrollbar-width` oder `::-webkit-scrollbar`, nicht beides.** Die
 Zeitleiste zeigt ihren Rollbalken absichtlich dauerhaft — sonst sieht man am Rechner nicht,

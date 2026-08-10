@@ -152,30 +152,38 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
    dort, wo später die Mitte der aufgelösten Karte liegt. Balken und
    Statuszeile hängen darunter, ohne ihn zu verschieben. */
 .player { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
-/* Status hängt unter der Scheibe, ohne sie aus der Kartenmitte zu schieben.
-   Der Abstand rechnet mit dem Scheibenradius (29 % = halbe Scheibenbreite),
-   damit er beim Vergrößern am Rechner nicht nachgezogen werden muss. */
-.punten { position:absolute; left:50%; transform:translateX(-50%); width:min(100vw - 40px,400px);
-          top:calc(50% + 29% + 10px); display:flex; flex-direction:column; align-items:center; gap:6px; }
+/* Restzeit und Status stehen unter der Karte, nicht darauf – so bleiben die
+   Ringe ungestört und der Text steht wieder auf hellem Grund, also schwarz.
+   Der Platz dafür ist die Zeile der Auflösung: die ist leer, solange der
+   Player zu sehen ist, und der Player verschwindet, sobald sie gefüllt wird. */
+.punten { position:absolute; left:50%; top:calc(100% + 4px); transform:translateX(-50%);
+          width:min(100vw - 40px,400px); display:flex; flex-direction:column;
+          align-items:center; gap:0; pointer-events:none; }
 
-/* ── Scheibe: nachempfunden der Kartenrückseite ────────────────────
-   Dort sitzt der QR-Code auf schwarzem Grund, umgeben von acht dünnen
-   Ringen im Verlauf. Hier steht der Playbutton an der Stelle des Codes,
-   und der äußerste Ring füllt sich mit dem Song.
-   Ausgemessen an der gedruckten Rückseite (480 px): Ringe bei r=136…198,
-   Abstand 8,8 px, Strichstärke 4,3 px – umgerechnet auf den 200er-Viewport
-   und etwas kräftiger, weil die Scheibe auf dem Schirm kleiner ist. */
-.scheibe { position:relative; width:58%; aspect-ratio:1/1; border-radius:50%;
-           background:#0d0a12; display:grid; place-items:center; flex-shrink:0;
-           box-shadow:0 16px 44px rgba(20,10,40,.38); }
-.ringe { position:absolute; inset:0; width:100%; height:100%; }
+/* ── Player: die Kartenrückseite ───────────────────────────────────
+   Gleiche Form und Größe wie die aufgedeckte Karte – beim Auflösen wird die
+   Karte umgedreht, nicht ausgetauscht. Auf der gedruckten Rückseite sitzt
+   der QR-Code auf schwarzem Grund, umringt von dünnen Ringen im Verlauf;
+   hier steht der Playbutton an seiner Stelle.
+   Ausgemessen am Druckmotiv (480 px): Ringe bei r=136…198, Abstand 8,8 px,
+   Strich 4,3 px – im 200er-Viewport also r=56,9…82,5 bei Strich 1,8. Der
+   Ringkranz endet hier etwas früher, damit unten Platz für die Restzeit
+   bleibt. */
+.player { position:absolute; inset:0; border-radius:22px; background:#0d0a12;
+          /* kein overflow:hidden – der Textblock hängt jetzt unterhalb der
+             Karte und würde sonst abgeschnitten. Die Ringe bleiben ohnehin
+             innerhalb, der äußerste endet bei r=91,5 von 100. */
+          display:flex; align-items:center; justify-content:center;
+          box-shadow:0 14px 40px rgba(90,50,140,.28); }
+/* pointer-events:none ist zwingend: das SVG liegt als positioniertes Element
+   über dem Knopf und fing sonst jeden Klick ab – der Ton ließ sich dann
+   weder anhalten noch neu starten. */
+.ringe { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .ringe circle { fill:none; }
-/* Die festen Ringe sind Muster, nicht Anzeige – gedimmt, damit der
-   Fortschrittsring davor nicht untergeht. Der sitzt zusaetzlich weiter
-   aussen, mit sichtbarer Luecke zum letzten Deko-Ring. */
-.ringe .deko circle { stroke:url(#ringGrad); stroke-width:3; opacity:.5; }
-.ringe .spur { stroke:#fff; opacity:.13; stroke-width:5; }
-.ringe .pfill { stroke:url(#ringGrad); stroke-width:5; stroke-linecap:round;
+.ringe .deko circle { stroke:url(#ringGrad); stroke-width:3; }
+/* Der Rahmen des Knopfes ist der Fortschritt. Ungefüllt bleibt er schwarz
+   wie der Grund – deshalb gibt es bewusst keine Spur darunter. */
+.ringe .pfill { stroke:url(#ringGrad); stroke-width:3.4; stroke-linecap:round;
                 transition:stroke-dashoffset .25s linear; }
 /* Farben der gedruckten Rückseite, am Ring abgetastet: oben links Cyan,
    unten rechts Pink. stop-color muss aus dem CSS kommen. */
@@ -183,28 +191,24 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 #ringGrad stop.r2 { stop-color:#9B4FFA; }
 #ringGrad stop.r3 { stop-color:#FC2786; }
 
-/* Größe in Prozent der Scheibe: so wächst der Knopf am Rechner mit, ohne
-   dass eine zweite Regel im Media-Query nachziehen muss. */
-.pbtn { width:47%; height:47%; border-radius:50%; border:none; cursor:pointer;
+/* Schwarz wie die Karte: sichtbar ist nur das Zeichen und der Rahmen, der
+   sich füllt. Größe in Prozent der Karte, damit der Ring an r=40 im
+   Viewport genau die Knopfkante trifft. */
+.pbtn { width:40%; height:40%; border-radius:50%; border:none; cursor:pointer;
         display:flex; align-items:center; justify-content:center;
-        -webkit-appearance:none; transition:transform .15s;
-        /* Gleiche Laufrichtung wie die Ringe: blau oben links, pink unten
-           rechts. Mit der Standardrichtung der Knoepfe liefen beide Verlaeufe
-           gegeneinander und die Scheibe wirkte unruhig. */
-        background:linear-gradient(135deg,var(--grad-b),var(--grad-mid) 45%,var(--grad-a));
-        box-shadow:0 10px 26px rgba(0,0,0,.45); }
-.pbtn:active { transform:scale(.96); }
-.pbtn:disabled { background:#2a2533; box-shadow:none; cursor:default; }
-.pbtn.on { animation:pulse 2.4s ease-in-out infinite; }
-@keyframes pulse { 0%,100%{box-shadow:0 10px 26px rgba(0,0,0,.45)}
-                   50%{box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 0 10px rgba(255,255,255,.06)} }
-.pbtn svg { width:40%; height:40%; fill:white; margin-left:6%; }
+        background:#0d0a12; -webkit-appearance:none; transition:transform .15s; }
+.pbtn:active { transform:scale(.94); }
+.pbtn:disabled { opacity:.4; cursor:default; }
+.pbtn svg { width:42%; height:42%; fill:#fff; margin-left:6%; }
 .pbtn.on svg { margin-left:0; }
 .iplay{display:block;} .ipause{display:none;}
 .pbtn.on .iplay{display:none;} .pbtn.on .ipause{display:block;}
-.tlbl { font-size:13px; color:var(--muted); text-align:center; font-variant-numeric:tabular-nums; }
-.stat { font-size:13px; color:var(--muted); text-align:center; min-height:18px; }
+.tlbl { font-size:13px; line-height:1.15; color:var(--muted); text-align:center; font-variant-numeric:tabular-nums; }
+.stat { font-size:13px; line-height:1.25; color:var(--muted); text-align:center; min-height:16px; }
 .stat.err{color:var(--red);}
+/* Die Statuszeile steht auf der schwarzen Kartenrückseite, also hell. Kein
+   Grün/Rot mehr; auf dem Startbildschirm behält #homeStat sein Rot, dort ist
+   es die einzige Rückmeldung, die man bekommt. */
 /* Die Statuszeile im Spiel schreibt durchgehend schwarz. Auf dem
    Startbildschirm behält #homeStat dagegen sein Rot für Fehlermeldungen –
    dort ist es die einzige Rückmeldung, die man bekommt. */
@@ -523,35 +527,38 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   <div class="buehne">
     <div class="stage" id="stage"></div>
     <div class="player" id="playerBox">
-      <!-- Kartenrückseite als Scheibe: sieben feste Ringe, der äußerste ist
-           der Fortschritt. Radien im 200er-Viewport, Mitte 100/100. -->
-      <div class="scheibe">
-        <svg class="ringe" viewBox="0 0 200 200" aria-hidden="true">
-          <defs>
-            <linearGradient id="ringGrad" x1="18" y1="18" x2="182" y2="182" gradientUnits="userSpaceOnUse">
-              <stop class="r1" offset="0"/><stop class="r2" offset=".5"/><stop class="r3" offset="1"/>
-            </linearGradient>
-          </defs>
-          <g class="deko">
-            <circle cx="100" cy="100" r="52"/>
-            <circle cx="100" cy="100" r="57.5"/>
-            <circle cx="100" cy="100" r="63"/>
-            <circle cx="100" cy="100" r="68.5"/>
-            <circle cx="100" cy="100" r="74"/>
-            <circle cx="100" cy="100" r="79.5"/>
-            <circle cx="100" cy="100" r="85"/>
-          </g>
-          <circle class="spur" cx="100" cy="100" r="93"/>
-          <!-- rotate als Attribut, nicht per CSS – siehe Veto-Ring. -->
-          <circle class="pfill" id="pfill" cx="100" cy="100" r="93"
-                  transform="rotate(-90 100 100)"
-                  stroke-dasharray="584.34" stroke-dashoffset="584.34"/>
-        </svg>
-        <button class="pbtn" id="pbtn" disabled>
-          <svg class="iplay"  viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-          <svg class="ipause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-        </button>
-      </div>
+      <!-- Ringkranz der gedruckten Rückseite. Radien im 200er-Viewport,
+           Mitte 100/100. Der innerste Kreis ist kein Schmuck, sondern der
+           Rahmen des Knopfes: r=40 trifft genau dessen Kante (40 % der Karte). -->
+      <svg class="ringe" viewBox="0 0 200 200" aria-hidden="true">
+        <defs>
+          <linearGradient id="ringGrad" x1="24" y1="24" x2="176" y2="176" gradientUnits="userSpaceOnUse">
+            <stop class="r1" offset="0"/><stop class="r2" offset=".5"/><stop class="r3" offset="1"/>
+          </linearGradient>
+        </defs>
+        <!-- Acht Ringe wie im Druck, aber bis fast an den Kartenrand: r=48…90
+             bei 100 als halber Kartenbreite. Strich und Abstand sind doppelt
+             so groß wie im Druckverhältnis – auf dem Schirm wirkt das Motiv
+             sonst wie ein feines Raster statt wie Rillen. -->
+        <g class="deko">
+          <circle cx="100" cy="100" r="48"/>
+          <circle cx="100" cy="100" r="54"/>
+          <circle cx="100" cy="100" r="60"/>
+          <circle cx="100" cy="100" r="66"/>
+          <circle cx="100" cy="100" r="72"/>
+          <circle cx="100" cy="100" r="78"/>
+          <circle cx="100" cy="100" r="84"/>
+          <circle cx="100" cy="100" r="90"/>
+        </g>
+        <!-- rotate als Attribut, nicht per CSS – siehe Veto-Ring. -->
+        <circle class="pfill" id="pfill" cx="100" cy="100" r="40"
+                transform="rotate(-90 100 100)"
+                stroke-dasharray="251.33" stroke-dashoffset="251.33"/>
+      </svg>
+      <button class="pbtn" id="pbtn" disabled>
+        <svg class="iplay"  viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="ipause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
       <div class="punten">
         <div class="tlbl" id="tlbl">—</div>
         <div class="stat" id="stat">—</div>
@@ -653,7 +660,7 @@ const VETO_MS = 15000;                  // Bedenkzeit fürs Veto
 const VETO_R = 19;
 const VETO_U = 2 * Math.PI * VETO_R;
 // Fortschrittsring der Playbutton-Scheibe, Radius im 200er-Viewport.
-const PLAY_R = 93;
+const PLAY_R = 40;
 const PLAY_U = 2 * Math.PI * PLAY_R;
 // Vorlauf beim Autostart: beide Geräte bekommen Zeit, die Preview zu laden,
 // damit der Song bei beiden wirklich bei Sekunde 0 beginnt statt mittendrin.

@@ -273,8 +273,10 @@ Die gedruckten Karten sind ausgemessen und in CSS nachgebaut:
 * **Der Fortschritt ist der Rahmen des Knopfes**, nicht mehr ein Balken darunter. Der Knopf
   selbst ist schwarz wie die Karte — sichtbar sind nur das Zeichen und der Bogen, der sich
   füllt. Ungefüllt bleibt der Rahmen schwarz, deshalb liegt bewusst **keine Spur** darunter.
-  Der Ring sitzt bei r=40 im 200er-Viewport und trifft damit genau die Knopfkante (40 % der
-  Karte); wer eines von beiden ändert, muss das andere mitziehen.
+  Der Ring sitzt bei r=42 im 200er-Viewport und trifft damit genau die Knopfkante (42 % der
+  Karte); wer eines von beiden ändert, muss das andere mitziehen. Strichstärke und Abstand
+  zum innersten Deko-Ring sind dieselben wie zwischen den Ringen untereinander (3 und 6), der
+  Bogen sitzt also im Raster statt daneben.
 * **Der Fortschrittsring benutzt einen zurückgedrehten Verlauf** (`#ringGradFest`). Ein Verlauf
   mit `gradientUnits="userSpaceOnUse"` rechnet im Koordinatensystem des nutzenden Elements —
   das `rotate(-90)`, mit dem der Ring bei zwölf Uhr beginnt, dreht ihn also mit. Seine Farben

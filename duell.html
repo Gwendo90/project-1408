@@ -187,9 +187,25 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .tlwrap { width:100%; max-width:400px; flex-shrink:0; }
 .tllabel { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
            color:var(--muted); margin-bottom:5px; padding-left:2px; }
-.tl { display:flex; align-items:stretch; gap:0; overflow-x:auto; padding:3px 2px 8px;
-      -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-.tl::-webkit-scrollbar { display:none; }
+.tl { display:flex; align-items:stretch; gap:0; overflow-x:auto; padding:3px 2px 4px;
+      -webkit-overflow-scrolling:touch; }
+/* Sichtbarer Rollbalken statt gar keinem: ab etwa vier Karten geht die Leiste
+   seitlich weiter, und am Rechner ist das sonst nicht zu erkennen – macOS
+   blendet Rollbalken nur während des Scrollens ein.
+   Hier NICHT scrollbar-width/scrollbar-color setzen: sobald eine der beiden
+   Eigenschaften gesetzt ist, ignoriert Chrome die ::-webkit-scrollbar-Regeln
+   und zeichnet wieder einen überlagernden Balken, der im Ruhezustand
+   unsichtbar bleibt – gemessen: offsetHeight−clientHeight fällt dann auf 0.
+   Mit den Pseudoelementen allein sind es 6 px, der Balken belegt also Platz
+   und steht dauerhaft. Ohne Überlauf zeichnet ihn overflow-x:auto gar nicht. */
+.tl::-webkit-scrollbar { height:6px; }
+.tl::-webkit-scrollbar-track { background:transparent; }
+.tl::-webkit-scrollbar-thumb { background:var(--track); border-radius:3px; }
+.tl:hover::-webkit-scrollbar-thumb { background:var(--muted); }
+/* Firefox kennt die Pseudoelemente nicht und braucht den anderen Weg. */
+@supports not selector(::-webkit-scrollbar) {
+  .tl { scrollbar-width:thin; scrollbar-color:var(--track) transparent; }
+}
 /* Miniaturen derselben Kartenfront */
 .tlcard { flex:0 0 auto; width:82px; aspect-ratio:1/1; border-radius:12px; overflow:hidden;
           background:linear-gradient(135deg,#ED4F4F,#745BFF); color:#111114;

@@ -354,6 +354,14 @@ Viewport-Höhe; Safaris untere Leiste verdeckt dann den letzten Knopf.
 über 10 Sekunden vergehen. Das 15-Sekunden-Veto-Fenster läuft dabei ab. Für interaktive Tests
 `vetoBis` künstlich weit setzen.
 
+**Rollbalken: entweder `scrollbar-width` oder `::-webkit-scrollbar`, nicht beides.** Die
+Zeitleiste zeigt ihren Rollbalken absichtlich dauerhaft — sonst sieht man am Rechner nicht,
+dass sie seitlich weitergeht. Sobald aber `scrollbar-width` oder `scrollbar-color` gesetzt ist,
+ignoriert Chrome die `::-webkit-scrollbar`-Regeln und zeichnet wieder einen überlagernden
+Balken, der im Ruhezustand unsichtbar ist. Messbar an `offsetHeight − clientHeight`: mit den
+Pseudoelementen allein 6 px, mit `scrollbar-width` daneben 0 px. Für Firefox steht der andere
+Weg deshalb in einem `@supports not selector(::-webkit-scrollbar)`-Block.
+
 **Alle Phasen prüfen, nicht nur eine.** Ein Layout-Fehler war nur in `draw` und `turn` sichtbar,
 weil die Bühne dort leer ist (Player und Balken sind absolut positioniert) und eine
 `auto`-Rasterspalte deshalb auf Breite null zusammenfiel. In `result` sah alles gut aus.

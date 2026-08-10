@@ -174,7 +174,11 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
              Karte und würde sonst abgeschnitten. Die Ringe bleiben ohnehin
              innerhalb, der äußerste endet bei r=91,5 von 100. */
           display:flex; align-items:center; justify-content:center;
+          /* touch-action:none – sonst deutet das Handy die Ziehgeste als
+             Bildlauf und der Zeiger reißt mitten im Zug ab. */
+          touch-action:none;
           box-shadow:0 14px 40px rgba(90,50,140,.28); }
+.player.zieht { opacity:.35; }
 /* pointer-events:none ist zwingend: das SVG liegt als positioniertes Element
    über dem Knopf und fing sonst jeden Klick ab – der Ton ließ sich dann
    weder anhalten noch neu starten. */
@@ -192,9 +196,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 /* Farben der gedruckten Rückseite, am Ring abgetastet: oben links Cyan,
    unten rechts Pink. stop-color muss aus dem CSS kommen. Über die Klasse
    ausgewählt, damit beide Verläufe im Ringkranz dieselben Farben ziehen. */
-.ringe stop.r1 { stop-color:#30B7FE; }
-.ringe stop.r2 { stop-color:#9B4FFA; }
-.ringe stop.r3 { stop-color:#FC2786; }
+#ringGrad stop.r1, #ringGradFest stop.r1 { stop-color:#30B7FE; }
+#ringGrad stop.r2, #ringGradFest stop.r2 { stop-color:#9B4FFA; }
+#ringGrad stop.r3, #ringGradFest stop.r3 { stop-color:#FC2786; }
 
 /* Schwarz wie die Karte: sichtbar ist nur das Zeichen und der Rahmen, der
    sich füllt. Größe in Prozent der Karte, damit der Ring an r=40 im
@@ -263,8 +267,32 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .gap.live .bar { background:linear-gradient(180deg,var(--grad-a),var(--grad-b)); cursor:pointer; }
 .gap.live:active .bar { transform:scaleX(2); }
 .gap.zu { opacity:.28; }
-.gap.sel .bar { width:15px; height:60px; background:linear-gradient(180deg,var(--grad-a),var(--grad-b));
-                box-shadow:0 6px 18px rgba(158,34,180,.40); }
+/* Zielmarke beim Ziehen: nur ein transform, damit die Leiste dabei nicht
+   springt – Breite zu ändern würde alle Karten daneben verschieben. */
+.gap.ziel .bar { transform:scaleX(3.5); background:linear-gradient(180deg,var(--grad-a),var(--grad-b));
+                 box-shadow:0 4px 14px rgba(158,34,180,.45); }
+/* Die gewählte Lücke wird so breit wie eine Karte und zeigt die Rückseite –
+   die Karte liegt dann sichtbar an der Stelle, an der sie landen soll. */
+.gap.sel { width:82px; }
+
+/* ── Kartenrückseite in klein ──────────────────────────────────────
+   In der Zeitleiste an der gewählten Lücke und am Finger beim Ziehen.
+   Nur drei Ringe: die acht des Players wären auf 82 px ein Raster. */
+/* display:block ist nötig: als span greifen width und height nur, solange er
+   Flex-Kind der Lücke ist. Im Ziehbild hängt er in einem normalen div und
+   bliebe sonst ohne Fläche – unsichtbar. */
+.krueck { display:block; width:82px; height:82px; flex:0 0 auto; position:relative; overflow:hidden;
+          border-radius:12px; background:#0d0a12;
+          box-shadow:0 5px 14px rgba(90,50,140,.28);
+          animation:pop .3s cubic-bezier(.34,1.56,.64,1) both; }
+.krueck svg { position:absolute; inset:0; width:100%; height:100%; }
+.krueck circle { fill:none; stroke:url(#ringGrad); stroke-width:6; }
+
+/* Begleiter am Zeigefinger. pointer-events:none ist zwingend, sonst findet
+   elementFromPoint darunter nie die Lücke. */
+.zieher { position:fixed; left:0; top:0; z-index:900; pointer-events:none;
+          filter:drop-shadow(0 12px 26px rgba(0,0,0,.5)); }
+.zieher .krueck { animation:none; }
 .tlempty { font-size:13px; color:var(--muted); padding:14px 0; }
 
 /* ── Gegner-Leiste (kompakt) ──────────────────────────────────── */
@@ -534,20 +562,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
            Mitte 100/100. Der innerste Kreis ist kein Schmuck, sondern der
            Rahmen des Knopfes: r=40 trifft genau dessen Kante (40 % der Karte). -->
       <svg class="ringe" viewBox="0 0 200 200" aria-hidden="true">
-        <defs>
-          <linearGradient id="ringGrad" x1="24" y1="24" x2="176" y2="176" gradientUnits="userSpaceOnUse">
-            <stop class="r1" offset="0"/><stop class="r2" offset=".5"/><stop class="r3" offset="1"/>
-          </linearGradient>
-          <!-- Derselbe Verlauf, um 90° zurückgedreht. userSpaceOnUse rechnet im
-               Koordinatensystem des nutzenden Elements – das rotate(-90) des
-               Fortschrittsrings würde den Verlauf sonst mitdrehen, und seine
-               Farben stünden versetzt zu den Ringen daneben (gemessen: oben
-               Magenta statt Blauviolett). -->
-          <linearGradient id="ringGradFest" x1="24" y1="24" x2="176" y2="176"
-                          gradientUnits="userSpaceOnUse" gradientTransform="rotate(90 100 100)">
-            <stop class="r1" offset="0"/><stop class="r2" offset=".5"/><stop class="r3" offset="1"/>
-          </linearGradient>
-        </defs>
         <!-- Acht Ringe wie im Druck, aber bis fast an den Kartenrand: r=48…90
              bei 100 als halber Kartenbreite. Strich und Abstand sind doppelt
              so groß wie im Druckverhältnis – auf dem Schirm wirkt das Motiv
@@ -640,6 +654,21 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <!-- ESC-Herz, aus esc_heart-1.png vektorisiert (trace_heart.py).
      Einmal als Symbol, damit der Pfad nicht pro Herz wiederholt wird. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <!-- Verläufe des Ringkranzes. Sie stehen hier und nicht im Player, weil auch
+       die Mini-Rückseiten in der Zeitleiste und am Finger sie brauchen. Alle
+       benutzenden SVGs haben denselben 200er-Viewport, deshalb passt
+       userSpaceOnUse überall. -->
+  <linearGradient id="ringGrad" x1="24" y1="24" x2="176" y2="176" gradientUnits="userSpaceOnUse">
+    <stop class="r1" offset="0"/><stop class="r2" offset=".5"/><stop class="r3" offset="1"/>
+  </linearGradient>
+  <!-- Derselbe Verlauf, um 90° zurückgedreht: das rotate(-90) des
+       Fortschrittsrings würde ihn sonst mitdrehen, und seine Farben stünden
+       versetzt zu den Ringen daneben (gemessen: oben Magenta statt
+       Blauviolett). -->
+  <linearGradient id="ringGradFest" x1="24" y1="24" x2="176" y2="176"
+                  gradientUnits="userSpaceOnUse" gradientTransform="rotate(90 100 100)">
+    <stop class="r1" offset="0"/><stop class="r2" offset=".5"/><stop class="r3" offset="1"/>
+  </linearGradient>
   <symbol id="escherz" viewBox="0 0 95.2 100">
     <path fill-rule="evenodd" d="M70.3,0.0 L62.76,1.93 L55.54,5.94 L47.83,13.0 L42.86,19.9 L38.84,15.09 L31.62,11.4 L24.24,10.59 L18.78,12.2 L12.68,15.89 L7.7,20.87 L3.37,28.09 L1.44,33.55 L0.0,42.54 L0.32,52.49 L2.41,61.0 L6.26,68.7 L10.11,73.84 L17.01,80.42 L36.92,93.74 L43.66,100.0 L44.94,99.2 L47.35,94.22 L52.49,88.12 L71.75,70.63 L82.99,58.75 L89.57,49.12 L93.74,39.0 L95.02,31.94 L94.86,23.27 L93.42,16.85 L90.53,10.75 L85.55,4.98 L81.54,2.25 L76.24,0.32 L70.47,0.0ZM78.65,11.4 L81.86,17.01 L83.47,26.0 L82.83,33.71 L80.26,41.89 L76.57,48.96 L71.27,56.66 L48.15,82.34 L42.86,90.69 L38.52,85.87 L25.52,75.28 L16.85,65.97 L11.56,56.5 L9.47,46.87 L9.95,37.24 L12.52,27.93 L16.53,21.51 L21.99,17.17 L26.0,15.89 L28.89,15.89 L34.03,17.5 L38.36,21.51 L40.93,27.45 L43.02,28.57 L43.98,27.93 L46.87,21.19 L50.72,16.05 L55.86,11.24 L60.51,8.35 L65.33,6.74 L70.3,6.58 L74.8,8.03 L78.65,11.24Z"/>
   </symbol>
@@ -782,6 +811,7 @@ async function init() {
   document.addEventListener('pointerdown', unlockAudio, { once:true });
 
   aud.addEventListener('ended', onAudioEnded);
+  ziehenEinrichten();
 
   const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
   if (saved?.name) $('nameInput').value = saved.name;
@@ -1815,6 +1845,129 @@ function renderGame(st) {
   }
 }
 
+// ══ Karte ziehen ═════════════════════════════════════════════════
+// Zeigerereignisse statt HTML5-Drag-and-Drop: das greift auf dem Handy
+// zuverlässig und mit Maus genauso. Erst ab ein paar Pixeln Bewegung wird
+// aus dem Antippen ein Zug – sonst wäre jeder Tipp auf den Playbutton einer.
+const ZIEH_SCHWELLE = 6;      // px, ab hier ist es ein Zug und kein Tipp
+const ZIEH_FANG = 40;         // px, so weit über/unter der Leiste fängt sie noch
+let ziehStart = null;         // { x, y, id } des Zeigers
+let ziehAktiv = false;        // Schwelle überschritten?
+let ziehBild = null;          // Begleiter am Finger
+let ziehZiel = null;          // aktuell markierte Lücke
+let ziehX = 0, ziehScroll = null;
+let ziehEndeZeit = 0;         // gegen den Klick, der auf das Loslassen folgt
+
+function darfZiehen() {
+  return !!(G && G.state.phase === 'turn' && G.state.turn === seat && G.state.current);
+}
+
+// Nicht die Lücke exakt unter dem Finger, sondern die nächstgelegene: 30 px
+// breite Ziele trifft man im Ziehen sonst kaum.
+function luekeBei(x, y) {
+  const leiste = $('tl');
+  const r = leiste.getBoundingClientRect();
+  if (y < r.top - ZIEH_FANG || y > r.bottom + ZIEH_FANG) return null;
+  let best = null, abstand = Infinity;
+  leiste.querySelectorAll('.gap.live').forEach(g => {
+    const gr = g.getBoundingClientRect();
+    const d = Math.abs((gr.left + gr.right) / 2 - x);
+    if (d < abstand) { abstand = d; best = g; }
+  });
+  return best;
+}
+
+function markiere(g) {
+  if (ziehZiel === g) return;
+  if (ziehZiel) ziehZiel.classList.remove('ziel');
+  ziehZiel = g;
+  if (ziehZiel) ziehZiel.classList.add('ziel');
+}
+
+// Am Rand der Leiste weiterschieben, damit auch Lücken erreichbar sind,
+// die gerade nicht im Bild stehen.
+function scrollenAn() {
+  if (ziehScroll) return;
+  ziehScroll = setInterval(() => {
+    const leiste = $('tl'); if (!leiste) return;
+    const r = leiste.getBoundingClientRect(), rand = 48;
+    if (ziehX < r.left + rand) leiste.scrollLeft -= 14;
+    else if (ziehX > r.right - rand) leiste.scrollLeft += 14;
+    else return;
+    markiere(luekeBei(ziehX, r.top + r.height / 2));
+  }, 40);
+}
+function scrollenAus() { clearInterval(ziehScroll); ziehScroll = null; }
+
+function ziehAn() {
+  ziehAktiv = true;
+  ziehBild = document.createElement('div');
+  ziehBild.className = 'zieher';
+  ziehBild.innerHTML = rueckseiteHTML();
+  document.body.appendChild(ziehBild);
+  $('playerBox').classList.add('zieht');
+  scrollenAn();
+}
+
+// Das Bild schwebt über dem Zeiger, nicht darunter: auf dem Handy läge sonst
+// der Finger genau auf der Lücke, die man treffen will.
+const ZIEH_HOCH = 54;
+function ziehBewegen(x, y) {
+  ziehX = x;
+  ziehBild.style.transform =
+    `translate(${x}px, ${y - ZIEH_HOCH}px) translate(-50%, -50%) scale(1.08)`;
+  markiere(luekeBei(x, y));
+}
+
+function ziehAus() {
+  scrollenAus();
+  if (ziehBild) { ziehBild.remove(); ziehBild = null; }
+  if (ziehZiel) { ziehZiel.classList.remove('ziel'); ziehZiel = null; }
+  $('playerBox').classList.remove('zieht');
+  ziehStart = null; ziehAktiv = false;
+}
+
+function ziehenEinrichten() {
+  const box = $('playerBox');
+  box.addEventListener('pointerdown', e => {
+    if (!darfZiehen() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    ziehStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    ziehAktiv = false;
+    box.setPointerCapture(e.pointerId);
+  });
+  box.addEventListener('pointermove', e => {
+    if (!ziehStart || e.pointerId !== ziehStart.id) return;
+    if (!ziehAktiv) {
+      const dx = e.clientX - ziehStart.x, dy = e.clientY - ziehStart.y;
+      if (Math.hypot(dx, dy) < ZIEH_SCHWELLE) return;
+      ziehAn();
+    }
+    ziehBewegen(e.clientX, e.clientY);
+  });
+  box.addEventListener('pointerup', e => {
+    if (!ziehStart || e.pointerId !== ziehStart.id) return;
+    const war = ziehAktiv, ziel = ziehZiel;
+    ziehAus();
+    if (!war) return;
+    ziehEndeZeit = Date.now();
+    if (ziel) { pendingGap = parseInt(ziel.dataset.i, 10); render(); }
+  });
+  box.addEventListener('pointercancel', () => ziehAus());
+  // Auf das Loslassen folgt ein Klick. Nach einem Zug darf der den Ton nicht
+  // starten oder anhalten – deshalb hier abfangen, bevor der Knopf ihn sieht.
+  box.addEventListener('click', e => {
+    if (Date.now() - ziehEndeZeit < 300) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+}
+
+// Kartenrückseite in klein – dieselbe Optik wie der Player, nur mit weniger
+// Ringen, damit sie auf 82 px noch als Rillen lesbar bleiben.
+function rueckseiteHTML() {
+  return `<span class="krueck"><svg viewBox="0 0 200 200" aria-hidden="true">
+    <circle cx="100" cy="100" r="42"/><circle cx="100" cy="100" r="62"/>
+    <circle cx="100" cy="100" r="82"/></svg></span>`;
+}
+
 function renderTimeline(st, tlSeat, interactive, platzhalter = -1, gesperrt = -1) {
   const tl = st.timelines[tlSeat];
   const el = $('tl');
@@ -1835,7 +1988,8 @@ function renderTimeline(st, tlSeat, interactive, platzhalter = -1, gesperrt = -1
     const gap = document.createElement('button');
     const sel = waehlbar && pendingGap === i;
     gap.className = 'gap' + (waehlbar ? ' live' : '') + (sel ? ' sel' : '') + (zu ? ' zu' : '');
-    gap.innerHTML = '<span class="bar"></span>';
+    gap.dataset.i = i;                       // fürs Ablegen beim Ziehen
+    gap.innerHTML = sel ? rueckseiteHTML() : '<span class="bar"></span>';
     if (waehlbar) {
       gap.addEventListener('click', () => {
         pendingGap = (pendingGap === i) ? null : i;

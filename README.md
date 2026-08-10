@@ -283,6 +283,14 @@ Die gedruckten Karten sind ausgemessen und in CSS nachgebaut:
   standen dadurch um 90° versetzt zu den Ringen daneben (gemessen: oben Magenta statt
   Blauviolett). `gradientTransform="rotate(90 …)"` hebt das auf, und der Bogen blendet sich in
   den Ringkranz ein, statt sich davon abzusetzen.
+* **Einsortiert wird durch Antippen oder Ziehen.** Die gewählte Lücke wird so breit wie eine
+  Karte und zeigt die Rückseite in klein — die Karte liegt dann sichtbar dort, wo sie landen
+  soll. Gezogen wird über Zeigerereignisse, nicht über HTML5-Drag-and-Drop: das greift auf dem
+  Handy zuverlässig und mit Maus genauso. Erst ab `ZIEH_SCHWELLE` (6 px) Bewegung wird aus dem
+  Antippen ein Zug, sonst wäre jeder Tipp auf den Playbutton einer; der Klick nach dem
+  Loslassen wird über einen Zeitstempel abgefangen. Abgelegt wird auf der **nächstgelegenen**
+  Lücke, nicht auf der genau unter dem Zeiger — 30 px breite Ziele trifft man im Ziehen kaum.
+  Das Ziehbild schwebt über dem Zeiger, sonst läge der Finger auf der Lücke.
 * **Herzflaggen** in `flags/`, Dateiname aus dem deutschen Ländernamen abgeleitet
   (`flagSlug()` in `duell.html` **muss identisch zu `slug()` in `build_flags.py` bleiben**).
   Fehlt eine Datei, springt per `onerror` das Emoji ein.
@@ -378,6 +386,11 @@ Viewport-Höhe; Safaris untere Leiste verdeckt dann den letzten Knopf.
 **Werkzeug-Latenz beim Testen.** Zwischen zwei Aufrufen eines Automatisierungswerkzeugs können
 über 10 Sekunden vergehen. Das 15-Sekunden-Veto-Fenster läuft dabei ab. Für interaktive Tests
 `vetoBis` künstlich weit setzen.
+
+**`.krueck` braucht `display:block`.** Die Mini-Kartenrückseite ist ein `span`. In der Lücke
+ist sie Flex-Kind und wird dadurch blockartig, im Ziehbild hängt sie in einem normalen `div` —
+dort greifen `width` und `height` an einem inline-Element nicht, und sie blieb ohne Fläche.
+Sichtbarer Fehler: das Ziehbild fehlt, obwohl `.zieher` im DOM steht.
 
 **Das Ring-SVG braucht `pointer-events:none`.** Es liegt als absolut positioniertes Element
 über dem Playbutton und paint daher darüber — und fängt ohne diese Regel auch jeden Klick ab.

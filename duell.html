@@ -187,7 +187,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .tlwrap { width:100%; max-width:400px; flex-shrink:0; }
 .tllabel { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase;
            color:var(--muted); margin-bottom:5px; padding-left:2px; }
-.tl { display:flex; align-items:stretch; gap:0; overflow-x:auto; padding:3px 2px 4px;
+/* Der untere Innenabstand liegt zwischen den Karten und dem Rollbalken –
+   knapp darunter wirkt der Balken wie angeklebt, zumal der Kartenschatten
+   noch nach unten ausläuft. */
+.tl { display:flex; align-items:stretch; gap:0; overflow-x:auto; padding:3px 2px 11px;
       -webkit-overflow-scrolling:touch; }
 /* Sichtbarer Rollbalken statt gar keinem: ab etwa vier Karten geht die Leiste
    seitlich weiter, und am Rechner ist das sonst nicht zu erkennen – macOS

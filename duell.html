@@ -148,8 +148,8 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .verdict { width:100%; max-width:400px; height:19px; flex-shrink:0;
            font-size:14px; font-weight:700; display:flex;
            align-items:center; justify-content:center; gap:8px; }
-.verdict.ok  { color:var(--green); }
-.verdict.err { color:var(--red); }
+/* Die Auflösung bleibt schwarz, egal wie sie ausgeht. Ob die Karte sitzt,
+   sagt schon der Text – und in der Zeitleiste die frisch einsortierte Karte. */
 
 /* ── Player ───────────────────────────────────────────────────── */
 /* Der Playbutton ist das einzige zentrierte Kind und sitzt damit genau
@@ -181,7 +181,11 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .pfill { height:100%; width:0%; background:linear-gradient(90deg,var(--blue),var(--pink)); border-radius:3px; }
 .tlbl { font-size:13px; color:var(--muted); min-width:40px; text-align:right; font-variant-numeric:tabular-nums; }
 .stat { font-size:13px; color:var(--muted); text-align:center; min-height:18px; }
-.stat.ok{color:var(--green);} .stat.err{color:var(--red);}
+.stat.err{color:var(--red);}
+/* Die Statuszeile im Spiel schreibt durchgehend schwarz. Auf dem
+   Startbildschirm behält #homeStat dagegen sein Rot für Fehlermeldungen –
+   dort ist es die einzige Rückmeldung, die man bekommt. */
+#stat { color:var(--text); }
 
 /* ── Zeitleiste ───────────────────────────────────────────────── */
 .tlwrap { width:100%; max-width:400px; flex-shrink:0; }
@@ -275,7 +279,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
            padding:20px; box-shadow:0 8px 28px rgba(40,30,80,.05);
            animation:pop .3s cubic-bezier(.34,1.56,.64,1) both; }
 .vetobox.scharf { border-color:transparent; box-shadow:0 0 0 2px var(--red), 0 8px 28px rgba(232,0,61,.14); }
-.vetoIcon { font-size:26px; line-height:1; }
 .vetoTitel { font-size:15px; font-weight:700; line-height:1.3; }
 .vetoText { font-size:12px; color:var(--muted); line-height:1.5; max-width:230px; }
 /* Countdown als Ring: der Verlauf füllt sich im Uhrzeigersinn, die Sekunden
@@ -301,9 +304,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
    ein gemeinsames textContent würde die Einheit bei jedem Tick löschen. */
 .vetoMitte { position:absolute; inset:0; display:flex; flex-direction:column;
              align-items:center; justify-content:center; line-height:1; }
+/* Auch am Ende schwarz – wie knapp es wird, zeigt der Ring. */
 .vetoZeit { font-size:21px; font-weight:700; font-variant-numeric:tabular-nums;
-            color:var(--text); transition:color .2s; }
-.vetoZeit.knapp { color:var(--red); }
+            color:var(--text); }
 .vetoEinheit { font-size:9px; font-weight:600; color:var(--muted); margin-top:3px; }
 
 /* Vetozähler in der Punktestand-Kachel */
@@ -1580,10 +1583,7 @@ function vetoTick() {
   if (!G || G.state.phase !== 'veto' || !G.state.vetoBis) return;
   const rest = Math.max(0, (G.state.vetoBis - serverNow()) / 1000);
   const el = $('vetoZeit');
-  if (el) {
-    el.textContent = Math.ceil(rest);
-    el.classList.toggle('knapp', rest <= 5);
-  }
+  if (el) el.textContent = Math.ceil(rest);
   const ring = $('vetoRing');
   if (ring) ring.setAttribute('stroke-dashoffset',
                               (VETO_U * (1 - vetoAnteil(G.state))).toFixed(2));
@@ -1675,7 +1675,7 @@ function renderGame(st) {
 
   const vd = $('verdict');
   vd.textContent = auflösung ? verdictText(st, seat) : '';
-  vd.className = 'verdict' + (auflösung ? (verdictGut(st, seat) ? ' ok' : ' err') : '');
+  vd.className = 'verdict';
 
   // ── Player ──
   // Bleibt auch beim Ziehen stehen (nur ausgegraut), damit der Knopf nicht
@@ -1690,13 +1690,13 @@ function renderGame(st) {
     const lauf = syncAudio(st);
     $('pbtn').classList.toggle('on', lauf === 'laeuft');
     setStat(
-      lauf === 'laeuft' ? (st.solo ? '♫ Läuft' : '♫ Ihr hört beide zu')
+      lauf === 'laeuft' ? (st.solo ? 'Läuft' : 'Ihr hört beide zu')
       : lauf === 'vorlauf' ? 'Gleich geht’s los…'
       : lauf === 'laedt' ? 'Lädt…'
-      : lauf === 'fertig' ? (mine ? 'Durchgelaufen – nochmal ▶ oder einsortieren' : 'Durchgelaufen')
-      : mine ? 'Tippe ▶ zum Anspielen'
+      : lauf === 'fertig' ? (mine ? 'Durchgelaufen – nochmal anhören oder einsortieren' : 'Durchgelaufen')
+      : mine ? 'Tippe zum Anspielen'
       : 'Wartet auf ' + st.seats[st.turn].name,
-      lauf === 'laeuft' ? 'ok' : '');
+      '');
   } else {
     $('pbtn').classList.remove('on');
     clearTimeout(vorlaufTimer);
@@ -1907,7 +1907,6 @@ function vetoHTML(st, mine) {
     const wer = st.vetoAngemeldet === seat;
     const name = st.seats[st.vetoAngemeldet]?.name || 'Jemand';
     return `<div class="vetobox scharf">
-      <div class="vetoIcon">✋</div>
       <div class="vetoTitel">${wer ? 'Dein Veto läuft' : esc(name) + ' legt Veto ein!'}</div>
       <div class="vetoText">${wer
         ? 'Tippe unten in ' + esc(amZug) + 's Zeitleiste die Lücke, in die die Karte gehört. Liegst du richtig und ' + esc(amZug) + ' falsch, wandert sie zu dir.'
@@ -1941,7 +1940,7 @@ function vetoHTML(st, mine) {
                 stroke-dashoffset="${(VETO_U * (1 - vetoAnteil(st))).toFixed(2)}"/>
       </svg>
       <span class="vetoMitte">
-        <span class="vetoZeit${sek !== null && sek <= 5 ? ' knapp' : ''}" id="vetoZeit">${sek ?? '–'}</span>
+        <span class="vetoZeit" id="vetoZeit">${sek ?? '–'}</span>
         <span class="vetoEinheit">Sek.</span>
       </span>
     </div>
@@ -1958,22 +1957,15 @@ function verdictText(st, ich) {
   const amZug = st.seats?.[r.seat]?.name || '';
   if (k && k.gelungen) {
     const dieb = st.seats[k.seat].name;
-    return k.seat === ich ? '✋ Veto! Du klaust die Karte' : '✋ ' + dieb + ' klaut die Karte';
+    return k.seat === ich ? 'Veto! Du klaust die Karte' : dieb + ' klaut die Karte';
   }
   if (r.correct) {
-    return k ? '✓ Richtig – das Veto verpufft' : '✓ Richtig einsortiert';
+    return k ? 'Richtig – das Veto verpufft' : 'Richtig einsortiert';
   }
-  if (k) return '✕ Beide daneben – Karte verfällt';
+  if (k) return 'Beide daneben – Karte verfällt';
   // Solo nach dem letzten Leben: zurück kommt hier nichts mehr.
-  if (st.soloAus) return '✕ Daneben – das war dein letztes Leben';
-  return '✕ Daneben – Karte kommt zurück';
-}
-
-// Grün nur, wenn die Karte bei mir gelandet ist.
-function verdictGut(st, ich) {
-  const r = st.result;
-  if (r.klau?.gelungen) return r.klau.seat === ich;
-  return r.correct && r.seat === ich;
+  if (st.soloAus) return 'Daneben – das war dein letztes Leben';
+  return 'Daneben – Karte kommt zurück';
 }
 
 function revealHTML(id) {

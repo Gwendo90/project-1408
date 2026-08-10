@@ -178,7 +178,8 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
              Bildlauf und der Zeiger reißt mitten im Zug ab. */
           touch-action:none;
           box-shadow:0 14px 40px rgba(90,50,140,.28); }
-.player.zieht { opacity:.35; }
+/* Gilt für beide Quellen: den Player und die schon abgelegte Karte. */
+.zieht { opacity:.35; }
 /* pointer-events:none ist zwingend: das SVG liegt als positioniertes Element
    über dem Knopf und fing sonst jeden Klick ab – der Ton ließ sich dann
    weder anhalten noch neu starten. */
@@ -273,7 +274,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
                  box-shadow:0 4px 14px rgba(158,34,180,.45); }
 /* Die gewählte Lücke wird so breit wie eine Karte und zeigt die Rückseite –
    die Karte liegt dann sichtbar an der Stelle, an der sie landen soll. */
-.gap.sel { width:82px; }
+.gap.sel { width:82px; touch-action:none; }
 
 /* ── Kartenrückseite in klein ──────────────────────────────────────
    In der Zeitleiste an der gewählten Lücke und am Finger beim Ziehen.
@@ -286,7 +287,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
           box-shadow:0 5px 14px rgba(90,50,140,.28);
           animation:pop .3s cubic-bezier(.34,1.56,.64,1) both; }
 .krueck svg { position:absolute; inset:0; width:100%; height:100%; }
-.krueck circle { fill:none; stroke:url(#ringGrad); stroke-width:6; }
+/* Sieben dünne Ringe statt drei dicker – so nah am Druckmotiv, wie es
+   auf 82 px noch lesbar bleibt. */
+.krueck circle { fill:none; stroke:url(#ringGrad); stroke-width:4; }
 
 /* Begleiter am Zeigefinger. pointer-events:none ist zwingend, sonst findet
    elementFromPoint darunter nie die Lücke. */
@@ -1849,17 +1852,33 @@ function renderGame(st) {
 // Zeigerereignisse statt HTML5-Drag-and-Drop: das greift auf dem Handy
 // zuverlässig und mit Maus genauso. Erst ab ein paar Pixeln Bewegung wird
 // aus dem Antippen ein Zug – sonst wäre jeder Tipp auf den Playbutton einer.
+//
+// Bewusst OHNE setPointerCapture: ein eingefangener Zeiger leitet auch den
+// darauf folgenden Klick auf das fangende Element um. Der Playbutton bekam
+// ihn dadurch nie und ließ sich nicht mehr anhalten. Die Zeiger-Ereignisse
+// laufen deshalb über window – auch ohne Fangen erreichen sie uns dort.
 const ZIEH_SCHWELLE = 6;      // px, ab hier ist es ein Zug und kein Tipp
 const ZIEH_FANG = 40;         // px, so weit über/unter der Leiste fängt sie noch
+const ZIEH_HOCH = 54;         // px, so hoch schwebt das Bild über dem Zeiger
 let ziehStart = null;         // { x, y, id } des Zeigers
 let ziehAktiv = false;        // Schwelle überschritten?
 let ziehBild = null;          // Begleiter am Finger
 let ziehZiel = null;          // aktuell markierte Lücke
+let ziehVon = null;           // woher der Zug kam
 let ziehX = 0, ziehScroll = null;
 let ziehEndeZeit = 0;         // gegen den Klick, der auf das Loslassen folgt
 
 function darfZiehen() {
   return !!(G && G.state.phase === 'turn' && G.state.turn === seat && G.state.current);
+}
+
+// Woran hängt der Zug? Am Player, solange man am Zug ist – oder an der schon
+// abgelegten Karte, damit man sie vor dem Einloggen wieder herausziehen und
+// woanders einschieben kann.
+function ziehQuelle(ziel) {
+  if (!ziel || !ziel.closest) return null;
+  if (darfZiehen() && $('playerBox').contains(ziel)) return $('playerBox');
+  return ziel.closest('#tl .gap.sel');
 }
 
 // Nicht die Lücke exakt unter dem Finger, sondern die nächstgelegene: 30 px
@@ -1905,13 +1924,12 @@ function ziehAn() {
   ziehBild.className = 'zieher';
   ziehBild.innerHTML = rueckseiteHTML();
   document.body.appendChild(ziehBild);
-  $('playerBox').classList.add('zieht');
+  if (ziehVon) ziehVon.classList.add('zieht');
   scrollenAn();
 }
 
 // Das Bild schwebt über dem Zeiger, nicht darunter: auf dem Handy läge sonst
 // der Finger genau auf der Lücke, die man treffen will.
-const ZIEH_HOCH = 54;
 function ziehBewegen(x, y) {
   ziehX = x;
   ziehBild.style.transform =
@@ -1923,28 +1941,30 @@ function ziehAus() {
   scrollenAus();
   if (ziehBild) { ziehBild.remove(); ziehBild = null; }
   if (ziehZiel) { ziehZiel.classList.remove('ziel'); ziehZiel = null; }
-  $('playerBox').classList.remove('zieht');
+  if (ziehVon) { ziehVon.classList.remove('zieht'); ziehVon = null; }
   ziehStart = null; ziehAktiv = false;
 }
 
 function ziehenEinrichten() {
-  const box = $('playerBox');
-  box.addEventListener('pointerdown', e => {
-    if (!darfZiehen() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  document.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const q = ziehQuelle(e.target);
+    if (!q) return;
+    ziehVon = q;
     ziehStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
     ziehAktiv = false;
-    box.setPointerCapture(e.pointerId);
   });
-  box.addEventListener('pointermove', e => {
+  window.addEventListener('pointermove', e => {
     if (!ziehStart || e.pointerId !== ziehStart.id) return;
     if (!ziehAktiv) {
       const dx = e.clientX - ziehStart.x, dy = e.clientY - ziehStart.y;
       if (Math.hypot(dx, dy) < ZIEH_SCHWELLE) return;
       ziehAn();
     }
+    e.preventDefault();
     ziehBewegen(e.clientX, e.clientY);
-  });
-  box.addEventListener('pointerup', e => {
+  }, { passive: false });
+  window.addEventListener('pointerup', e => {
     if (!ziehStart || e.pointerId !== ziehStart.id) return;
     const war = ziehAktiv, ziel = ziehZiel;
     ziehAus();
@@ -1952,10 +1972,10 @@ function ziehenEinrichten() {
     ziehEndeZeit = Date.now();
     if (ziel) { pendingGap = parseInt(ziel.dataset.i, 10); render(); }
   });
-  box.addEventListener('pointercancel', () => ziehAus());
-  // Auf das Loslassen folgt ein Klick. Nach einem Zug darf der den Ton nicht
-  // starten oder anhalten – deshalb hier abfangen, bevor der Knopf ihn sieht.
-  box.addEventListener('click', e => {
+  window.addEventListener('pointercancel', () => { if (ziehStart) ziehAus(); });
+  // Auf das Loslassen folgt ein Klick. Nach einem Zug darf der weder den Ton
+  // umschalten noch die eben gewählte Lücke wieder abwählen.
+  document.addEventListener('click', e => {
     if (Date.now() - ziehEndeZeit < 300) { e.stopPropagation(); e.preventDefault(); }
   }, true);
 }
@@ -1964,8 +1984,10 @@ function ziehenEinrichten() {
 // Ringen, damit sie auf 82 px noch als Rillen lesbar bleiben.
 function rueckseiteHTML() {
   return `<span class="krueck"><svg viewBox="0 0 200 200" aria-hidden="true">
-    <circle cx="100" cy="100" r="42"/><circle cx="100" cy="100" r="62"/>
-    <circle cx="100" cy="100" r="82"/></svg></span>`;
+    <circle cx="100" cy="100" r="46"/><circle cx="100" cy="100" r="53"/>
+    <circle cx="100" cy="100" r="60"/><circle cx="100" cy="100" r="67"/>
+    <circle cx="100" cy="100" r="74"/><circle cx="100" cy="100" r="81"/>
+    <circle cx="100" cy="100" r="88"/></svg></span>`;
 }
 
 function renderTimeline(st, tlSeat, interactive, platzhalter = -1, gesperrt = -1) {

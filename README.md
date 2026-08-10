@@ -290,7 +290,9 @@ Die gedruckten Karten sind ausgemessen und in CSS nachgebaut:
   Antippen ein Zug, sonst wäre jeder Tipp auf den Playbutton einer; der Klick nach dem
   Loslassen wird über einen Zeitstempel abgefangen. Abgelegt wird auf der **nächstgelegenen**
   Lücke, nicht auf der genau unter dem Zeiger — 30 px breite Ziele trifft man im Ziehen kaum.
-  Das Ziehbild schwebt über dem Zeiger, sonst läge der Finger auf der Lücke.
+  Das Ziehbild schwebt über dem Zeiger, sonst läge der Finger auf der Lücke. Die abgelegte
+  Karte lässt sich vor dem Einloggen wieder herausziehen und woanders einschieben; Quelle des
+  Zugs ist dann sie statt des Players (`ziehQuelle()`).
 * **Herzflaggen** in `flags/`, Dateiname aus dem deutschen Ländernamen abgeleitet
   (`flagSlug()` in `duell.html` **muss identisch zu `slug()` in `build_flags.py` bleiben**).
   Fehlt eine Datei, springt per `onerror` das Emoji ein.
@@ -386,6 +388,13 @@ Viewport-Höhe; Safaris untere Leiste verdeckt dann den letzten Knopf.
 **Werkzeug-Latenz beim Testen.** Zwischen zwei Aufrufen eines Automatisierungswerkzeugs können
 über 10 Sekunden vergehen. Das 15-Sekunden-Veto-Fenster läuft dabei ab. Für interaktive Tests
 `vetoBis` künstlich weit setzen.
+
+**Kein `setPointerCapture` beim Ziehen.** Ein eingefangener Zeiger leitet auch den darauf
+folgenden `click` auf das fangende Element um. Weil beim `pointerdown` unbedingt gefangen wurde,
+landete der Klick immer am `playerBox` statt am `#pbtn` — der Ton ließ sich nicht mehr anhalten,
+obwohl der Knopf normal aussah und `elementFromPoint` ihn korrekt lieferte. Die Zeiger-Ereignisse
+laufen deshalb über `window`; auch ohne Fangen erreichen sie uns dort. Ein Test, der den Klick
+selbst auf den Knopf schickt, übergeht die Umleitung und findet den Fehler **nicht**.
 
 **`.krueck` braucht `display:block`.** Die Mini-Kartenrückseite ist ein `span`. In der Lücke
 ist sie Flex-Kind und wird dadurch blockartig, im Ziehbild hängt sie in einem normalen `div` —

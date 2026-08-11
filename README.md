@@ -45,6 +45,7 @@ manifest.json           PWA-Manifest (Pfade sind kaputt, siehe Offene Punkte)
 icon-192/512.png, apple-touch-icon.png
 
 supabase-migration-namen.sql  Namensnormalisierung, Verknüpfung, Entdopplung — einmalig
+supabase-statistik-2.sql      Zweiter Satz Auswertungen + Zeitfilter — nach der Migration
 ```
 
 **`supabase-schema.sql` und `supabase-statistik.sql` fehlen im Repo.** Sie sind einmal
@@ -327,8 +328,80 @@ Zwei Tabellen, beide werden **nie aufgeräumt**:
 Jahr und Land werden in `tipps` **mitgeschrieben** statt nur die Song-ID: so bleibt die
 Statistik gültig, wenn `songs.json` später korrigiert wird.
 
-Ausgewertet wird über SQL-Funktionen (`bestenliste`, `duellbilanz`, `quote_jahrzehnt`,
-`quote_land`), damit die App fertige Summen holt statt tausende Zeilen.
+Ausgewertet wird **immer in SQL-Funktionen**, nie im Client: Die App holt fertige Summen statt
+tausender Zeilen. Alle sind `STABLE`, `SECURITY INVOKER` (die RLS-Regeln greifen also weiter)
+und für `anon` nur ausführbar, nicht mehr.
+
+| Funktion | Liefert | Datei |
+|---|---|---|
+| `bestenliste(p_limit, p_seit)` | einzelne Solo-Partien, beste zuerst | Migration |
+| `duellbilanz(p_seit)` | Spiele und Siege je Person | Migration |
+| `quote_jahrzehnt(p_name, p_seit)` | Trefferquote je Jahrzehnt | Migration |
+| `quote_land(p_name, p_seit)` | Trefferquote je Land | Migration |
+| `schwerste_karten(p_seit, p_min, p_limit)` | Karten mit der schlechtesten Quote, über alle | Statistik-2 |
+| `angstgegner(p_name, p_seit, p_limit)` | Karten, die *dir* mehrfach danebengingen | Statistik-2 |
+| `aktivitaet(p_name, p_seit)` | Partien je Kalendertag | Statistik-2 |
+| `duellmatrix(p_seit)` | Paarungen und ihr Siegstand | Statistik-2 |
+| `quote_position(p_name, p_seit)` | Quote nach Anfang / Mitte / Ende der Leiste | Statistik-2 |
+| `serien(p_name, p_seit, p_limit)` | längste Folge richtiger Tipps je Person | Statistik-2 |
+| `klaubilanz(p_seit)` | erbeutete und verlorene Karten je Person | Statistik-2 |
+| `partie_rueckblick(p_partie_id, p_name)` | Quote, beste Serie und härteste Karte einer Partie | Statistik-2 |
+| `anzeigename(p_key)` | Hilfsfunktion: zuletzt benutzte Schreibweise | Statistik-2 |
+
+Ein paar Entscheidungen, die man den Signaturen nicht ansieht:
+
+* **`p_seit` (timestamptz, NULL = alles)** haben alle. Die vier alten mussten dafür abgelegt
+  und neu angelegt werden — ein Parameter mehr ist eine andere Signatur, `CREATE OR REPLACE`
+  hätte eine zweite Fassung danebengestellt und den Aufruf mehrdeutig gemacht.
+* **`serien` gibt eine Zeile je Person aus**, ihre beste. Sonst belegte eine einzige starke
+  Partie die ganze Liste — so, wie es die Bestenliste bis heute tut.
+* **`klaubilanz` leitet das Opfer ab.** In der Veto-Zeile steht nur der Täter. Angesetzt wird
+  deshalb an `art='veto' AND geklaut`, und über dieselbe `partie_id` + `song_id` wird die Zeile
+  mit `art='normal' AND korrekt=false` dazugesucht. Nur an `art='normal' AND korrekt=false`
+  anzusetzen wäre falsch: Das trifft auch jede Runde, in der ein Veto *scheiterte* — dort hat
+  niemand etwas verloren.
+* **`duellmatrix` paart über `partie_id`**, nicht über die Textspalte `gegner`. In der stehen
+  alle Mitspieler zusammengeklebt, daraus lässt sich keine Paarung zurückgewinnen.
+* **`partie_rueckblick` beantwortet alles in einer Abfrage.** Der Endbildschirm soll nicht auf
+  vier Umläufe warten. Die härteste Karte wird über den *gesamten* Bestand bestimmt, nicht nur
+  über die Mitspieler dieser Runde — im Solo wären das die eigenen ein bis zwei Versuche, also
+  0 % oder 100 % und damit nichtssagend.
+
+#### Zeitzone
+
+`aktivitaet` schneidet die Tage in **Europe/Zurich**, nicht in UTC — sonst kippte eine Partie um
+23:30 auf den Folgetag. Der Client muss dieselbe Zone rechnen, sonst zählte „Dieser Monat" ein
+bis zwei Stunden des Vormonats mit: `ZONE` in `duell.html` und die Zeichenkette in
+`supabase-statistik-2.sql` gehören zusammen.
+
+`monatsbeginn()` nähert sich dem Monatsersten in **zwei Durchgängen** an: erst so tun, als wäre
+Zürich UTC, dann den tatsächlichen Versatz abziehen. Ein Durchgang reicht nicht — am 30. März
+gilt „heute" schon die Sommerzeit, der Monatserste aber noch nicht. Geprüft gegen neun Stichtage
+über beide Umstellungen hinweg.
+
+#### Die Statistikseite
+
+Zwei Umschalter: `statSicht` (ich / alle → `p_name`) und `statZeit` (Monat / alles → `p_seit`).
+`statBloecke()` ist die **einzige** Stelle, an der ein Kasten angemeldet wird — id, Aufruf,
+Zeichenfunktion, Leertext.
+
+Geholt wird mit `Promise.allSettled`, und **jeder Kasten zeichnet für sich**, sobald seine
+Antwort da ist. Mit einem `Promise.all` über inzwischen elf Aufrufe würde der langsamste zum
+Taktgeber für alle, und ein einziger Fehlschlag ließe die ganze Seite auf „lädt…" stehen.
+`statLauf` zählt dabei mit: Antworten aus einer älteren Einstellung werden verworfen, sonst
+könnte man sich beim schnellen Umschalten gemischte Zahlen zusammenklicken.
+
+Songtitel kommen **aus `songs.json`**, nicht aus der Datenbank — die RPCs geben nur `song_id`
+zurück, damit die Statistik gültig bleibt, wenn Songdaten später korrigiert werden. Fehlt eine
+ID dort, wird sie selbst angezeigt (`Song 999`), es stürzt nichts ab.
+
+Der **Rückblick auf dem Endbildschirm** wird nachgeladen und eingeblendet; der Bildschirm selbst
+erscheint sofort wie bisher. Ohne Verbindung, bei einem Fehler oder für eine Partie von vor der
+Umstellung fällt der Kasten ersatzlos weg — auf dem Siegesbildschirm hat keine Fehlermeldung
+etwas verloren. Seine `partie_id` kommt aus dem Spielzustand, nicht aus einer Modulvariablen,
+damit er auch nach einem Neuladen noch funktioniert. Und weil die Tipp-Zeilen nebenher
+geschrieben werden und bei Spielende noch unterwegs sein können, fragt er bei leerem Ergebnis
+**ein zweites Mal** nach, statt „0/0" hinzuschreiben.
 
 **Das Protokollieren hängt am Spielzustand, nicht am Gerät.** Bei einem Veto schreibt der
 Gegner die Auswertung, protokolliert dabei aber den Tipp des Spielers am Zug. Läuft es über
@@ -404,8 +477,18 @@ Doppeleintrag erzeugen — wer sie je entfernt, muss das Nachreichen mit entfern
 ## Supabase
 
 SQL wird von Hand im SQL-Editor ausgeführt, je Datei einmal. „Success. No rows returned" ist
-die richtige Erfolgsmeldung. `supabase-migration-namen.sql` ist wiederholbar — mehrfaches
-Ausführen ändert nichts mehr und lässt bestehende Zeilen unangetastet.
+die richtige Erfolgsmeldung. Reihenfolge:
+
+1. `supabase-schema.sql` und `supabase-statistik.sql` — die Tabellen. **Fehlen im Repo**, siehe
+   [Repo-Inhalt](#repo-inhalt).
+2. `supabase-migration-namen.sql` — Spalten, `name_key`, Entdopplung.
+3. `supabase-statistik-2.sql` — der zweite Satz Auswertungen. Setzt Schritt 2 voraus und legt
+   dabei auch die vier alten Funktionen mit `p_seit` neu an.
+
+Beide neuen Dateien sind wiederholbar: nochmal ausführen ändert nichts mehr und lässt
+bestehende Zeilen unangetastet. Wer eine Datei erweitert, muss sie **erneut ganz** einspielen —
+ein nachträglich angehängter Abschnitt ist sonst nirgends angekommen, und die Prüfabfrage zeigt
+dann völlig zu Recht noch den alten Stand.
 
 | Tabelle | Inhalt | RLS für `anon` |
 |---|---|---|
@@ -504,10 +587,24 @@ Weg deshalb in einem `@supports not selector(::-webkit-scrollbar)`-Block.
 
 **Erst die Migration, dann die Seite.** SQL läuft nicht über GitHub — GitHub Pages liefert nur
 statische Dateien aus, eine `.sql` im Repo ist dort totes Papier. Sie muss von Hand in den
-Supabase-SQL-Editor. Die Reihenfolge ist deshalb: **Migration einspielen, dann `duell.html`
-hochladen.** Andersherum schickt der Client Spalten, die es noch nicht gibt; PostgREST lehnt
-den ganzen `insert` ab, und weil er absichtlich ins Leere läuft, sieht man davon nur eine
-Zeile in der Entwicklerkonsole. Das Spiel läuft weiter, die Statistik fehlt still.
+Supabase-SQL-Editor. Die Reihenfolge ist deshalb: **erst alles SQL einspielen, dann
+`duell.html` hochladen.** Andersherum schickt der Client Spalten und ruft Funktionen, die es
+noch nicht gibt; PostgREST lehnt den `insert` ab, und weil er absichtlich ins Leere läuft, sieht
+man davon nur eine Zeile in der Entwicklerkonsole. Das Spiel läuft weiter, die Statistik fehlt
+still. Die Statistikseite ist gnädiger — sie sagt je Kasten „Auswertung fehlt noch".
+
+**Auswertungen über `partie_id`, `pos` oder `art` beginnen erst am Migrationstag.** Der
+Altbestand hat diese Spalten durchgehend `NULL` — beim Einspielen waren das 187 Tipps und 14
+Partien, davon *keine einzige* mit `partie_id`. Betroffen sind `duellmatrix`, `quote_position`,
+`serien`, `klaubilanz` und `partie_rueckblick`: Sie liefern leere Ergebnisse, bis mit der neuen
+`duell.html` gespielt wurde. Das ist kein Fehler, und die Kästen sagen es auch — sie
+unterscheiden zwei Leerfälle („noch keine Daten" gegen „wird erst seit der Umstellung
+erfasst"). Wer eine neue Auswertung baut, muss diese Zeilen sauber ausschließen **und** dem
+Nutzer sagen, warum erst ab einem Datum gezählt wird. Eine leere Tabelle ohne Erklärung sieht
+aus wie ein Defekt.
+
+`schwerste_karten`, `angstgegner`, `aktivitaet` und die vier alten Funktionen rechnen dagegen
+auf dem gesamten Bestand und zeigen sofort etwas.
 
 **Nach dem `await` ist der Zustand nicht mehr derselbe.** `commit()` gibt deshalb den
 geschriebenen Zustand zurück und nicht bloß `true`. Wer stattdessen hinterher `G.state` liest,

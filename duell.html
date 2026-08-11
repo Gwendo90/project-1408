@@ -408,6 +408,31 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
          background:linear-gradient(90deg,var(--grad-a),var(--grad-b)); }
 .qzahl { width:78px; flex-shrink:0; text-align:right; font-size:11px; color:var(--muted);
          font-variant-numeric:tabular-nums; }
+/* Kasten, der je nach Sicht wegfällt. `.hidden` geht dafür nicht, das gilt
+   nur für .screen und blendet bloß aus, ohne Platz freizugeben. */
+.weg { display:none; }
+/* Rückblick auf dem Endbildschirm. Startet unsichtbar und blendet sich ein,
+   sobald die Zahlen da sind – der Bildschirm selbst wartet nicht darauf. */
+.rueck { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:19px;
+         width:100%; text-align:left; opacity:0; transition:opacity .35s; }
+.rueck.da { opacity:1; }
+.rueck > div { background:var(--surface); border:1px solid var(--border);
+               border-radius:14px; padding:10px 13px; min-width:0; }
+.rueck .breit { grid-column:1 / -1; }
+.rueck b { display:block; font-size:20px; font-weight:800; color:var(--text);
+           font-variant-numeric:tabular-nums; line-height:1.25; }
+.rueck .breit b { font-size:14px; font-weight:700; line-height:1.4; }
+.rueck span { display:block; margin-top:3px; font-size:9px; font-weight:700;
+              letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); }
+/* Aktivität: ein Feld je Tag, Wochen als Spalten wie in einem Kalender.
+   grid-auto-flow:column füllt erst die sieben Wochentage nach unten, dann
+   die nächste Woche – deshalb die Zeilen fest und die Spalten wachsend.
+   Reines Raster, kein Diagramm: die Zahl steckt in der Deckkraft. */
+.kal { display:grid; grid-auto-flow:column; grid-template-rows:repeat(7,1fr);
+       grid-auto-columns:1fr; gap:3px; }
+.kal span { aspect-ratio:1; border-radius:2px; background:var(--track); }
+.kal span.an { background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); }
+.kalfuss { font-size:11px; color:var(--muted); margin-top:9px; line-height:1.5; }
 .seg { display:flex; gap:5px; width:100%; max-width:520px; background:var(--surface);
        border:1px solid var(--border); border-radius:13px; padding:4px; }
 .segbtn { flex:1; border:none; background:none; font-family:inherit; font-size:13px; font-weight:600;
@@ -614,6 +639,14 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div style="font-size:46px">🏆</div>
     <div class="h1" id="overTitle">—</div>
     <div class="sub" id="overSub">—</div>
+    <!-- Wird nachgeladen und eingeblendet. Kommt nichts, bleibt der Kasten
+         weg – auf dem Siegesbildschirm hat keine Fehlermeldung etwas zu
+         suchen. -->
+    <div class="rueck weg" id="rueckblick">
+      <div><b id="rbQuote">–</b><span>getroffen</span></div>
+      <div><b id="rbSerie">–</b><span>in Folge</span></div>
+      <div class="breit"><b id="rbKarte">–</b><span>härteste Karte der Partie</span></div>
+    </div>
   </div>
   <div class="actions">
     <button class="btn prim" id="btnAgain">Nochmal spielen</button>
@@ -626,6 +659,13 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <div class="screen hidden" id="statsScreen">
   <div class="logo"><img src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408"></div>
   <div class="statwrap">
+    <!-- Gilt für die ganze Seite, steht deshalb ganz oben – anders als der
+         ich/alle-Umschalter weiter unten, der nur die Quoten betrifft. -->
+    <div class="seg" id="statZeit">
+      <button class="segbtn" data-zeit="monat">Dieser Monat</button>
+      <button class="segbtn on" data-zeit="alles">Alles</button>
+    </div>
+
     <div class="statblock">
       <div class="statTitel">Solo-Bestenliste</div>
       <div id="statBesten" class="statleer">lädt…</div>
@@ -634,12 +674,24 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       <div class="statTitel">Gewinnbilanz</div>
       <div id="statDuell" class="statleer">lädt…</div>
     </div>
+    <div class="statblock">
+      <div class="statTitel">Kopf an Kopf</div>
+      <div id="statKopf" class="statleer">lädt…</div>
+    </div>
+    <div class="statblock">
+      <div class="statTitel">Schwerste Karten</div>
+      <div id="statSchwer" class="statleer">lädt…</div>
+    </div>
 
     <div class="seg" id="statSeg">
       <button class="segbtn on" data-sicht="ich">Meine Trefferquote</button>
       <button class="segbtn" data-sicht="alle">Alle zusammen</button>
     </div>
 
+    <div class="statblock" id="blockAngst">
+      <div class="statTitel">Dein Angstgegner</div>
+      <div id="statAngst" class="statleer">lädt…</div>
+    </div>
     <div class="statblock">
       <div class="statTitel">Nach Jahrzehnt</div>
       <div id="statJahrzehnt" class="statleer">lädt…</div>
@@ -647,6 +699,22 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div class="statblock">
       <div class="statTitel">Nach Land</div>
       <div id="statLand" class="statleer">lädt…</div>
+    </div>
+    <div class="statblock">
+      <div class="statTitel">Nach Lückenposition</div>
+      <div id="statPos" class="statleer">lädt…</div>
+    </div>
+    <div class="statblock">
+      <div class="statTitel">Längste Serie</div>
+      <div id="statSerie" class="statleer">lädt…</div>
+    </div>
+    <div class="statblock">
+      <div class="statTitel">Kartenklau</div>
+      <div id="statKlau" class="statleer">lädt…</div>
+    </div>
+    <div class="statblock">
+      <div class="statTitel">Aktivität</div>
+      <div id="statAktiv" class="statleer">lädt…</div>
     </div>
   </div>
   <div class="actions">
@@ -698,6 +766,8 @@ const BEST_KEY  = 'duell1408best';      // Bestwert im Solo-Modus
 const LAUF_KEY  = 'duell1408lauf';      // Kennung dieses Geräts für die laufende Partie
 const NACH_KEY  = 'duell1408nachtrag';  // Partien, die nicht durchkamen
 const NACH_MAX  = 5;                    // so oft wird eine nachgereicht
+// Muss zur Zeitzone in den SQL-Auswertungen passen (supabase-statistik-2.sql).
+const ZONE = 'Europe/Zurich';
 const SOLO_FEHLER = 3;                  // nach dem dritten Fehler ist Schluss
 const VETOS_START = 3;                  // Vetos je Spieler zu Spielbeginn
 const VETO_MS = 15000;                  // Bedenkzeit fürs Veto
@@ -735,6 +805,9 @@ let soloRekord = false;        // war die letzte Solo-Partie ein Bestwert?
 let vorlaufTimer = null;       // wartet den Autostart-Vorlauf ab
 let audioAnweisung = null;     // welche Audio-Anweisung ist schon umgesetzt?
 let statSicht = 'ich';         // 'ich' oder 'alle' auf der Statistikseite
+let statZeit = 'alles';        // 'alles' oder 'monat' – Zeitfilter der Seite
+let statLauf = 0;              // laufende Nummer gegen veraltete Antworten
+let rueckblickFuer = null;     // für welche Partie der Rückblick schon läuft
 let partieProtokolliert = null; // verhindert doppelte Einträge derselben Partie
 let vetoAblaufFuer = null;     // gegen doppeltes Durchlassen beim Ablauf
 let rausFrage = null;          // Rückfrage-Timer des Verlassen-Knopfs
@@ -796,13 +869,18 @@ async function init() {
     else if (G.state.phase === 'over') show('overScreen');
     else render();
   });
-  $('statSeg').addEventListener('click', e => {
+  // Beide Umschalter der Statistikseite verhalten sich gleich, nur das
+  // Merkmal und die Variable dahinter unterscheiden sie.
+  const segBinden = (id, merkmal, lies, schreib) => $(id).addEventListener('click', e => {
     const b = e.target.closest('.segbtn');
-    if (!b || b.dataset.sicht === statSicht) return;
-    statSicht = b.dataset.sicht;
-    [...$('statSeg').children].forEach(x => x.classList.toggle('on', x === b));
+    const wert = b && b.dataset[merkmal];
+    if (!wert || wert === lies()) return;
+    schreib(wert);
+    [...$(id).children].forEach(x => x.classList.toggle('on', x === b));
     zeigeStatistik();
   });
+  segBinden('statSeg',  'sicht', () => statSicht, v => statSicht = v);
+  segBinden('statZeit', 'zeit',  () => statZeit,  v => statZeit  = v);
   $('btnLeaveLobby').addEventListener('click', leaveGame);
   $('btnHome').addEventListener('click', leaveGame);
   $('btnStart').addEventListener('click', startGame);
@@ -1620,38 +1698,208 @@ async function nachtragSenden() {
 }
 
 // ══ Statistik anzeigen ═══════════════════════════════════════════
+
+// Wanduhrzeit in Zürich als "2026-08-11T21:47:03". Über formatToParts statt
+// über eine Gebietsschema-Zeichenkette: welche Trennzeichen ein Browser
+// dabei setzt, ist nicht verlässlich, die Bestandteile sind es.
+function inZone(d) {
+  const p = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: ZONE, hour12: false,
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit'
+  }).formatToParts(d).forEach(t => { p[t.type] = t.value; });
+  return `${p.year}-${p.month}-${p.day}T${p.hour === '24' ? '00' : p.hour}:${p.minute}:${p.second}`;
+}
+
+// Der Augenblick, in dem in Zürich der laufende Monat begann – als UTC.
+// Muss zur Zeitzone in den SQL-Funktionen passen, sonst zählte "Dieser
+// Monat" ein bis zwei Stunden des Vormonats mit.
+//
+// Angenähert statt gerechnet: Erst so tun, als wäre Zürich UTC, dann sehen,
+// wie weit die Zone daneben liegt, und um genau das zurückdrehen. Ein
+// zweiter Durchgang fängt die Sommerzeitgrenze ab – am 1. April gilt ein
+// anderer Versatz als am 1. März, mit dem der erste Schuss rechnet.
+// `jetzt` ist überschreibbar, damit sich die Sommerzeitgrenzen prüfen
+// lassen, ohne die Uhr des Geräts zu verstellen.
+function monatsbeginn(jetzt) {
+  const wunsch = inZone(jetzt || new Date()).slice(0, 8) + '01T00:00:00';
+  let d = new Date(wunsch + 'Z');
+  for (let i = 0; i < 2; i++) {
+    const daneben = new Date(inZone(d) + 'Z') - new Date(wunsch + 'Z');
+    if (!daneben) break;
+    d = new Date(d.getTime() - daneben);
+  }
+  return d.toISOString();
+}
+
+// "2026-08-11" → "11.08.2026". Nicht über Date: eine reine Datumszeichenkette
+// wird als UTC-Mitternacht gelesen und rutscht beim Anzeigen westlich von
+// Greenwich auf den Vortag.
+const datDe = t => t ? `${t.slice(8,10)}.${t.slice(5,7)}.${t.slice(0,4)}` : '';
+
+function statLeer(id, text) {
+  const e = $(id);
+  e.className = 'statleer';
+  e.textContent = text;
+}
+
+// Gerüst für alle Listenkästen: Fehler, Leerfall, sonst Zeilen zeichnen.
+function zeichneListe(id, { data, error }, leer, zeile) {
+  if (error) return statFehler(id, error);
+  const rows = data || [];
+  if (!rows.length) return statLeer(id, leer);
+  $(id).className = '';
+  $(id).innerHTML = rows.map(zeile).join('');
+}
+
+// Eine Kartenzeile. Titel und Interpret kommen aus songs.json, nicht aus der
+// Datenbank – dort steht bewusst nur die ID. Fehlt sie in songs.json, wird
+// die ID selbst gezeigt; daran darf die Statistik nicht scheitern.
+function kartenZeile(i, id, wert) {
+  const s = song(id);
+  return `<div class="zeile">
+      <span class="rang">${i + 1}</span>
+      <span class="znam">${esc(s ? `${s.artist} – ${s.title}` : 'Song ' + id)}</span>
+      <span class="zdat">${esc(s ? s.year : '')}</span>
+      <span class="zwert">${esc(wert)}</span>
+    </div>`;
+}
+
+// Ein Feld je Tag, Wochen als Spalten. Die Deckkraft trägt die Zahl. Der
+// Bezugswert dafür ist der höchste Tageswert der Auswahl selbst – eine
+// erfundene Skala wäre keine Aussage.
+function zeichneKalender(id, { data, error }, leer) {
+  if (error) return statFehler(id, error);
+  const rows = data || [];
+  if (!rows.length) return statLeer(id, leer);
+
+  const zahl  = new Map(rows.map(r => [r.tag, Number(r.partien)]));
+  const hoch  = Math.max(...zahl.values());
+  const heute = inZone(new Date()).slice(0, 10);
+  // Höchstens ein halbes Jahr, sonst werden die Felder unleserlich schmal.
+  const grenze = new Date(heute + 'T00:00:00Z');
+  grenze.setUTCDate(grenze.getUTCDate() - 181);
+  const d = new Date(Math.max(new Date(rows[0].tag + 'T00:00:00Z'), grenze));
+  const erster = d.toISOString().slice(0, 10);
+
+  const felder = [];
+  // In UTC weitergezählt: Datumszeichenketten kennen keine Sommerzeit, und
+  // ein Tag ist hier immer genau ein Tag.
+  for (let i = 0; i < 400 && d.toISOString().slice(0, 10) <= heute; i++) {
+    const t  = d.toISOString().slice(0, 10);
+    const n  = zahl.get(t) || 0;
+    const wt = ((d.getUTCDay() + 6) % 7) + 1;          // Mo=1 … So=7
+    const stil = [];
+    if (!felder.length) stil.push('grid-row:' + wt);   // erster Tag auf seinen Wochentag
+    if (n) stil.push('opacity:' + (0.3 + 0.7 * n / hoch).toFixed(2));
+    felder.push(`<span class="${n ? 'an' : ''}" style="${stil.join(';')}" title="${
+      esc(datDe(t) + (n ? ` · ${n} ${n === 1 ? 'Partie' : 'Partien'}` : ''))}"></span>`);
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+
+  $(id).className = '';
+  $(id).innerHTML = `<div class="kal">${felder.join('')}</div>
+    <div class="kalfuss">${esc(datDe(erster))} bis ${esc(datDe(heute))} · kräftiger heißt mehr
+      Partien, am meisten waren es ${hoch} an einem Tag.</div>`;
+}
+
+// Ein Block je Kasten: wohin gezeichnet wird, was geholt wird, womit
+// gezeichnet wird. Die Liste ist die einzige Stelle, an der ein neuer
+// Kasten angemeldet werden muss.
+function statBloecke() {
+  const wer  = statSicht === 'ich' ? statName() : null;
+  const seit = statZeit === 'monat' ? monatsbeginn() : null;
+  const ich  = normName(statName());
+  // Auswertungen über partie_id, pos oder art können nichts zeigen, was vor
+  // der Umstellung liegt – der Altbestand hat diese Spalten leer. Leer ist
+  // dort also kein Mangel, und der Kasten sagt auch warum.
+  const NEU = 'Wird erst seit der Umstellung erfasst – zählt ab der nächsten Partie.';
+  return [
+    { id:'statBesten', ruf:['bestenliste', { p_limit:10, p_seit:seit }], mal:zeichneBesten },
+    { id:'statDuell',  ruf:['duellbilanz', { p_seit:seit }],             mal:zeichneBilanz },
+
+    { id:'statKopf', ruf:['duellmatrix', { p_seit:seit }],
+      mal: a => zeichneListe('statKopf', a, NEU, r => `
+        <div class="zeile${normName(r.name_a) === ich || normName(r.name_b) === ich ? ' selbst' : ''}">
+          <span class="znam">${esc(r.name_a)} gegen ${esc(r.name_b)}</span>
+          <span class="zwert">${r.siege_a} : ${r.siege_b}</span>
+        </div>`) },
+
+    { id:'statSchwer', ruf:['schwerste_karten', { p_seit:seit, p_min:3, p_limit:8 }],
+      mal: a => zeichneListe('statSchwer', a,
+        'Noch zu wenig Daten – gezählt wird ab drei Versuchen je Karte.',
+        (r, i) => kartenZeile(i, r.song_id, `${r.richtig}/${r.gesamt}`)) },
+
+    { id:'statAngst', ruf:['angstgegner', { p_name:statName(), p_seit:seit, p_limit:8 }],
+      mal: a => zeichneListe('statAngst', a,
+        'Keine Karte, die dir mehr als einmal danebengegangen ist.',
+        (r, i) => kartenZeile(i, r.song_id, `${r.falsch}/${r.gesamt}`)) },
+
+    { id:'statJahrzehnt', ruf:['quote_jahrzehnt', { p_name:wer, p_seit:seit }],
+      mal: a => zeichneQuote('statJahrzehnt', a, r => r.jahrzehnt + 'er', 0) },
+    { id:'statLand', ruf:['quote_land', { p_name:wer, p_seit:seit }],
+      mal: a => zeichneQuote('statLand', a, r => r.land, 3, 10) },
+    { id:'statPos', ruf:['quote_position', { p_name:wer, p_seit:seit }],
+      mal: a => zeichneQuote('statPos', a, r => r.bucket, 0, 0, NEU) },
+
+    { id:'statSerie', ruf:['serien', { p_name:wer, p_seit:seit, p_limit:8 }],
+      mal: a => zeichneListe('statSerie', a, NEU, (r, i) => `
+        <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
+          <span class="rang">${i + 1}</span>
+          <span class="znam">${esc(r.name)}</span>
+          <span class="zdat">${esc(datDe(r.datum))}</span>
+          <span class="zwert">${r.laenge}</span>
+        </div>`) },
+
+    { id:'statKlau', ruf:['klaubilanz', { p_seit:seit }],
+      mal: a => zeichneListe('statKlau', a, NEU, r => `
+        <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
+          <span class="znam">${esc(r.name)}</span>
+          <span class="zdat">${r.bestohlen} verloren</span>
+          <span class="zwert">${r.geklaut} erbeutet</span>
+        </div>`) },
+
+    { id:'statAktiv', ruf:['aktivitaet', { p_name:wer, p_seit:seit }],
+      mal: a => zeichneKalender('statAktiv', a, 'Noch keine beendete Partie.') }
+  ];
+}
+
+// Jeder Kasten wird für sich geholt und für sich gezeichnet, sobald er da
+// ist. Vorher hing alles an einem Promise.all: ein einziger fehlgeschlagener
+// Aufruf ließ die ganze Seite auf "lädt…" stehen, und mit über zehn Aufrufen
+// wäre auch der langsamste zum Taktgeber für alle geworden.
 async function zeigeStatistik() {
   show('statsScreen');
+  // Der Angstgegner ist ausdrücklich persönlich. In der Sicht "alle" fällt
+  // sein Kasten weg und wird gar nicht erst geholt.
+  const nurIch = statSicht === 'ich';
+  $('blockAngst').classList.toggle('weg', !nurIch);
+  const bloecke = statBloecke().filter(b => b.id !== 'statAngst' || nurIch);
+
   if (!sb) {
-    ['statBesten','statDuell','statJahrzehnt','statLand'].forEach(id => {
-      $(id).className = 'statleer';
-      $(id).textContent = 'Ohne Verbindung zur Datenbank nicht verfügbar.';
-    });
+    bloecke.forEach(b => statLeer(b.id, 'Ohne Verbindung zur Datenbank nicht verfügbar.'));
     return;
   }
-  const wer = statSicht === 'ich' ? statName() : null;
-  ['statBesten','statDuell','statJahrzehnt','statLand'].forEach(id => {
-    $(id).className = 'statleer'; $(id).textContent = 'lädt…';
-  });
+  // Wer am Umschalter zieht, während noch Antworten unterwegs sind, soll
+  // nicht das alte Ergebnis über das neue gezeichnet bekommen.
+  const lauf = ++statLauf;
+  bloecke.forEach(b => statLeer(b.id, 'lädt…'));
 
-  const [besten, bilanz, jz, land] = await Promise.all([
-    sb.rpc('bestenliste', { p_limit: 10 }),
-    sb.rpc('duellbilanz'),
-    sb.rpc('quote_jahrzehnt', { p_name: wer }),
-    sb.rpc('quote_land',      { p_name: wer })
-  ]);
-
-  zeichneBesten(besten);
-  zeichneBilanz(bilanz);
-  zeichneQuote('statJahrzehnt', jz, r => r.jahrzehnt + 'er', 0);
-  zeichneQuote('statLand',      land, r => r.land, 3, 10);
+  await Promise.allSettled(bloecke.map(b =>
+    sb.rpc(b.ruf[0], b.ruf[1]).then(
+      antwort => { if (lauf === statLauf) b.mal(antwort); },
+      e       => { if (lauf === statLauf) statFehler(b.id, e || {}); }
+    )
+  ));
 }
 
 function statFehler(id, error) {
+  const text = (error && error.message) || 'unbekannter Fehler';
   $(id).className = 'statleer';
-  $(id).textContent = /does not exist|schema cache/i.test(error.message || '')
-    ? 'Tabellen fehlen noch – supabase-statistik.sql einspielen.'
-    : 'Fehler: ' + error.message;
+  $(id).textContent = /does not exist|schema cache/i.test(text)
+    ? 'Auswertung fehlt noch – supabase-statistik-2.sql einspielen.'
+    : 'Fehler: ' + text;
 }
 
 function zeichneBesten({ data, error }) {
@@ -1693,17 +1941,15 @@ function zeichneBilanz({ data, error }) {
 }
 
 // mindestens: unter so vielen Tipps ist eine Quote nicht aussagekräftig
-function zeichneQuote(id, { data, error }, beschriftung, mindestens, grenze) {
+function zeichneQuote(id, { data, error }, beschriftung, mindestens, grenze, leerText) {
   if (error) return statFehler(id, error);
   const el = $(id);
   let rows = (data || []).filter(r => Number(r.gesamt) >= (mindestens || 0));
   if (grenze) rows = rows.slice(0, grenze);
   if (!rows.length) {
-    el.className = 'statleer';
-    el.textContent = mindestens
+    return statLeer(id, leerText || (mindestens
       ? `Noch zu wenig Daten – ab ${mindestens} Tipps je Land wird gezählt.`
-      : 'Noch keine Tipps erfasst.';
-    return;
+      : 'Noch keine Tipps erfasst.'));
   }
   el.className = '';
   el.innerHTML = rows.map(r => {
@@ -2424,10 +2670,64 @@ function revealHTML(id) {
   </div>`;
 }
 
+// Drei Zahlen zur eben beendeten Partie. Bewusst ohne await aufgerufen: Der
+// Endbildschirm steht sofort, der Kasten schiebt sich nach.
+//
+// Die Kennung kommt aus dem Zustand, nicht aus einer Modulvariablen – wer
+// die Seite kurz vorher neu geladen hat, hätte keine mehr, die partie_id
+// steht aber im wiederhergestellten Zustand.
+async function rueckblickLaden(st) {
+  const kasten = $('rueckblick');
+  const neue = rueckblickFuer !== st.partieId;
+  if (neue) { kasten.classList.add('weg'); kasten.classList.remove('da'); }
+  // Ohne Verbindung oder für eine Partie von vor der Umstellung: kein
+  // Kasten, keine Meldung. Auf dem Siegesbildschirm hat beides nichts
+  // verloren.
+  if (!neue || !sb || !st.partieId) return;
+  rueckblickFuer = st.partieId;
+  const name = statName();
+
+  // Die Tipps gehen nebenher raus und sind womöglich noch unterwegs, wenn
+  // der Endbildschirm schon steht. Deshalb kurz warten und notfalls ein
+  // zweites Mal fragen, statt eine leere Bilanz hinzuschreiben.
+  for (const pause of [500, 1800]) {
+    await new Promise(r => setTimeout(r, pause));
+    if (rueckblickFuer !== st.partieId) return;      // längst eine neue Partie
+    let zeile = null;
+    try {
+      const { data, error } = await sb.rpc('partie_rueckblick',
+        { p_partie_id: st.partieId, p_name: name });
+      if (error) return;
+      zeile = Array.isArray(data) ? data[0] : data;
+    } catch (e) { return; }
+    if (!zeile || !Number(zeile.quote_gesamt)) continue;
+    if (rueckblickFuer !== st.partieId) return;
+    zeigeRueckblick(zeile);
+    return;
+  }
+}
+
+// Über textContent statt innerHTML: damit ist der Titel aus songs.json von
+// vornherein Text und kein Markup, esc() erübrigt sich.
+function zeigeRueckblick(d) {
+  const s = song(d.haerteste_song_id);
+  $('rbQuote').textContent = `${Number(d.quote_richtig)}/${Number(d.quote_gesamt)}`;
+  $('rbSerie').textContent = String(d.beste_serie ?? 0);
+  $('rbKarte').textContent = d.haerteste_song_id
+    ? (s ? `${s.artist} – ${s.title}` : 'Song ' + d.haerteste_song_id)
+    : '–';
+  const k = $('rueckblick');
+  k.classList.remove('weg');
+  // Erst Platz einnehmen, im nächsten Bild einblenden. Fielen display und
+  // opacity im selben Schritt, gäbe es keinen Übergang zu sehen.
+  requestAnimationFrame(() => k.classList.add('da'));
+}
+
 function renderOver(st) {
   show('overScreen');
   stopAudio();
   localStorage.removeItem(SOLO_KEY);
+  rueckblickLaden(st).catch(() => {});
 
   if (st.solo) {
     const n = st.timelines.p1.length;

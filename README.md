@@ -44,8 +44,19 @@ Logo.png / Logo.svg     Bildmarke (Logo.svg NICHT verwenden, siehe Fallstricke)
 manifest.json           PWA-Manifest (Pfade sind kaputt, siehe Offene Punkte)
 icon-192/512.png, apple-touch-icon.png
 
-supabase-schema.sql     Tabelle `games` — muss einmalig eingespielt werden
-supabase-statistik.sql  Tabellen `partien` + `tipps` — einmalig einspielen
+supabase-migration-namen.sql  Namensnormalisierung, Verknüpfung, Entdopplung — einmalig
+```
+
+**`supabase-schema.sql` und `supabase-statistik.sql` fehlen im Repo.** Sie sind einmal
+eingespielt worden und danach verloren gegangen; das Schema ist damit nicht reproduzierbar.
+Die Rümpfe der vier Auswertungsfunktionen lassen sich im Notfall aus der laufenden Datenbank
+zurückholen:
+
+```sql
+select p.proname, pg_get_functiondef(p.oid)
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname in ('bestenliste','duellbilanz','quote_jahrzehnt','quote_land');
 ```
 
 Nicht im Repo, nur lokal im Projektordner: `Set_1/`, `Set_2/` (Kartenbilder für den Druck,
@@ -120,6 +131,15 @@ Entspricht dem „Einspruch" der gedruckten Anleitung:
 Endlos ziehen, nach drei Fehlern ist Schluss (`SOLO_FEHLER`). Gezählt werden die gesammelten
 Karten, Bestwert lokal in `localStorage`. **Kein Veto, kein Backend nötig** — Solo läuft auch,
 wenn Supabase nicht erreichbar ist.
+
+**Der Bestwert hängt am Namen, nicht am Gerät.** In `duell1408best` steht ein Objekt
+`{ name_key: karten }`, normalisiert wie in der Datenbank. Früher lag dort eine blanke Zahl
+fürs ganze Gerät, während daneben „Dein Bestwert" stand — wer sie erspielt hatte, war nirgends
+vermerkt, also bekam jeder den Rekord seines Vorgängers als eigenen angezeigt. `besteAlle()`
+zieht so eine alte Zahl **einmalig** auf den zuletzt hier benutzten Namen um und schreibt das
+fest; bloß beim Lesen umzudeuten reichte nicht, weil dieser Name sich ändert und die Zahl
+sonst von Spieler zu Spieler wanderte. Ist noch kein Name bekannt, bleibt sie unangetastet
+liegen statt verworfen zu werden.
 
 **Das letzte Leben beendet die Partie nicht sofort.** Sonst verschwände genau die Karte
 ungesehen, an der man gescheitert ist. Stattdessen setzt `auswerten()` nur `soloAus`, die
@@ -314,12 +334,78 @@ Ausgewertet wird über SQL-Funktionen (`bestenliste`, `duellbilanz`, `quote_jahr
 Gegner die Auswertung, protokolliert dabei aber den Tipp des Spielers am Zug. Läuft es über
 `myName()`, landet er beim Falschen.
 
+**Und zwar an dem Zustand, den der eigene `commit()` geschrieben hat** — nicht an `G.state`.
+`nachAuswertung()`, `partieMerken()` und `tippMerken()` bekommen ihn übergeben. Warum, steht
+unter [Fallstricke](#fallstricke); kurz: zwischen Schreiben und Protokollieren liegt ein
+`await`, und was danach in `G.state` steht, muss nicht mehr dieselbe Runde sein.
+
+#### Namen
+
+Namen sind Freitext, und die Datenbank vergleicht buchstäblich — „Jenny", „jenny" und
+„Jenny " wären drei Spielerinnen mit drei getrennten Quoten. Beide Tabellen haben deshalb
+eine erzeugte Spalte `name_key` (`lower(btrim(name))`, `GENERATED ALWAYS ... STORED`), über
+die alle vier Auswertungen gruppieren und filtern. `name` bleibt die Anzeigeform; gezeigt
+wird die **zuletzt benutzte** Schreibweise, nicht irgendeine.
+
+Der Client muss dieselbe Normalisierung fahren (`normName()`), sonst erkennt die
+Statistikseite die eigene Zeile nicht wieder: Die Auswertung liefert ja womöglich eine andere
+Schreibweise zurück als die, unter der gerade gespielt wird.
+
+#### Weitere Spalten
+
+| Spalte | Tabelle | Inhalt |
+|---|---|---|
+| `partie_id` | beide | Eine Kennung je Partie, im Spielzustand abgelegt. Alle Geräte schreiben dieselbe — darüber hängen `partien` und `tipps` zusammen. |
+| `lauf_id` | `partien` | Eine Kennung je Partie **und Gerät**, im `localStorage`. Hält fest, welches Gerät die Zeile geschrieben hat. |
+| `dauer_s` | `partien` | Sekunden vom Spielstart bis zur letzten Auswertung. Der Startzeitpunkt steht im Zustand, nicht auf dem Gerät — sonst stimmte er nach einem Wiedereinstieg nicht. |
+| `fehler` | `partien` | Verbrauchte Leben im Solo. Im Duell `null`, dort gibt es keine. |
+| `art` | `tipps` | `'normal'` oder `'veto'`. |
+| `geklaut` | `tipps` | Ob die Karte bei dieser Auflösung den Besitzer gewechselt hat. Steht bei **beiden** Zeilen derselben Karte gleich drin; welche Seite man war, sagt `art`. So lässt sich erbeutet und verloren getrennt zählen. |
+| `pos`, `leiste_laenge` | `tipps` | Gewählte Lücke und Länge der Leiste **vor** dem Einsortieren. Ohne die beiden ist „richtig" nicht vergleichbar: eine Lücke von drei zu treffen ist etwas anderes als eine von elf. |
+
+`pos` und `leiste_laenge` beziehen sich auf die Leiste, in die **tatsächlich einsortiert
+wurde**. Beim Veto ist das die des Spielers am Zug, nicht die des Vetogebers — geprüft wird
+dieselbe Aufgabe, an der jener gescheitert ist. `auswerten()` hält die Länge fest, bevor
+gesplict wird, und legt sie als `result.leiste` in den Zustand.
+
+#### Entdopplung
+
+Zwei eindeutige Indizes auf `partien` fangen doppelte Zeilen ab, beide über `name_key`:
+
+* **`(partie_id, name_key)`** ist der tragende. Er deckt das Neuladen ab (die `partie_id`
+  übersteht es, im Solo über den `localStorage`, im Duell über den Server) **und** den Fall,
+  dass im Duell beide Geräte schreiben.
+* **`(lauf_id, name_key)`** ist der engere und deckt nur das Neuladen ab.
+
+Bewusst **nicht** über `lauf_id` allein: Im Duell schreibt ein Gerät die Zeilen aller
+Mitspieler in *einem* `insert`, alle mit derselben `lauf_id`. Ein Index darauf allein wiese
+den ganzen `insert` zurück, und die Duellstatistik fiele ersatzlos aus.
+
+Der Client fängt den Fehlercode `23505` deshalb ab, ohne zu warnen — er ist der Normalfall,
+nicht die Störung. Alte Zeilen haben überall `NULL`, und `NULL`s gelten als voneinander
+verschieden; der Altbestand bleibt unberührt.
+
+#### Nachreichen
+
+Schlägt der `partien`-Insert fehl, landet die Partie in `duell1408nachtrag` und geht beim
+nächsten Start noch einmal raus (`nachtragSenden()`, bis zu `NACH_MAX` Versuche, höchstens
+zehn Einträge). Vorher war so ein Ergebnis schlicht verloren: Der Bestwert stand auf dem
+Gerät, die Zeile fehlte in der Datenbank, und gesagt hat das niemand — genau das erklärt
+einen Bestwert, der in der Bestenliste nicht auftaucht. Solange etwas aussteht, sagt der
+Startbildschirm es jetzt.
+
+**Gefahrlos ist das Nachreichen nur wegen der Entdopplung.** Die Zeilen bringen ihre
+`partie_id` mit; eine Partie, die doch angekommen war, weist der eindeutige Index mit `23505`
+ab, und dieser Fehler zählt hier als Erfolg. Ohne die Indizes würde jeder Nachtrag einen
+Doppeleintrag erzeugen — wer sie je entfernt, muss das Nachreichen mit entfernen.
+
 ---
 
 ## Supabase
 
-Zwei SQL-Dateien, je einmal im SQL-Editor ausführen. „Success. No rows returned" ist die
-richtige Erfolgsmeldung.
+SQL wird von Hand im SQL-Editor ausgeführt, je Datei einmal. „Success. No rows returned" ist
+die richtige Erfolgsmeldung. `supabase-migration-namen.sql` ist wiederholbar — mehrfaches
+Ausführen ändert nichts mehr und lässt bestehende Zeilen unangetastet.
 
 | Tabelle | Inhalt | RLS für `anon` |
 |---|---|---|
@@ -352,8 +438,8 @@ cd Website && python3 -m http.server 8000
 Dann <http://localhost:8000/duell.html>. Es gibt keinen Build-Schritt.
 
 Zum Testen zu zweit: ein normales und ein privates Fenster — zwei normale Tabs teilen sich den
-`localStorage` (`duell1408`, `duell1408solo`, `duell1408best`) und überschreiben sich
-gegenseitig die Sitzung.
+`localStorage` (`duell1408`, `duell1408solo`, `duell1408best`, `duell1408lauf`) und
+überschreiben sich gegenseitig die Sitzung.
 
 ---
 
@@ -416,6 +502,24 @@ Balken, der im Ruhezustand unsichtbar ist. Messbar an `offsetHeight − clientHe
 Pseudoelementen allein 6 px, mit `scrollbar-width` daneben 0 px. Für Firefox steht der andere
 Weg deshalb in einem `@supports not selector(::-webkit-scrollbar)`-Block.
 
+**Erst die Migration, dann die Seite.** SQL läuft nicht über GitHub — GitHub Pages liefert nur
+statische Dateien aus, eine `.sql` im Repo ist dort totes Papier. Sie muss von Hand in den
+Supabase-SQL-Editor. Die Reihenfolge ist deshalb: **Migration einspielen, dann `duell.html`
+hochladen.** Andersherum schickt der Client Spalten, die es noch nicht gibt; PostgREST lehnt
+den ganzen `insert` ab, und weil er absichtlich ins Leere läuft, sieht man davon nur eine
+Zeile in der Entwicklerkonsole. Das Spiel läuft weiter, die Statistik fehlt still.
+
+**Nach dem `await` ist der Zustand nicht mehr derselbe.** `commit()` gibt deshalb den
+geschriebenen Zustand zurück und nicht bloß `true`. Wer stattdessen hinterher `G.state` liest,
+protokolliert womöglich eine Auflösung, die es nicht mehr gibt: Zwischen dem eigenen Schreiben
+und dem Auflösen des Versprechens kann ein anderes Gerät die Partie längst weitergedreht
+haben, und `nachAuswertung()` findet dann `result: null` vor. Messbar mit einem Prüfstand, der
+schneller weiterklickt als ein Mensch: **sieben Vetorunden, eine einzige Tipp-Zeile.** Nach der
+Umstellung dieselben sieben Runden, dreizehn Zeilen. Im Spiel zu zweit tritt das selten auf –
+nötig wäre, dass der Gegner innerhalb eines Netzumlaufs weiterklickt –, aber es fällt nie auf:
+Es gibt keine Fehlermeldung, nur eine Lücke in den Daten. Alle Aufrufer prüfen weiterhin bloß
+auf wahr/falsch, ein Zustandsobjekt ist immer wahr.
+
 **Alle Phasen prüfen, nicht nur eine.** Ein Layout-Fehler war nur in `draw` und `turn` sichtbar,
 weil die Bühne dort leer ist (Player und Balken sind absolut positioniert) und eine
 `auto`-Rasterspalte deshalb auf Breite null zusammenfiel. In `result` sah alles gut aus.
@@ -430,9 +534,9 @@ weil die Bühne dort leer ist (Player und Balken sind absolut positioniert) und 
 * **Chips** aus der gedruckten Anleitung sind nicht umgesetzt.
 * **Lobby-Abbruch:** Steigt jemand aus, *bevor* gestartet wurde, warten die anderen weiter.
   Nach dem Start wird der Ausstieg sauber behandelt.
-* **Veto-Statistik:** Erfolgreiche Klaus werden nicht getrennt erfasst; dafür bräuchte `tipps`
-  eine Spalte mehr.
-* **Doppelte Solo-Zeile bei Neuladen:** Wer die Seite genau auf der letzten Auflösung neu lädt
-  und dann „Ergebnis ansehen" tippt, schreibt eine zweite `partien`-Zeile. `partieProtokolliert`
-  ist eine Modulvariable und überlebt das Neuladen nicht. Enges Zeitfenster, unschöne, aber
-  harmlose Folge: ein Doppeleintrag in der Bestenliste.
+* **Die Bestenliste listet Partien, nicht Spieler.** Eine Person kann sie mehrfach belegen —
+  Jenny steht mit vier von zehn Plätzen darin. Das ist so gewachsen, nicht entschieden.
+* **Der Solo-Bestwert bleibt je Gerät getrennt.** Er hängt jetzt am Namen, aber im
+  `localStorage` — wer auf Handy und Rechner spielt, hat zwei davon. Die Datenbank kennt den
+  wahren Höchstwert; der Startbildschirm fragt sie nicht, weil Solo ausdrücklich auch ohne
+  Verbindung laufen soll.

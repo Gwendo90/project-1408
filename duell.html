@@ -695,6 +695,9 @@ const CODE_ALPHABET = 'ACDEFGHJKLMNPQRTUVWXY34679';   // ohne verwechselbare Zei
 const STORE_KEY = 'duell1408';
 const SOLO_KEY  = 'duell1408solo';      // laufende Solo-Partie
 const BEST_KEY  = 'duell1408best';      // Bestwert im Solo-Modus
+const LAUF_KEY  = 'duell1408lauf';      // Kennung dieses Geräts für die laufende Partie
+const NACH_KEY  = 'duell1408nachtrag';  // Partien, die nicht durchkamen
+const NACH_MAX  = 5;                    // so oft wird eine nachgereicht
 const SOLO_FEHLER = 3;                  // nach dem dritten Fehler ist Schluss
 const VETOS_START = 3;                  // Vetos je Spieler zu Spielbeginn
 const VETO_MS = 15000;                  // Bedenkzeit fürs Veto
@@ -805,6 +808,8 @@ async function init() {
   $('btnStart').addEventListener('click', startGame);
   $('btnAgain').addEventListener('click', playAgain);
   $('pbtn').addEventListener('click', togglePlay);
+  // Der Bestwert hängt am Namen, also muss er mitgehen, während getippt wird.
+  $('nameInput').addEventListener('input', zeigeBestwert);
   $('codeInput').addEventListener('input', e => {
     e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
   });
@@ -835,6 +840,10 @@ async function init() {
   } catch (e) { return fail(e.message + ' Solo spielen geht trotzdem.'); }
 
   await calibrateClock();
+
+  // Liegengebliebene Ergebnisse loswerden. Ohne await: der Start soll nicht
+  // daran hängen, und das Spiel läuft auch, wenn es wieder nicht klappt.
+  nachtragSenden();
 
   // Laufendes Spiel? Dann direkt wieder rein – erst das Duell, sonst Solo.
   if (saved?.code && saved?.seat) {
@@ -907,6 +916,19 @@ function newCode() {
   return c;
 }
 
+// Kennungen für die Statistik. Die Spalten sind vom Typ uuid – ein selbst
+// gebastelter String würde die Zeile beim Einfügen kosten, deshalb auch im
+// Rückfall echtes UUID-Format. crypto.randomUUID gibt es erst ab Safari 15.4,
+// crypto.getRandomValues seit jeher.
+function neueId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;          // Version 4
+  b[8] = (b[8] & 0x3f) | 0x80;          // Variante
+  const h = [...b].map(x => x.toString(16).padStart(2,'0')).join('');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+}
+
 async function createGame() {
   if (!SONGS) return setHomeStat('Songdaten laden noch…','');
   setHomeStat('Spiel wird angelegt…','');
@@ -951,6 +973,11 @@ function startSolo() {
     ziel: Infinity,
     maxFehler: SOLO_FEHLER,
     fehler: 0,
+    // Beides gehört in den Zustand, nicht aufs Gerät: der Zustand übersteht
+    // ein Neuladen (Solo im localStorage, Duell auf dem Server), und im
+    // Duell schreiben so alle Geräte dieselbe partieId.
+    partieId: neueId(),
+    begonnen: serverNow(),
     seats: { p1: { name: myName() }, p2: null },
     turn: 'p1',
     timelines: { p1: [deck.pop()], p2: [] },
@@ -967,7 +994,35 @@ function startSolo() {
   render();
 }
 
-function bestwert() { return parseInt(localStorage.getItem(BEST_KEY) || '0', 10); }
+// Bestwerte liegen als { name_key: karten } vor – einer je Spielername,
+// nicht einer fürs Gerät. Vorher stand hier eine blanke Zahl, und auf dem
+// Startbildschirm stand daneben "Dein Bestwert": Wer sie erspielt hatte,
+// war nirgends vermerkt, also zeigte das Gerät jedem den Rekord des
+// Vorgängers als seinen eigenen an.
+function besteAlle() {
+  let w = null;
+  try { w = JSON.parse(localStorage.getItem(BEST_KEY) || 'null'); } catch (e) {}
+  if (w && typeof w === 'object') return w;
+  // Altbestand: die blanke Zahl von früher. Sie geht an den Namen, der
+  // zuletzt auf diesem Gerät gespielt hat – geraten, aber die einzige
+  // Zuordnung, die es überhaupt gibt, und besser als sie wegzuwerfen.
+  const n = parseInt(w, 10);
+  if (!n) return {};
+  let letzter = '';
+  try { letzter = normName(JSON.parse(localStorage.getItem(STORE_KEY) || 'null')?.name); } catch (e) {}
+  // Kein Name bekannt? Dann die Zahl liegen lassen und es später noch
+  // einmal versuchen, statt sie jetzt wegzuwerfen.
+  if (!letzter) return {};
+  // Einmal festschreiben. Bloß beim Lesen umzudeuten reichte nicht: der
+  // zuletzt benutzte Name ändert sich, und die alte Zahl wanderte mit ihm
+  // von Spieler zu Spieler.
+  const umgezogen = { [letzter]: n };
+  try { localStorage.setItem(BEST_KEY, JSON.stringify(umgezogen)); } catch (e) {}
+  return umgezogen;
+}
+
+// Ohne Namen der aus der laufenden Partie, sonst der aus dem Eingabefeld.
+function bestwert(name) { return besteAlle()[normName(name || statName())] || 0; }
 
 function zeigeBestwert() {
   const b = bestwert();
@@ -1083,6 +1138,14 @@ function adopt(row) {
 
 // Schreiben mit optimistischem Sperren: nur wenn die Version noch stimmt.
 // Bei Konflikt neu laden und den Mutator erneut anwenden.
+//
+// Rückgabe ist der geschriebene Zustand, bei Misserfolg false. Kein bloßes
+// true: zwischen dem Schreiben und dem Auswerten der Rückgabe liegt ein
+// await, und in dieser Lücke kann ein anderes Gerät die Partie längst
+// weitergedreht haben. Wer danach G.state liest, protokolliert dann eine
+// Auflösung, die es nicht mehr gibt – gemessen: sieben Vetorunden, null
+// Tipp-Zeilen. Alle Aufrufer prüfen weiterhin nur auf wahr/falsch, ein
+// Zustand ist immer wahr.
 async function commit(mutate) {
   // Solo: kein Netz, kein Sperren – einfach lokal anwenden und sichern.
   if (solo()) {
@@ -1091,7 +1154,7 @@ async function commit(mutate) {
     G = { code:null, version:G.version + 1, state:next };
     try { localStorage.setItem(SOLO_KEY, JSON.stringify(next)); } catch(e) {}
     render();
-    return true;
+    return next;
   }
   for (let i = 0; i < 5; i++) {
     const next = mutate(structuredClone(G.state));
@@ -1100,7 +1163,7 @@ async function commit(mutate) {
       .update({ state: next, version: G.version + 1 })
       .eq('code', G.code).eq('version', G.version)
       .select().maybeSingle();
-    if (data) { adopt(data); return true; }
+    if (data) { adopt(data); return data.state; }
     const fresh = await sb.from('games').select().eq('code', G.code).maybeSingle();
     if (!fresh.data) return false;
     adopt(fresh.data);
@@ -1110,9 +1173,14 @@ async function commit(mutate) {
 
 // ══ Spielablauf ══════════════════════════════════════════════════
 async function startGame() {
+  // Außerhalb des Mutators erzeugt: bei einem Wiederholungslauf soll
+  // dieselbe Kennung herauskommen, nicht jedes Mal eine neue.
+  const partieId = neueId(), begonnen = serverNow();
   await commit(s => {
     const dabei = aktive(s);
     if (dabei.length < 2) return null;
+    s.partieId = partieId;
+    s.begonnen = begonnen;
     // Jeder startet mit einer aufgedeckten Karte.
     s.vetos = {};
     for (const k of dabei) {
@@ -1162,6 +1230,11 @@ function auswerten(s, vetoZug) {
   const id      = s.current;
   const tlAktiv = s.timelines[aktiv];
   const aktivOk = isCorrect(tlAktiv, idx, id);
+  // Für die Statistik: wie lang war die Leiste, in die einsortiert wurde,
+  // vor dem Einsortieren? Muss hier fallen, weiter unten ist die Karte
+  // schon drin. Sie gilt für beide Tipps – auch der Vetogeber wird in
+  // dieser Leiste geprüft, nicht in seiner eigenen.
+  const leisteVorher = tlAktiv.length;
 
   let klau = null;
   if (vetoZug && !s.solo) {
@@ -1182,7 +1255,7 @@ function auswerten(s, vetoZug) {
 
   if (aktivOk) tlAktiv.splice(idx, 0, id);
 
-  s.result = { seat: aktiv, id, index: idx, correct: aktivOk, klau };
+  s.result = { seat: aktiv, id, index: idx, correct: aktivOk, klau, leiste: leisteVorher };
   s.pending = null;
   s.vetoBis = 0;
   s.vetoAngemeldet = null;
@@ -1201,7 +1274,9 @@ function auswerten(s, vetoZug) {
     //
     // Der Bestwert muss hier fallen, nicht nach dem commit: im Solo-Modus
     // zeichnet commit() sofort neu, und renderOver liest soloRekord.
-    if (s.fehler >= s.maxFehler) { s.soloAus = true; merkeBestwert(tlAktiv.length); }
+    // Der Name kommt aus dem Zustand, nicht aus dem Eingabefeld – dort
+    // könnte inzwischen etwas anderes stehen.
+    if (s.fehler >= s.maxFehler) { s.soloAus = true; merkeBestwert(tlAktiv.length, s.seats?.p1?.name); }
   } else {
     for (const k of aktive(s)) {
       if (s.timelines[k].length >= s.ziel) { s.phase = 'over'; s.winner = k; }
@@ -1235,7 +1310,7 @@ async function einloggen(index) {
     s.vetoAngemeldet = null;
     return s;
   });
-  if (ok) nachAuswertung();
+  if (ok) nachAuswertung(ok);
 }
 
 // Gegner meldet das Veto an. Damit stoppt der Countdown – das Aussuchen
@@ -1265,7 +1340,7 @@ async function vetoSetzen(index) {
     if (s.phase !== 'veto' || s.vetoAngemeldet !== seat) return null;
     return auswerten(s, { seat, index });
   });
-  if (ok) nachAuswertung();
+  if (ok) nachAuswertung(ok);
 }
 
 // Durchlassen: entweder der Gegner tippt es an, oder der Countdown läuft
@@ -1276,31 +1351,43 @@ async function durchlassen() {
     if (s.phase !== 'veto' || s.vetoAngemeldet) return null;
     return auswerten(s, null);
   });
-  if (ok) nachAuswertung();
+  if (ok) nachAuswertung(ok);
 }
 
 // Läuft genau auf dem Gerät, dessen commit durchgegangen ist – also genau
 // einmal je Auswertung, egal wer sie ausgelöst hat.
-function nachAuswertung() {
-  const st = G.state;
+// `st` ist der Zustand, den der eigene commit geschrieben hat – nicht
+// G.state. Der kann inzwischen weitergedreht sein, siehe commit().
+function nachAuswertung(st) {
   const r = st.result;
   if (r) {
-    tippMerken(r.seat, r.id, r.correct);
+    // Hat die Karte bei dieser Auflösung den Besitzer gewechselt? Steht bei
+    // beiden Tipps derselben Karte gleich drin; welche Seite man war, sagt
+    // `art`. So lässt sich später beides zählen: erbeutet und verloren.
+    const geklaut = !!(r.klau && r.klau.gelungen);
+    tippMerken(st, r.seat, r.id, r.correct,
+               { art:'normal', pos:r.index, leiste:r.leiste, geklaut });
     // Den Tipp des Vetogebers nur zählen, wenn er auch geprüft wurde. Gegen
     // eine korrekte Platzierung scheitert das Veto per Regel, ohne dass
     // seine Lücke je angeschaut wurde – das wäre kein Wissensnachweis.
-    if (r.klau && !r.correct) tippMerken(r.klau.seat, r.id, r.klau.gelungen);
+    if (r.klau && !r.correct) tippMerken(st, r.klau.seat, r.id, r.klau.gelungen,
+               { art:'veto', pos:r.klau.index, leiste:r.leiste, geklaut });
   }
   // soloAus zählt wie 'over': die Partie ist entschieden, nur der
   // Endbildschirm wartet noch auf den Spieler.
-  if (st.phase === 'over' || st.soloAus) partieMerken();
+  if (st.phase === 'over' || st.soloAus) partieMerken(st);
 }
 
 // Bestwert ist die Länge der Zeitleiste, wenn der dritte Fehler fällt.
 // Erst vergleichen, dann speichern – sonst wäre der alte Wert schon weg.
-function merkeBestwert(n) {
-  soloRekord = n > bestwert();
-  if (soloRekord) localStorage.setItem(BEST_KEY, String(n));
+function merkeBestwert(n, name) {
+  const schluessel = normName(name);
+  if (!schluessel) return;
+  const alle = besteAlle();
+  soloRekord = n > (alle[schluessel] || 0);
+  if (!soloRekord) return;
+  alle[schluessel] = n;
+  try { localStorage.setItem(BEST_KEY, JSON.stringify(alle)); } catch (e) {}
 }
 
 // Nach der Auflösung in einem Schritt: Zug abgeben und gleich die nächste
@@ -1333,12 +1420,17 @@ async function naechsteKarte() {
     return s;
   });
   // Deck leer: hier endet die Partie, ohne dass eingeloggt wurde.
-  if (ok && G.state.phase === 'over') partieMerken();
+  if (ok && ok.phase === 'over') partieMerken(ok);
 }
 
 async function playAgain() {
   if (solo()) return startSolo();
+  // Eine neue Runde ist eine neue Partie – sonst zählte die Datenbank sie
+  // als dieselbe und wiese die zweite Zeile als Doppeleintrag ab.
+  const partieId = neueId(), begonnen = serverNow();
   await commit(s => {
+    s.partieId = partieId;
+    s.begonnen = begonnen;
     s.deck = shuffled(Object.keys(SONGS));
     const dabei = aktive(s);
     s.timelines = {}; s.vetos = {};
@@ -1367,49 +1459,164 @@ function statName() {
   return (G && seat && G.state.seats?.[seat]?.name) || myName();
 }
 
+// Vergleichsform eines Namens. Muss zu name_key in der Datenbank passen
+// (dort lower(btrim(...))), sonst erkennt die Statistikseite die eigene
+// Zeile nicht mehr wieder: die Auswertungen fassen "Jenny" und "jenny"
+// zusammen und liefern die zuletzt benutzte Schreibweise zurück, die nicht
+// die sein muss, unter der man gerade spielt.
+//
+// Bewusst eine Deklaration und kein `const`: bestwert() greift darauf zu,
+// und das läuft schon in init() – also lange bevor diese Zeile an der Reihe
+// wäre. Als const stünde der Name dort noch in der zeitlichen Totzone und
+// risse mit einem ReferenceError das ganze Modul mit.
+function normName(n) { return (n || '').trim().toLowerCase(); }
+
+// Kennung dieses Geräts für diese eine Partie – der Riegel gegen den
+// Doppeleintrag. Sie hängt an der partieId und liegt im localStorage: Wer
+// die Seite auf der letzten Auflösung neu lädt und dann "Ergebnis ansehen"
+// tippt, bekommt dieselbe Kennung wieder und die Datenbank lehnt die zweite
+// Zeile ab. Eine neue Partie hat eine neue partieId und damit eine neue
+// Kennung. Klemmt der localStorage (privates Fenster, voller Speicher),
+// fällt nur die Absicherung aus, nicht der Eintrag.
+function laufId(partieId) {
+  if (!partieId) return null;
+  try {
+    const alt = JSON.parse(localStorage.getItem(LAUF_KEY) || 'null');
+    if (alt?.partie === partieId && alt.lauf) return alt.lauf;
+    const lauf = neueId();
+    localStorage.setItem(LAUF_KEY, JSON.stringify({ partie: partieId, lauf }));
+    return lauf;
+  } catch (e) { return null; }
+}
+
 // Der Name kommt aus dem Zustand, nicht vom Gerät: bei einem Veto schreibt
 // der Gegner die Auswertung, protokolliert dabei aber den Tipp des Spielers
 // am Zug. Über myName() wäre er dem Falschen zugeschrieben worden.
-function tippMerken(sitz, songId, korrekt) {
-  if (!sb || !G) return;
+// `extra` beschreibt den Tipp genauer: art ('normal' oder 'veto'), die
+// gewählte Lücke und die Länge der Leiste, in die einsortiert wurde. Eine
+// Lücke von drei zu treffen ist etwas anderes als eine von elf – ohne diese
+// beiden Zahlen ist "richtig" später nicht vergleichbar.
+function tippMerken(st, sitz, songId, korrekt, extra) {
+  if (!sb) return;
   const s = song(songId);
-  const name = G.state.seats?.[sitz]?.name;
+  const name = st.seats?.[sitz]?.name;
   if (!s || !name) return;
   sb.from('tipps').insert({
     name,
-    modus:   G.state.solo ? 'solo' : 'duell',
+    modus:   st.solo ? 'solo' : 'duell',
     song_id: songId,
     jahr:    parseInt(s.year, 10),
     land:    s.country,
-    korrekt: !!korrekt
+    korrekt: !!korrekt,
+    // Eine vor dem Hochladen begonnene Partie kennt weder partieId noch
+    // leiste – dann bleiben die Spalten eben leer, statt den Tipp zu kosten.
+    partie_id:     st.partieId ?? null,
+    art:           extra?.art || 'normal',
+    geklaut:       !!extra?.geklaut,
+    pos:           extra?.pos ?? null,
+    leiste_laenge: extra?.leiste ?? null
   }).then(({ error }) => { if (error) console.warn('Tipp nicht gespeichert:', error.message); });
 }
 
-// Im Duell schreibt der Client, der die Partie beendet hat, beide Zeilen.
-// Sonst würden entweder zwei Einträge je Spieler entstehen oder – wenn
-// jeder nur sich selbst einträgt – der Eintrag des Gegners fehlen, falls
-// dessen Gerät die Partie nie zu Ende sieht.
-function partieMerken() {
-  if (!sb || !G) return;
-  const st = G.state;
-  const schluessel = (G.code || 'solo') + '|' +
-    SITZE.map(k => (st.timelines[k] || []).length).join('-');
+// Im Duell schreibt jedes Gerät die Zeilen aller Mitspieler, nicht nur
+// seine eigene: Trüge jeder nur sich selbst ein, fehlte der Eintrag des
+// Gegners, sobald dessen Gerät die Partie nie zu Ende sieht. Dass dabei
+// mehrere Geräte dieselbe Partie melden, ist eingeplant – gemessen an einer
+// beendeten Testpartie waren es vier Zeilen statt zwei. Aussortiert wird das
+// in der Datenbank über den eindeutigen Index auf (partie_id, name_key),
+// nicht hier: welches Gerät zuerst kommt, ist nicht vorhersagbar.
+function partieMerken(st) {
+  if (!sb) return;
+  // Die partieId ist der bessere Schlüssel: die alte Notlösung aus Code und
+  // Leistenlängen konnte nach "Nochmal spielen" zufällig wieder dieselbe
+  // sein und hätte die zweite Runde stillschweigend verschluckt.
+  const schluessel = st.partieId || ((G?.code || 'solo') + '|' +
+    SITZE.map(k => (st.timelines[k] || []).length).join('-'));
   if (partieProtokolliert === schluessel) return;
   partieProtokolliert = schluessel;
 
+  // Diese Sperre sitzt im Arbeitsspeicher und ist nach einem Neuladen weg.
+  // Deshalb liegt daneben die lauf_id im localStorage: die überlebt es, und
+  // die Datenbank weist eine zweite Zeile mit derselben Kennung ab.
+  const gemeinsam = {
+    partie_id: st.partieId ?? null,
+    lauf_id:   laufId(st.partieId),
+    dauer_s:   st.begonnen ? Math.max(0, Math.round((serverNow() - st.begonnen) / 1000)) : null
+  };
+
   const zeilen = st.solo
-    ? [{ name: st.seats.p1.name, modus: 'solo',
-         karten: st.timelines.p1.length, gewonnen: null, gegner: null }]
+    ? [{ ...gemeinsam,
+         name: st.seats.p1.name, modus: 'solo',
+         karten: st.timelines.p1.length, gewonnen: null, gegner: null,
+         fehler: st.fehler ?? null }]
     : aktive(st).map(k => ({
+        ...gemeinsam,
         name:     st.seats[k].name,
         modus:    'duell',
         karten:   st.timelines[k].length,
         gewonnen: st.winner ? st.winner === k : null,
-        gegner:   mitspieler(st, k).map(j => st.seats[j].name).join(', ') || null
+        gegner:   mitspieler(st, k).map(j => st.seats[j].name).join(', ') || null,
+        fehler:   null            // im Duell gibt es keine Leben
       }));
 
   sb.from('partien').insert(zeilen)
-    .then(({ error }) => { if (error) console.warn('Partie nicht gespeichert:', error.message); });
+    .then(({ error }) => {
+      if (!error) return;
+      // 23505 heißt: der eindeutige Index hat zugeschlagen, die Partie stand
+      // schon drin. Genau dafür ist er da – das ist keine Störung.
+      if (error.code === '23505') return;
+      console.warn('Partie nicht gespeichert:', error.message);
+      nachtragMerken(zeilen);
+    });
+}
+
+// ── Nachreichen ──────────────────────────────────────────────────
+// Bricht die Verbindung im falschen Moment weg, war das Ergebnis bisher
+// weg: der Bestwert stand auf dem Gerät, die Zeile fehlte in der Datenbank,
+// und gesagt hat das niemand. Stattdessen wandert sie jetzt in eine
+// Warteschlange und geht beim nächsten Start noch einmal raus.
+//
+// Das ist nur deshalb gefahrlos, weil die Zeilen ihre partie_id mitbringen:
+// Eine Partie, die doch angekommen war, weist der eindeutige Index ab, und
+// dieser Fehler zählt hier als Erfolg. Ohne die Entdopplung aus der
+// Migration würde jeder Nachtrag einen Doppeleintrag erzeugen.
+
+function nachtragLesen() {
+  try {
+    const a = JSON.parse(localStorage.getItem(NACH_KEY) || '[]');
+    return Array.isArray(a) ? a : [];
+  } catch (e) { return []; }
+}
+
+function nachtragSchreiben(liste) {
+  // Deckel drauf: der localStorage ist keine Datenbank, und bei dauerhaft
+  // fehlender Verbindung würde die Liste sonst endlos wachsen.
+  try { localStorage.setItem(NACH_KEY, JSON.stringify(liste.slice(-10))); } catch (e) {}
+}
+
+function nachtragMerken(zeilen) {
+  const l = nachtragLesen();
+  l.push({ zeilen, versuche: 1 });
+  nachtragSchreiben(l);
+}
+
+async function nachtragSenden() {
+  if (!sb) return;
+  const offen = nachtragLesen();
+  if (!offen.length) return;
+  nachtragSchreiben([]);          // erst leeren, dann einzeln zurücklegen
+  const rest = [];
+  let verworfen = false;
+  for (const e of offen) {
+    const { error } = await sb.from('partien').insert(e.zeilen);
+    if (!error || error.code === '23505') continue;
+    if (e.versuche < NACH_MAX) rest.push({ zeilen: e.zeilen, versuche: e.versuche + 1 });
+    else { verworfen = true; console.warn('Partie endgültig verworfen:', error.message); }
+  }
+  nachtragSchreiben(rest);
+  // Nur auf dem Startbildschirm melden, und nur was den Spieler angeht.
+  if (verworfen) setHomeStat('Ein früheres Ergebnis ließ sich nicht speichern.', 'err');
+  else if (rest.length) setHomeStat('Ein Ergebnis wird nachgereicht, sobald es geht.', '');
 }
 
 // ══ Statistik anzeigen ═══════════════════════════════════════════
@@ -1455,10 +1662,10 @@ function zeichneBesten({ data, error }) {
     el.textContent = 'Noch keine Solo-Partie beendet.';
     return;
   }
-  const ich = statName();
+  const ich = normName(statName());
   el.className = '';
   el.innerHTML = data.map((r, i) => `
-    <div class="zeile${r.name === ich ? ' selbst' : ''}">
+    <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
       <span class="rang">${i + 1}</span>
       <span class="znam">${esc(r.name)}</span>
       <span class="zdat">${new Date(r.beendet_am).toLocaleDateString('de-DE',
@@ -1475,10 +1682,10 @@ function zeichneBilanz({ data, error }) {
     el.textContent = 'Noch keine Partie zu zweit oder mehr beendet.';
     return;
   }
-  const ich = statName();
+  const ich = normName(statName());
   el.className = '';
   el.innerHTML = data.map(r => `
-    <div class="zeile${r.name === ich ? ' selbst' : ''}">
+    <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
       <span class="znam">${esc(r.name)}</span>
       <span class="zdat">${r.spiele} ${r.spiele === 1 ? 'Spiel' : 'Spiele'}</span>
       <span class="zwert">${r.siege} ✓</span>

@@ -46,6 +46,7 @@ icon-192/512.png, apple-touch-icon.png
 
 supabase-migration-namen.sql  Namensnormalisierung, Verknüpfung, Entdopplung — einmalig
 supabase-statistik-2.sql      Zweiter Satz Auswertungen + Zeitfilter — nach der Migration
+supabase-tagesduell.sql       Tagesduell: Spalten tag/dauer_ms, Tagessperre, Bestenliste
 ```
 
 **`supabase-schema.sql` und `supabase-statistik.sql` fehlen im Repo.** Sie sind einmal
@@ -148,6 +149,63 @@ Auflösung bleibt stehen, und erst „Ergebnis ansehen" schaltet in `naechsteKar
 **Gewertet wird trotzdem sofort** (Bestwert und `partien`-Zeile fallen weiterhin in
 `auswerten()` bzw. `nachAuswertung()`) — wer den Tab an dieser Stelle zumacht, verliert
 seinen Lauf nicht.
+
+### Tagesduell
+
+**Alle spielen an einem Tag dieselben zehn Karten in derselben Reihenfolge** (`TAG_KARTEN`).
+Erst dadurch sind Läufe überhaupt vergleichbar — die Solo-Bestenliste war bis dahin eine
+Sammlung unterschiedlich schwerer Decks. Und man kann sich zeitversetzt messen, ohne
+gleichzeitig online zu sein.
+
+Statt Leben läuft eine **Stoppuhr**. Gewertet wird nach **Fehlern, bei Gleichstand nach Zeit**.
+Alle zehn Karten werden gespielt, ein Fehler beendet nichts.
+
+**Das Deck entsteht aus dem Datum, nicht aus Zufall.** `seedAus()` (FNV-1a, wie bei
+`verlauf()`) macht aus `'1408|2026-08-12'` einen Seed, `mulberry32()` daraus die Zahlenfolge,
+mit der `shuffled()` mischt — dieselbe Funktion wie sonst, sie nimmt den Zufallsgeber jetzt als
+Parameter. Zwei Dinge sind daran nicht offensichtlich:
+
+* **`Object.keys(SONGS)` wird sortiert, bevor gemischt wird.** Die Reihenfolge aus `songs.json`
+  ist nichts, worauf man sich verlassen kann, und eine andere Ausgangsfolge ergäbe beim selben
+  Seed ein anderes Deck.
+* **Durchweg `Math.imul` und `| 0` / `>>> 0`.** Damit wird in 32-Bit-Ganzzahlen gerechnet und
+  nicht in Fließkomma, wo die oberen Bits verloren gingen und zwei Geräte auseinanderlaufen
+  könnten.
+
+Nachgemessen: zwei unabhängige Browserstarts mit demselben Datum liefern identische Startkarte
+und identisches Deck (`start=180`, `072,078,267,107,256,163,033,262,020,155`), zwei
+verschiedene Daten völlig verschiedene.
+
+Läuft technisch auf der **Solo-Mechanik** — kein Netz, kein Warten, ein Sitz. Kennzeichen ist
+allein `tag` im Spielzustand; ohne ihn ist es eine gewöhnliche Solo-Partie. Was daran hängt:
+
+| | Solo | Tagesduell |
+|---|---|---|
+| Deck | `shuffled()` über alle 336 | zehn Karten aus dem Tages-Seed |
+| Ende | nach drei Fehlern (`SOLO_FEHLER`) | wenn das Deck leer ist |
+| `maxFehler` | `3` | `null` — keine Leben |
+| Anzeige | Karten + Herzen | Fortschritt + Fehler + Uhr |
+| `modus` in `partien` | `'solo'` | `'tag'`, dazu `tag` und `dauer_ms` |
+
+**`maxFehler` ist `null` und nicht `Infinity`.** Der Solo-Zustand geht als JSON in den
+`localStorage`, und aus `Infinity` würde dabei `null` — `fehler >= null` ist ab dem ersten
+Fehler wahr. Mit `Infinity` wäre der Lauf nach einem Neuladen also sofort vorbei.
+
+**Die Uhr startet beim ersten Ziehen, nicht beim Start.** Wer den Bildschirm liest, bevor er
+zieht, soll dafür keine Sekunden bezahlen. Sie hält an, sobald die letzte Karte *ausgewertet*
+ist (`dauerMs` im Zustand) — nicht erst beim Tastendruck danach, sonst zählte das Betrachten
+der letzten Auflösung mit. Weil `begonnen` im Zustand steht und nicht auf dem Gerät, übersteht
+die laufende Zeit ein Neuladen (nachgemessen: 0:01,8 → 0:02,0).
+
+Angezeigt wird **mm:ss,z**. Zehntel, weil bei gleicher Fehlerzahl die Zeit entscheidet und
+ganze Sekunden dort zu oft gleich wären. Zwischen den Zeichenvorgängen zählt `uhrTick()` im
+bestehenden 250-ms-Takt nur dieses eine Feld weiter, statt neu zu zeichnen.
+
+**Es zählt nur der erste Lauf des Tages.** Mit bekanntem Deck wäre ein zweiter kein Vergleich
+mehr. Verbindlich ist der Teilindex `partien_tagesduell_einmal` über `(name_key, tag)` — der
+zweite Insert scheitert mit 23505, was der Client schon als „steht schon drin" behandelt. Der
+Vermerk in `duell1408tag` macht daneben nur den Startbildschirm sofort richtig, ohne auf eine
+Antwort zu warten; er gilt naturgemäß nur für ein Gerät.
 
 ### Noch nicht umgesetzt
 
@@ -385,6 +443,7 @@ und für `anon` nur ausführbar, nicht mehr.
 | `quote_position(p_name, p_seit)` | Quote nach Anfang / Mitte / Ende der Leiste | Statistik-2 † |
 | `serien(p_name, p_seit, p_limit)` | längste Folge richtiger Tipps je Person | Statistik-2 † |
 | `klaubilanz(p_seit)` | erbeutete und verlorene Karten je Person | Statistik-2 |
+| `tagesbestenliste(p_tag, p_limit)` | Tagesduell: Platz, Fehler, Zeit | Tagesduell |
 | `partie_rueckblick(p_partie_id, p_name)` | Quote, beste Serie und härteste Karte einer Partie | Statistik-2 |
 | `anzeigename(p_key)` | Hilfsfunktion: zuletzt benutzte Schreibweise | Statistik-2 |
 
@@ -563,8 +622,10 @@ die richtige Erfolgsmeldung. Reihenfolge:
 2. `supabase-migration-namen.sql` — Spalten, `name_key`, Entdopplung.
 3. `supabase-statistik-2.sql` — der zweite Satz Auswertungen. Setzt Schritt 2 voraus und legt
    dabei auch die vier alten Funktionen mit `p_seit` neu an.
+4. `supabase-tagesduell.sql` — Spalten `tag` und `dauer_ms`, die Tagessperre und
+   `tagesbestenliste()`. Setzt Schritt 2 voraus (`name_key`).
 
-Beide neuen Dateien sind wiederholbar: nochmal ausführen ändert nichts mehr und lässt
+Alle neuen Dateien sind wiederholbar: nochmal ausführen ändert nichts mehr und lässt
 bestehende Zeilen unangetastet. Wer eine Datei erweitert, muss sie **erneut ganz** einspielen —
 ein nachträglich angehängter Abschnitt ist sonst nirgends angekommen, und die Prüfabfrage zeigt
 dann völlig zu Recht noch den alten Stand.
@@ -628,6 +689,19 @@ Viewport-Höhe; Safaris untere Leiste verdeckt dann den letzten Knopf.
 **Vorschauen sind 90 Sekunden**, nicht 30. Nie fest annehmen, immer `aud.duration` abwarten.
 
 **`songs.json` ist ein Objekt**, kein Array. `Object.keys()` liefert die IDs.
+
+**`init()` läuft, bevor das Modul fertig ausgewertet ist.** Der Aufruf steht mitten in der
+Datei, alle `const` weiter unten liegen zu diesem Zeitpunkt noch in der temporalen Todeszone.
+Wer aus `init()` heraus etwas benutzt, das unterhalb als `const` definiert ist, bekommt einen
+`ReferenceError` — Funktionsdeklarationen (`function name()`) sind hochgezogen und gehen. Ein
+gemessener Fall: `heuteTag` war eine Pfeilfunktion und wurde aus `zeigeTagHinweis()` gerufen.
+Aufgefallen ist der Fehler nicht, und das war das Unangenehme daran — das `try/catch` in
+`tagErgebnis()` verschluckte ihn und meldete „heute noch nicht gespielt". Der Startbildschirm
+lud damit zu einem zweiten Lauf ein, der beim Antippen überraschend in der Bestenliste endete
+(dort greift derselbe Aufruf, weil das Modul längst fertig ist). Und nur bei denen, die heute
+schon gespielt hatten — sonst kommt der Aufruf wegen der `&&`-Auswertung gar nicht zustande.
+**Ein weit gefasstes `catch` macht so einen Fehler unsichtbar; beim Suchen zuerst dort
+nachsehen.**
 
 **Der Spieler am Zug kann aussteigen.** `naechster()` muss dann ab seinem Platz in der
 *Grundreihenfolge* weitersuchen — er steht ja nicht mehr in der Aktivenliste, `indexOf` liefert

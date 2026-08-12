@@ -306,6 +306,16 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 
 /* Punktestand: bis zwei Spieler nebeneinander, ab drei zweispaltig und
    kompakter, damit die Kacheln nicht zerquetscht werden. */
+/* Drei Kacheln in einer Reihe statt zwei (Tagesduell). Auf einem schmalen
+   Gerät bleiben je Kachel gut 60px innen, und "0:05,4" braucht bei 20px
+   Schrift schon 60 – gemessen auf iPhone-SE-Breite, also genau eben. Bei
+   zweistelligen Minuten wäre es abgeschnitten, denn .seat schneidet ab
+   (overflow:hidden). Deshalb enger gesetzt, wie bei .viele im Duell mit
+   mehreren Mitspielern, aber ohne den Umbruch in zwei Spalten. */
+.score.drei { gap:7px; }
+.score.drei .seat { padding:6px 10px; }
+.score.drei .seat .nm { font-size:11px; }
+.score.drei .seat .ct { font-size:17px; }
 .score.viele { display:grid; grid-template-columns:repeat(2,1fr); gap:7px; }
 .score.viele .seat { padding:6px 10px; }
 .score.viele .seat .nm { font-size:11px; }
@@ -574,6 +584,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div class="divider">alleine</div>
     <button class="btn" id="btnSolo">Solo spielen</button>
     <div class="sub" id="soloBest"></div>
+    <div class="divider">täglich</div>
+    <button class="btn" id="btnTag">Tagesduell</button>
+    <div class="sub" id="tagHinweis"></div>
     <button class="btn ghost" id="btnStats">Bestenliste &amp; Statistik</button>
   </div>
   <div class="stat" id="homeStat"></div>
@@ -697,6 +710,12 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       <button class="segbtn on" data-zeit="alles">Alles</button>
     </div>
 
+    <!-- Ganz oben, weil es das Aktuellste ist. Der Zeitfilter darüber greift
+         hier bewusst nicht – "heute" ist "heute". -->
+    <div class="statblock">
+      <div class="statTitel">Tagesduell heute</div>
+      <div id="statTag" class="statleer">lädt…</div>
+    </div>
     <div class="statblock">
       <div class="statTitel">Solo-Bestenliste</div>
       <div id="statBesten" class="statleer">lädt…</div>
@@ -785,6 +804,7 @@ const BEST_KEY  = 'duell1408best';      // Bestwert im Solo-Modus
 const LAUF_KEY  = 'duell1408lauf';      // Kennung dieses Geräts für die laufende Partie
 const NACH_KEY  = 'duell1408nachtrag';  // Partien, die nicht durchkamen
 const NACH_MAX  = 5;                    // so oft wird eine nachgereicht
+const TAG_KEY   = 'duell1408tag';       // gespieltes Tagesduell samt Ergebnis
 // Offene Statistikseite samt Umschaltern und Scrollstand. Der einzige
 // Schlüssel im sessionStorage statt im localStorage: ein Neuladen soll die
 // Seite behalten, ein neuer Besuch morgen aber wieder am Start beginnen –
@@ -793,6 +813,7 @@ const SICHT_KEY = 'duell1408statistik';
 // Muss zur Zeitzone in den SQL-Auswertungen passen (supabase-statistik-2.sql).
 const ZONE = 'Europe/Zurich';
 const SOLO_FEHLER = 3;                  // nach dem dritten Fehler ist Schluss
+const TAG_KARTEN  = 10;                 // Karten je Tagesduell, ohne die Startkarte
 const VETOS_START = 3;                  // Vetos je Spieler zu Spielbeginn
 const VETO_MS = 15000;                  // Bedenkzeit fürs Veto
 // Fortschrittsring des Countdowns. Radius im 44er-Viewport, Umfang daraus –
@@ -912,6 +933,12 @@ async function init() {
   $('btnCreate').addEventListener('click', createGame);
   $('btnJoin').addEventListener('click', joinGame);
   $('btnSolo').addEventListener('click', startSolo);
+  // Heute schon gespielt? Dann führt der Knopf zur Liste statt in einen
+  // zweiten Lauf – dort steht das eigene Ergebnis mit Platzierung.
+  $('btnTag').addEventListener('click', () => {
+    if (tagErgebnis()) return zeigeStatistik();
+    startTagesduell();
+  });
   // Zwei Tipps zum Verlassen: der erste fragt nur nach, nach vier Sekunden
   // ohne Bestätigung fällt der Knopf in den Ruhezustand zurück.
   $('btnRaus').addEventListener('click', () => {
@@ -964,6 +991,7 @@ async function init() {
   $('pbtn').addEventListener('click', togglePlay);
   // Der Bestwert hängt am Namen, also muss er mitgehen, während getippt wird.
   $('nameInput').addEventListener('input', zeigeBestwert);
+  zeigeTagHinweis();
   $('codeInput').addEventListener('input', e => {
     e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
   });
@@ -1107,13 +1135,109 @@ function myName() {
   return ($('nameInput').value || '').trim().slice(0,14) || 'Spieler';
 }
 
-function shuffled(arr) {
+// Der Zufallsgeber ist austauschbar, damit das Tagesduell mit einem
+// steuerbaren mischen kann. Ohne Angabe wie bisher Math.random.
+function shuffled(arr, rnd = Math.random) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rnd() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+// ══ Tagesduell ═══════════════════════════════════════════════════
+// Alle spielen an einem Tag dieselben Karten in derselben Reihenfolge –
+// erst dadurch sind die Läufe vergleichbar, und man kann sich zeitversetzt
+// messen. Dafür darf am Deck nichts vom Gerät abhängen: kein Math.random,
+// keine Uhrzeit, keine Reihenfolge, die zufällig entsteht.
+
+// FNV-1a, dieselbe Streuung wie bei verlauf(). Aus dem Datum wird so ein
+// Seed, der sich zwischen zwei Tagen stark unterscheidet – fortlaufende
+// Zahlen als Seed ergäben bei vielen Generatoren ähnliche Folgen.
+function seedAus(text) {
+  let h = 2166136261;
+  const s = String(text);
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+// mulberry32. Muss auf jedem Gerät dieselbe Folge liefern, deshalb überall
+// Math.imul und |0 / >>> 0: damit wird durchweg in 32-Bit-Ganzzahlen
+// gerechnet und nicht in Fließkomma, wo die oberen Bits verloren gingen.
+function mulberry32(a) {
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Der laufende Tag in ZONE geschnitten – dieselbe Zone wie in den
+// Auswertungen, damit "heute" überall zur selben Minute wechselt.
+//
+// Bewusst eine Funktionsdeklaration und keine const-Pfeilfunktion: init()
+// wird im Modul weiter oben aufgerufen als diese Zeile steht, und
+// zeigeTagHinweis() fragt schon dort nach dem heutigen Tag. Als const läge
+// sie da noch in der temporalen Todeszone.
+//
+// Der ReferenceError fiele nicht auf, und das ist das Unangenehme daran: Das
+// try/catch in tagErgebnis() verschluckt ihn und meldet "heute noch nicht
+// gespielt". Der Startbildschirm lud dann jeden zu einem zweiten Lauf ein,
+// der beim Antippen überraschend in der Bestenliste endete – dort greift
+// derselbe Aufruf, weil das Modul längst fertig ausgewertet ist. Und nur
+// bei denen, die heute schon gespielt haben: ohne Vermerk kommt der Aufruf
+// wegen der &&-Auswertung gar nicht zustande.
+function heuteTag() {
+  return inZone(new Date()).slice(0, 10);
+}
+
+// Das Deck des Tages: Startkarte plus TAG_KARTEN zum Einsortieren.
+// Object.keys wird sortiert, bevor gemischt wird. Die Reihenfolge aus
+// songs.json ist nichts, worauf man sich verlassen kann, und eine andere
+// Ausgangsfolge ergäbe beim selben Seed ein anderes Deck.
+function tagesDeck(tag) {
+  const rnd = mulberry32(seedAus('1408|' + tag));
+  return shuffled(Object.keys(SONGS).sort(), rnd).slice(0, TAG_KARTEN + 1);
+}
+
+// Bisher verbrauchte Zeit: die festgehaltene, sobald der Lauf zu Ende ist,
+// sonst die laufende. Vor der ersten Karte null – die Uhr steht noch.
+function tagLaufzeit(st) {
+  if (st.dauerMs != null) return st.dauerMs;
+  return st.begonnen ? Math.max(0, serverNow() - st.begonnen) : 0;
+}
+
+// mm:ss,z – Zehntel, weil bei gleicher Fehlerzahl die Zeit entscheidet und
+// ganze Sekunden dort zu oft gleich wären.
+function uhrText(ms) {
+  const z = Math.max(0, Math.round((ms || 0) / 100));
+  return `${Math.floor(z / 600)}:${String(Math.floor(z / 10) % 60).padStart(2, '0')},${z % 10}`;
+}
+
+// "2026-08-12" → "12.08.2026". Nicht über Date: eine reine Datumszeichenkette
+// wird als UTC-Mitternacht gelesen und rutscht beim Anzeigen westlich von
+// Greenwich auf den Vortag.
+const datDe = t => t ? `${t.slice(8,10)}.${t.slice(5,7)}.${t.slice(0,4)}` : '';
+
+// Das Ergebnis von heute, sofern auf diesem Gerät gespielt. Der eindeutige
+// Index in der Datenbank ist die verbindliche Sperre (siehe
+// supabase-tagesduell.sql); dieser Vermerk hier macht nur den
+// Startbildschirm sofort richtig, ohne auf eine Antwort zu warten.
+function tagErgebnis() {
+  try {
+    const w = JSON.parse(localStorage.getItem(TAG_KEY) || 'null');
+    return w && w.tag === heuteTag() ? w : null;
+  } catch (e) { return null; }
+}
+
+function merkeTagErgebnis(st) {
+  try {
+    localStorage.setItem(TAG_KEY, JSON.stringify({
+      tag: st.tag, fehler: st.fehler, dauerMs: st.dauerMs
+    }));
+  } catch (e) {}
 }
 
 function newCode() {
@@ -1200,6 +1324,45 @@ function startSolo() {
   render();
 }
 
+// ── Tagesduell ───────────────────────────────────────────────────
+// Läuft auf derselben Solo-Mechanik: kein Netz, kein Warten, ein Sitz.
+// Unterschiede sind das gesetzte Deck (siehe tagesDeck), die feste Länge
+// statt der Leben und die Uhr. `tag` ist gleichzeitig das Kennzeichen, an
+// dem alle drei hängen – ohne ihn ist es eine gewöhnliche Solo-Partie.
+function startTagesduell() {
+  if (!SONGS) return setHomeStat('Songdaten laden noch…','');
+  const tag = heuteTag();
+  const deck = tagesDeck(tag);
+  seat = 'p1';
+  G = { code:null, version:0, state:{
+    solo: true,
+    tag,
+    phase: 'draw',
+    ziel: Infinity,
+    // Keine Leben. Nicht Infinity: der Zustand geht als JSON in den
+    // localStorage, und daraus würde null – "fehler >= null" ist ab dem
+    // ersten Fehler wahr, nach einem Neuladen wäre der Lauf sofort vorbei.
+    maxFehler: null,
+    fehler: 0,
+    partieId: neueId(),
+    // Die Uhr läuft erst mit der ersten Karte. Wer den Bildschirm liest,
+    // bevor er zieht, soll dafür keine Sekunden bezahlen.
+    begonnen: null,
+    dauerMs: null,
+    seats: { p1: { name: myName() }, p2: null },
+    turn: 'p1',
+    timelines: { p1: [deck.pop()], p2: [] },
+    deck,
+    current: null,
+    audio: { playing:false, startedAt:0, seek:0 },
+    result: null,
+    winner: null
+  }};
+  localStorage.setItem(STORE_KEY, JSON.stringify({ name: myName() }));
+  try { localStorage.setItem(SOLO_KEY, JSON.stringify(G.state)); } catch(e) {}
+  render();
+}
+
 // Bestwerte liegen als { name_key: karten } vor – einer je Spielername,
 // nicht einer fürs Gerät. Vorher stand hier eine blanke Zahl, und auf dem
 // Startbildschirm stand daneben "Dein Bestwert": Wer sie erspielt hatte,
@@ -1233,6 +1396,17 @@ function bestwert(name) { return besteAlle()[normName(name || statName())] || 0;
 function zeigeBestwert() {
   const b = bestwert();
   $('soloBest').textContent = b ? `Dein Bestwert: ${b} Karten` : '';
+}
+
+// Der Knopf hat zwei Zustände: noch nicht gespielt, oder heute erledigt.
+// Ein zweiter Lauf wird nicht angeboten – er wäre mit bekanntem Deck kein
+// Vergleich mehr, und die Datenbank nähme ihn ohnehin nicht an.
+function zeigeTagHinweis() {
+  const e = tagErgebnis();
+  $('btnTag').textContent = e ? 'Tagesduell ansehen' : 'Tagesduell';
+  $('tagHinweis').textContent = e
+    ? `Heute gespielt: ${e.fehler} ${e.fehler === 1 ? 'Fehler' : 'Fehler'} in ${uhrText(e.dauerMs)}.`
+    : `${TAG_KARTEN} Karten, für alle dieselben. Die Uhr läuft.`;
 }
 
 async function joinGame() {
@@ -1311,6 +1485,9 @@ async function leaveGame() {
   pendingGap = null; soloRekord = false;
   setHomeStat('','');
   zeigeBestwert();
+  // Auch der Tageshinweis, sonst stünde nach einem gerade beendeten Lauf
+  // weiter "die Uhr läuft" – der Vermerk dazu ist inzwischen geschrieben.
+  zeigeTagHinweis();
   show('homeScreen');
 }
 
@@ -1403,6 +1580,8 @@ async function startGame() {
 async function drawCard() {
   await commit(s => {
     if (s.phase !== 'draw' || s.turn !== seat) return null;
+    // Start der Stoppuhr, nur beim allerersten Ziehen des Tagesduells.
+    if (s.tag && !s.begonnen) s.begonnen = serverNow();
     s.current = s.deck.pop();
     // Läuft von selbst los. Der Vorlauf liegt in der Zukunft, damit beide
     // Geräte die Preview geladen haben, bevor Sekunde 0 fällt.
@@ -1482,7 +1661,20 @@ function auswerten(s, vetoZug) {
     // zeichnet commit() sofort neu, und renderOver liest soloRekord.
     // Der Name kommt aus dem Zustand, nicht aus dem Eingabefeld – dort
     // könnte inzwischen etwas anderes stehen.
-    if (s.fehler >= s.maxFehler) { s.soloAus = true; merkeBestwert(tlAktiv.length, s.seats?.p1?.name); }
+    // Tagesduell: keine Leben, gezählt wird stattdessen. Die Uhr hält an,
+    // sobald die letzte Karte ausgewertet ist – nicht erst beim Tastendruck
+    // danach, sonst zählte das Betrachten der letzten Auflösung mit.
+    // Festgehalten wird hier und nicht erst auf dem Endbildschirm, aus dem
+    // Grund, der über merkeBestwert steht: Wer den Tab jetzt zumacht, soll
+    // seinen Lauf nicht verlieren.
+    if (s.tag) {
+      if (!s.deck.length) {
+        s.dauerMs = Math.max(0, serverNow() - (s.begonnen || serverNow()));
+        merkeTagErgebnis(s);
+      }
+    } else if (s.fehler >= s.maxFehler) {
+      s.soloAus = true; merkeBestwert(tlAktiv.length, s.seats?.p1?.name);
+    }
   } else {
     for (const k of aktive(s)) {
       if (s.timelines[k].length >= s.ziel) { s.phase = 'over'; s.winner = k; }
@@ -1744,15 +1936,23 @@ function partieMerken(st) {
   // Diese Sperre sitzt im Arbeitsspeicher und ist nach einem Neuladen weg.
   // Deshalb liegt daneben die lauf_id im localStorage: die überlebt es, und
   // die Datenbank weist eine zweite Zeile mit derselben Kennung ab.
+  // Beim Tagesduell steht die Dauer schon im Zustand: sie wurde bei der
+  // letzten Auswertung angehalten. Sonst wird bis jetzt gerechnet.
+  const dauerMs = st.dauerMs ?? (st.begonnen ? Math.max(0, serverNow() - st.begonnen) : null);
   const gemeinsam = {
     partie_id: st.partieId ?? null,
     lauf_id:   laufId(st.partieId),
-    dauer_s:   st.begonnen ? Math.max(0, Math.round((serverNow() - st.begonnen) / 1000)) : null
+    dauer_s:   dauerMs == null ? null : Math.round(dauerMs / 1000),
+    dauer_ms:  dauerMs == null ? null : Math.round(dauerMs)
   };
 
   const zeilen = st.solo
     ? [{ ...gemeinsam,
-         name: st.seats.p1.name, modus: 'solo',
+         name: st.seats.p1.name,
+         // Eigener Modus, damit die Läufe nicht in der Solo-Bestenliste
+         // landen: dort wird nach Karten sortiert, hier nach Fehlern und Zeit.
+         modus: st.tag ? 'tag' : 'solo',
+         tag: st.tag ?? null,
          karten: st.timelines.p1.length, gewonnen: null, gegner: null,
          fehler: st.fehler ?? null }]
     : aktive(st).map(k => ({
@@ -1901,6 +2101,19 @@ function statBloecke() {
   // dort also kein Mangel, und der Kasten sagt auch warum.
   const NEU = 'Wird erst seit der Umstellung erfasst – zählt ab der nächsten Partie.';
   return [
+    // Fehler zuerst, Zeit bei Gleichstand – die Reihenfolge macht die SQL,
+    // der Platz kommt fertig mit. p_tag bleibt leer: die Funktion nimmt dann
+    // den heutigen Tag in ZONE, damit Client und Datenbank nicht auseinander
+    // laufen können.
+    { id:'statTag', ruf:['tagesbestenliste', { p_tag:null, p_limit:20 }],
+      mal: a => zeichneListe('statTag', a, 'Heute hat noch niemand gespielt.', r => `
+        <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
+          <span class="rang">${r.platz}</span>
+          <span class="znam">${esc(r.name)}</span>
+          <span class="zdat">${r.fehler} ${r.fehler === 1 ? 'Fehler' : 'Fehler'}</span>
+          <span class="zwert">${esc(uhrText(r.dauer_ms))}</span>
+        </div>`) },
+
     { id:'statBesten', ruf:['bestenliste', { p_limit:10, p_seit:seit }], mal:zeichneBesten },
     { id:'statDuell',  ruf:['duellbilanz', { p_seit:seit }],             mal:zeichneBilanz },
 
@@ -2206,9 +2419,20 @@ function weiterspielen() {
   aud.play().catch(() => {});
 }
 
+// Die Stoppuhr des Tagesduells läuft zwischen den Zeichenvorgängen weiter.
+// Nur dieses eine Feld anfassen und nicht neu zeichnen: renderGame baut die
+// Zeitleiste mit auf, und viermal je Sekunde neu wäre reine Verschwendung.
+// Zehntel brauchen mehr als 250 ms Takt nicht – schneller als das Auge.
+function uhrTick() {
+  if (!G || !G.state.tag || G.state.dauerMs != null) return;
+  const el = $('uhr');
+  if (el) el.textContent = uhrText(tagLaufzeit(G.state));
+}
+
 // Fortschrittsbalken und Veto-Countdown lokal, ohne Netzwerk
 tickTimer = setInterval(() => {
   vetoTick();
+  uhrTick();
   weiterspielen();
   if (!aud.duration || aud.paused) return;
   setFortschritt(aud.currentTime / aud.duration);
@@ -2284,9 +2508,25 @@ function renderGame(st) {
   const mine = st.turn === seat;
 
   // ── Punktestand ──
-  if (st.solo) {
+  // Die Klasse wird in jedem Zweig gesetzt und nicht nur im Duell: sonst
+  // bliebe ein `viele` aus einer Partie mit mehreren Mitspielern über den
+  // Moduswechsel hinweg stehen.
+  if (st.tag) {
+    // Statt Leben: wie weit, wie viele Fehler, wie lange. Der Fortschritt
+    // rechnet über das Deck, nicht über die Zeitleiste – die wächst nur bei
+    // richtigen Tipps und wäre als Zähler irreführend.
+    $('score').className = 'score drei';
+    $('score').innerHTML = `
+      <div class="seat active"><div class="nm">Karte</div>
+        <div class="ct">${TAG_KARTEN - st.deck.length} / ${TAG_KARTEN}</div></div>
+      <div class="seat"><div class="nm">Fehler</div>
+        <div class="ct">${st.fehler}</div></div>
+      <div class="seat"><div class="nm">Zeit</div>
+        <div class="ct" id="uhr">${uhrText(tagLaufzeit(st))}</div></div>`;
+  } else if (st.solo) {
     const herz = weg => `<svg class="${weg ? 'weg' : ''}" viewBox="0 0 95.2 100"><use href="#escherz"/></svg>`;
     const leben = Array.from({ length: st.maxFehler }, (_, i) => herz(i >= st.maxFehler - st.fehler)).join('');
+    $('score').className = 'score';
     $('score').innerHTML = `
       <div class="seat active"><div class="nm">Karten</div>
         <div class="ct">${st.timelines.p1.length}</div></div>
@@ -2774,6 +3014,28 @@ function revealHTML(id) {
 // Die Kennung kommt aus dem Zustand, nicht aus einer Modulvariablen – wer
 // die Seite kurz vorher neu geladen hat, hätte keine mehr, die partie_id
 // steht aber im wiederhergestellten Zustand.
+// Platzierung des Tages nachladen und an die Unterzeile hängen. Die eigene
+// Zeile kann noch unterwegs sein, wenn der Endbildschirm schon steht –
+// deshalb kurz warten und notfalls ein zweites Mal fragen, wie beim
+// Rückblick. Bleibt sie aus, steht dort eben nur Zeit und Fehler.
+async function tagPlatzLaden(st) {
+  if (!sb || !st.tag) return;
+  const ich = normName(statName());
+  const grund = $('overSub').textContent;
+  for (const pause of [400, 1600]) {
+    await new Promise(r => setTimeout(r, pause));
+    if (!G || G.state.partieId !== st.partieId) return;   // längst eine andere Partie
+    const { data, error } = await sb.rpc('tagesbestenliste', { p_tag: st.tag, p_limit: 50 });
+    if (error) return;
+    const zeilen = data || [];
+    const meine = zeilen.find(r => normName(r.name) === ich);
+    if (!meine) continue;
+    if (!G || G.state.partieId !== st.partieId) return;
+    $('overSub').textContent = `${grund} · Platz ${meine.platz} von ${zeilen.length}`;
+    return;
+  }
+}
+
 async function rueckblickLaden(st) {
   const kasten = $('rueckblick');
   const neue = rueckblickFuer !== st.partieId;
@@ -2826,6 +3088,22 @@ function renderOver(st) {
   stopAudio();
   localStorage.removeItem(SOLO_KEY);
   rueckblickLaden(st).catch(() => {});
+  // Zurücksetzen, weil der Tagesduell-Zweig ihn umbenennt: nach einem
+  // Tagesduell stünde sonst auch über einer Solo-Partie "Tagesbestenliste".
+  $('btnStatsOver').textContent = 'Bestenliste ansehen';
+
+  if (st.tag) {
+    const f = st.fehler;
+    $('overTitle').textContent = uhrText(st.dauerMs);
+    $('overSub').textContent =
+      `${f} ${f === 1 ? 'Fehler' : 'Fehler'} · Tagesduell vom ${datDe(st.tag)}`;
+    // Kein "Nochmal": es zählt nur der erste Lauf, und mit bekanntem Deck
+    // wäre ein zweiter kein Vergleich.
+    $('btnAgain').style.display = 'none';
+    $('btnStatsOver').textContent = 'Tagesbestenliste';
+    tagPlatzLaden(st).catch(() => {});
+    return;
+  }
 
   if (st.solo) {
     const n = st.timelines.p1.length;

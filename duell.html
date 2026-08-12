@@ -687,6 +687,11 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <input class="inp" id="nameInput" placeholder="Dein Name" maxlength="14" autocomplete="off">
   </div>
   <div class="actions">
+    <!-- Ganz oben, noch vor der Wahl des Spielmodus: die Kartenauswahl gilt
+         für Solo und Duell gleichermaßen. Nur das Tagesduell darunter
+         ignoriert sie – dessen Sinn ist ja das gemeinsame Deck. -->
+    <button class="btn ghost" id="btnFilter">Kartenauswahl</button>
+    <div class="sub" id="filterZeile"></div>
     <button class="btn prim" id="btnCreate">Neues Spiel starten</button>
     <div class="divider">oder</div>
     <input class="inp code" id="codeInput" placeholder="CODE" maxlength="5" autocomplete="off"
@@ -698,10 +703,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div class="divider">täglich</div>
     <button class="btn" id="btnTag">Tagesduell</button>
     <div class="sub" id="tagHinweis"></div>
-    <!-- Gilt für Solo und Duell, nicht fürs Tagesduell – deshalb steht der
-         Einstieg unter dem Tagesduell und nicht dazwischen. -->
-    <button class="btn ghost" id="btnFilter">Kartenauswahl</button>
-    <div class="sub" id="filterZeile"></div>
     <button class="btn ghost" id="btnStats">Bestenliste &amp; Statistik</button>
   </div>
   <div class="stat" id="homeStat"></div>
@@ -1614,14 +1615,16 @@ function auffrischenFilter() {
   zeigeFilterZeile();
 }
 
-// Zusammenfassung unter den Startknöpfen.
+// Zusammenfassung direkt unter dem Knopf. Die Zahl zuerst, weil sie das ist,
+// was man vor dem Start wissen will. Kein "Karten:"-Präfix und kein Hinweis
+// zum Antippen: Der Knopf darüber heißt schon "Kartenauswahl", und die Zeile
+// steht jetzt über dem Hauptknopf – jedes Wort weniger hält sie einzeilig.
 function zeigeFilterZeile() {
   const f = filterLaden();
   const t = filterText(f);
   const n = SONGS ? filterPool(f).length : 0;
-  $('filterZeile').textContent = t
-    ? `Karten: ${t} (${n})`
-    : 'Alle Karten – tippen zum Filtern';
+  const ganz = SONGS ? Object.keys(SONGS).length : 0;
+  $('filterZeile').textContent = t ? `${n} von ${ganz} · ${t}` : `Alle ${ganz} Karten`;
 }
 
 // ══ Tagesduell ═══════════════════════════════════════════════════

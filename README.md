@@ -39,6 +39,7 @@ supabase.js             Supabase-Bibliothek, eigenständig (siehe Fallstricke!)
 songs.json              336 Songs mit Vorschau-URLs — nur fürs Offlinespiel, unangetastet
 songs-online.json       1429 Songs fürs Onlinespiel (enthält die 336)
 flags/                  53 Herzflaggen als PNG, 128×128 — eine je Land der Online-Datei
+reactions/              8 Katzen als PNG, 320×320 — Reaktionen im Duell
 anleitung.html          Spielanleitung fürs gedruckte Kartenspiel
 anleitung-online.html   Spielanleitung für den Online-Modus (Prinzip, Solo vs. Mehrspieler, Veto)
 Logo.png / Logo.svg     Bildmarke (Logo.svg NICHT verwenden, siehe Fallstricke)
@@ -358,6 +359,44 @@ gewinnt, beim anderen findet der Mutator die Phase schon verändert vor und gibt
 
 `postgres_changes` auf `games`, gefiltert nach `code`. Dazu **alle 4 Sekunden ein Poll als
 Rückfall** — Realtime reißt bei Netzwechsel (WLAN → mobil) still ab.
+
+### Katzen-Reaktionen
+
+Ein Knopf unten rechts, aufgefaltet erscheinen acht Katzen (`reactions/`), eine Auswahl fliegt
+bei allen Mitspielern ein. Nur im Duell — im Solo und Tagesduell wäre niemand da, der sie sieht,
+deshalb schaltet `renderGame()` den Knopf nur bei `!st.solo && mitspieler(...).length > 0`.
+
+**Sie laufen über Realtime-Broadcast, nicht über den Spielzustand.** Das ist die eine
+Entscheidung, die hier zählt: Eine Katze ist flüchtig. Im Zustand wäre sie ein Schreibvorgang mit
+neuer Versionsnummer, würde also mit dem optimistischen Sperren beim Einloggen einer Karte
+konkurrieren, in der Datenbank stehen bleiben und nach einem Neuladen erneut auftauchen. Über
+`channel.send({ type:'broadcast', event:'katze', … })` passiert nichts davon. Der Preis: Reißt
+Realtime ab, geht die Katze verloren — der 4-Sekunden-Poll holt nur Zustände nach, keine
+Broadcasts. Für Zierrat ist das der richtige Tausch.
+
+**Der eigene Broadcast kommt nicht zurück** (`self` ist standardmäßig aus), deshalb zeigt
+`reaktionSenden()` die eigene Katze sofort örtlich an — was ohnehin die schnellere Rückmeldung
+ist. Alles von außen wird geprüft: ein unbekannter Dateiname wird verworfen (feste Liste
+`KATZEN`), und der fremde Anzeigename geht über `textContent` in den DOM, nie über `innerHTML`.
+
+Drei Sachen, die beim Bauen nicht auf Anhieb saßen:
+
+* **Die Winkel.** `fuelleKatzen()` rechnet `y = -r·sin θ`, weil y auf dem Bildschirm nach unten
+  zeigt. Damit heißt 180° links und 90° oben, der Bogen läuft also von 178° **abwärts** auf 88°.
+  Mit 178→268 fiel er nach unten aus dem Bild (gemessen: fünf von acht Katzen außerhalb).
+* **Zwei Bögen statt einem.** Vier Katzen je Bogen liegen 25,7° auseinander; die Sehne
+  2·r·sin(12,86°) muss über dem Knopfdurchmesser von 42px liegen, also r > 108. Mit r=88 lagen
+  sie übereinander (39px Sehne). Jetzt 112 innen, 168 außen.
+* **Knopf und Katzen liegen außerhalb der Bildschirme**, obwohl sie nur zum Spielbildschirm
+  gehören. `.screen.hidden` trägt ein `transform`, und das spannt für `position:fixed` einen
+  eigenen Bezugsrahmen auf — als Kind läge der Knopf relativ zum geschrumpften Bildschirm und
+  wanderte beim Ein- und Ausblenden sichtbar umher. Ausgeschaltet werden sie deshalb in `show()`,
+  derselben Stelle, die auch den Statistik-Vermerk führt.
+
+Gebremst wird zweifach: `REAKT_SPERRE` (1,2 s) sperrt den Knopf nach dem Senden sichtbar, und
+`REAKT_MAX` (3) begrenzt, wie viele gleichzeitig im Bild sein können — bei zwei tippfreudigen
+Spielern wäre der Bildschirm sonst zugeklebt. Aufgeräumt wird per `animationend` **und** per
+Timer: Bei einem Tabwechsel bleibt das Ereignis aus, und die Katze stünde für immer im DOM.
 
 ### Audio-Synchronisation
 

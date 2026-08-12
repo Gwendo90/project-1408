@@ -327,6 +327,86 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
            color:var(--muted); text-align:center; min-height:0; }
 .hinweis:not(:empty) { padding:2px 0; }
 
+/* ── Katzen-Reaktionen (nur im Duell) ──────────────────────────────
+   Der Knopf klebt unten rechts über dem Spielfeld. position:fixed und
+   nicht absolute: der Spielbildschirm ist zwar selbst schon fixiert, aber
+   die Auswahl darf über seinen Innenabstand hinausragen. */
+.reaktBtn { position:fixed; z-index:60;
+            right:max(env(safe-area-inset-right),16px);
+            bottom:calc(max(env(safe-area-inset-bottom),16px) + 62px);
+            width:46px; height:46px; border-radius:50%; border:1px solid var(--border);
+            background:var(--surface); box-shadow:0 6px 20px rgba(40,30,80,.14);
+            display:none; align-items:center; justify-content:center; padding:0;
+            cursor:pointer; -webkit-appearance:none; font-size:22px; line-height:1;
+            transition:transform .18s, box-shadow .18s; }
+.reaktBtn.da { display:flex; }
+.reaktBtn:active { transform:scale(.92); }
+/* Offen: dieselbe Sprache wie beim eingeschalteten Umschalter (.segbtn.on).
+   Ein bloßes Drehen wie bei einem Plus-Kreuz reicht hier nicht – mit einem
+   Emoji darauf sähe der Knopf nur schief aus und wäre von den Katzen
+   daneben kaum zu unterscheiden. */
+.reaktBtn.offen { background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
+                  border-color:transparent; box-shadow:0 8px 24px rgba(158,34,180,.34); }
+/* Kurze Sperre nach dem Senden: sichtbar, damit klar ist, warum nichts geht. */
+.reaktBtn:disabled { opacity:.45; cursor:default; }
+
+/* Auffangfläche, die das Schließen per Tippen daneben erlaubt. Deckt alles
+   ab, liegt aber unter Knopf und Katzen. */
+.reaktHuelle { position:fixed; inset:0; z-index:55; display:none; }
+.reaktHuelle.da { display:block; }
+
+/* Die acht Katzen liegen alle im selben Punkt wie der Knopf und werden per
+   --x/--y an ihren Platz geschoben. Die Werte setzt das JS, weil sie aus
+   Winkel und Radius gerechnet werden – im CSS wäre das acht Mal dasselbe
+   von Hand. Im geschlossenen Zustand sitzen alle in der Mitte und sind
+   unsichtbar, das ergibt das Auffalten von selbst. */
+.reaktWahl { position:fixed; z-index:61;
+             right:calc(max(env(safe-area-inset-right),16px) + 23px);
+             bottom:calc(max(env(safe-area-inset-bottom),16px) + 62px + 23px);
+             width:0; height:0; pointer-events:none; }
+.reaktWahl button { position:absolute; left:-21px; top:-21px;
+                    width:42px; height:42px; border-radius:50%; padding:0;
+                    border:1px solid var(--border); background:var(--surface);
+                    box-shadow:0 4px 14px rgba(40,30,80,.13);
+                    cursor:pointer; -webkit-appearance:none;
+                    opacity:0; transform:translate(0,0) scale(.4);
+                    transition:transform .26s cubic-bezier(.34,1.56,.64,1), opacity .18s; }
+.reaktWahl button img { width:78%; height:78%; display:block; margin:11%; }
+.reaktWahl.da { pointer-events:auto; }
+.reaktWahl.da button { opacity:1; transform:translate(var(--x),var(--y)) scale(1); }
+.reaktWahl button:active { filter:brightness(.92); }
+
+/* Die einfliegende Katze. pointer-events:none ist wichtig – sie zieht über
+   das Spielfeld und darf keinen Tipp abfangen. Sie kommt von rechts unten
+   herein (dort sitzt der Knopf), federt kurz und schwebt dann nach oben
+   aus dem Bild. Die Animation läuft einmal, danach räumt das JS auf. */
+/* Auf halber Höhe rechts: hoch genug, dass sie nicht im Auffaltbereich der
+   Auswahl landet, und tief genug, dass sie die Karte nicht verdeckt.
+   pointer-events:none macht die Lage ohnehin unkritisch – sie fängt keinen
+   Tipp ab –, aber sichtbar sein soll sie trotzdem. */
+.reaktFlug { position:fixed; z-index:58; pointer-events:none;
+             right:6%; bottom:42%; width:min(36vw,144px);
+             display:flex; flex-direction:column; align-items:center; gap:4px;
+             animation:reaktEin .55s cubic-bezier(.2,1.5,.4,1) forwards,
+                       reaktAus .7s ease-in 1.5s forwards; }
+.reaktFlug img { width:100%; height:auto; display:block;
+                 filter:drop-shadow(0 8px 18px rgba(40,30,80,.22)); }
+.reaktFlug span { font-size:11px; font-weight:700; letter-spacing:.4px;
+                  color:var(--muted); background:var(--surface);
+                  border:1px solid var(--border); border-radius:50px; padding:3px 9px;
+                  max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@keyframes reaktEin {
+  from { opacity:0; transform:translate(60px,70px) scale(.3) rotate(14deg); }
+  to   { opacity:1; transform:translate(0,0) scale(1) rotate(0); }
+}
+@keyframes reaktAus {
+  from { opacity:1; transform:translate(0,0) scale(1); }
+  to   { opacity:0; transform:translate(0,-90px) scale(.86); }
+}
+/* Mehrere gleichzeitig sollen sich nicht deckungsgleich überlagern. */
+.reaktFlug.v1 { right:30%; bottom:52%; }
+.reaktFlug.v2 { right:52%; bottom:38%; }
+
 /* Verlassen-Knopf: klein, oben rechts, mit Rückfrage */
 .raus { position:absolute; z-index:5; top:max(env(safe-area-inset-top),10px); right:18px;
         padding:4px 2px; border:none; background:none; cursor:pointer;
@@ -783,6 +863,21 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   </symbol>
 </svg>
 
+<!-- ══ KATZEN-REAKTIONEN ═══════════════════════════════════════
+     Bewusst außerhalb der Bildschirme, obwohl sie nur zum Spielbildschirm
+     gehören: .screen.hidden trägt ein transform, und das spannt für
+     position:fixed einen eigenen Bezugsrahmen auf – als Kind läge der Knopf
+     dann relativ zum geschrumpften Bildschirm statt zum Fenster und wanderte
+     während der Ein-/Ausblende sichtbar umher. Ein- und ausgeschaltet wird
+     über die Klasse .da, gesetzt von renderGame() und gelöscht von show().
+     Die Knöpfe füllt fuelleKatzen() beim Start, damit die Liste der Katzen
+     nur einmal im JS steht. -->
+<!-- 🐈 als einzelnes Zeichen, nicht 🐈‍⬛: das ist eine ZWJ-Verbindung und
+     zerfällt auf älteren Geräten in Katze plus schwarzes Viereck. -->
+<button class="reaktBtn" id="btnReakt" aria-label="Reaktion senden">🐈</button>
+<div class="reaktHuelle" id="reaktHuelle"></div>
+<div class="reaktWahl" id="reaktWahl"></div>
+
 <div class="cf" id="cf"></div>
 <audio id="aud" preload="auto" playsinline></audio>
 
@@ -823,6 +918,28 @@ const VETO_U = 2 * Math.PI * VETO_R;
 // Fortschrittsring der Playbutton-Scheibe, Radius im 200er-Viewport.
 const PLAY_R = 42;
 const PLAY_U = 2 * Math.PI * PLAY_R;
+// Katzen-Reaktionen. Die Dateinamen sind die Kennung, die über die Leitung
+// geht – deshalb steht hier eine feste Liste und nicht das, was gerade im
+// Ordner liegt: Ein unbekannter Name vom anderen Gerät wird verworfen,
+// statt ein fehlendes Bild anzuzeigen.
+const KATZEN = ['cat-playful', 'cat-superhero', 'cat-angel', 'cat-curious',
+                'cat-grumpy', 'cat-sailing', 'cat-pool-float', 'cat-sleeping'];
+// Zwei versetzte Bögen um den Knopf, der unten rechts sitzt – aufgefaltet
+// wird also nach links und oben.
+//
+// Winkel im gewöhnlichen Sinn, aber y zeigt auf dem Bildschirm nach unten,
+// deshalb rechnet fuelleKatzen() mit -sin. Damit heißt 180° links, 90° oben,
+// und der Bogen läuft von 178° *abwärts* auf 88°. Mit 178→268 fiel er
+// stattdessen nach unten aus dem Bild (gemessen: fünf von acht Katzen
+// außerhalb, eine Überlappung).
+//
+// Zwei Bögen, weil acht Katzen auf einem einzigen zu eng stünden: Vier je
+// Bogen liegen 25,7° auseinander, die Sehne 2·r·sin(12,86°) muss über dem
+// Knopfdurchmesser von 42px liegen. Das heißt r > 108, also 112 innen; der
+// äußere 56px weiter, damit sich auch die Bögen nicht berühren.
+const KATZ_BOGEN = { r: [112, 168], von: 178, bis: 88 };
+const REAKT_SPERRE = 1200;              // Mindestabstand zweier Reaktionen
+const REAKT_MAX = 3;                    // so viele gleichzeitig im Bild
 // Vorlauf beim Autostart: beide Geräte bekommen Zeit, die Preview zu laden,
 // damit der Song bei beiden wirklich bei Sekunde 0 beginnt statt mittendrin.
 const VORLAUF_MS = 900;
@@ -881,6 +998,15 @@ function naechster(st, von) {
 }
 const show = id => {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('hidden', s.id !== id));
+  // Die Katzen liegen außerhalb der Bildschirme (siehe dort) und verschwinden
+  // deshalb nicht von selbst mit. renderGame() schaltet sie wieder ein.
+  if (id !== 'gameScreen') {
+    $('btnReakt').classList.remove('da');
+    katzenAuswahl(false);
+    // Auch fliegende Katzen abräumen – sonst schwebte eine über dem
+    // Endbildschirm weiter, die zur gerade beendeten Partie gehörte.
+    document.querySelectorAll('.reaktFlug').forEach(e => e.remove());
+  }
   // Die einzige Stelle, an der der Bildschirm wechselt – deshalb steht hier,
   // ob die Statistik offen ist. Jeder Weg von ihr weg geht darüber, keiner
   // muss selbst daran denken.
@@ -1001,6 +1127,12 @@ async function init() {
   document.addEventListener('pointerdown', unlockAudio, { once:true });
 
   aud.addEventListener('ended', onAudioEnded);
+  // Katzen: Auswahl einmal bauen, Knopf schaltet sie um, Tippen daneben
+  // schließt sie wieder.
+  fuelleKatzen();
+  $('btnReakt').addEventListener('click', () =>
+    katzenAuswahl(!$('reaktWahl').classList.contains('da')));
+  $('reaktHuelle').addEventListener('click', () => katzenAuswahl(false));
   ziehenEinrichten();
 
   const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
@@ -1509,6 +1641,11 @@ async function subscribe(code) {
     .on('postgres_changes',
         { event:'UPDATE', schema:'public', table:'games', filter:'code=eq.'+code },
         p => adopt(p.new))
+    // Katzen laufen über Broadcast, nicht über den Spielzustand. Sie sind
+    // flüchtig: kein Eintrag in der Datenbank, keine neue Version, also auch
+    // kein Streit mit dem optimistischen Sperren beim Einloggen einer Karte.
+    // Und nach einem Neuladen taucht keine alte Katze wieder auf.
+    .on('broadcast', { event:'katze' }, p => reaktionEmpfangen(p.payload))
     .subscribe();
 
   // Fallback: Realtime kann bei Netzwechsel (WLAN → mobil) still abreißen.
@@ -1518,6 +1655,99 @@ async function subscribe(code) {
     const { data } = await sb.from('games').select().eq('code', G.code).maybeSingle();
     if (data && data.version > G.version) adopt(data);
   }, 4000);
+}
+
+// ══ Katzen-Reaktionen ════════════════════════════════════════════
+// Die Auswahl wird einmal beim Start gebaut. Die Plätze auf den beiden
+// Bögen werden hier gerechnet und als --x/--y an die Knöpfe geschrieben:
+// im CSS stünde derselbe Sinus achtmal von Hand.
+function fuelleKatzen() {
+  const wahl = $('reaktWahl');
+  const { r, von, bis } = KATZ_BOGEN;
+  const schritt = (bis - von) / (KATZEN.length - 1);
+  KATZEN.forEach((k, i) => {
+    const winkel = (von + i * schritt) * Math.PI / 180;
+    // Jede zweite Katze auf den äußeren Bogen. cos/sin im Bildschirmsinn:
+    // y wächst nach unten, deshalb das Minus.
+    const radius = r[i % 2];
+    const b = document.createElement('button');
+    b.style.setProperty('--x', (Math.cos(winkel) * radius).toFixed(1) + 'px');
+    b.style.setProperty('--y', (-Math.sin(winkel) * radius).toFixed(1) + 'px');
+    // Die Auffaltung läuft gestaffelt, das wirkt lebendiger als alle zugleich.
+    b.style.transitionDelay = (i * 22) + 'ms';
+    b.title = k.replace('cat-', '').replace('-', ' ');
+    b.innerHTML = `<img src="reactions/${k}.png" alt="" width="320" height="320">`;
+    b.addEventListener('click', () => { katzenAuswahl(false); reaktionSenden(k); });
+    wahl.appendChild(b);
+  });
+}
+
+function katzenAuswahl(auf) {
+  $('reaktWahl').classList.toggle('da', auf);
+  $('reaktHuelle').classList.toggle('da', auf);
+  $('btnReakt').classList.toggle('offen', auf);
+}
+
+// Senden heißt: selbst sofort zeigen und hinausschicken. Der eigene
+// Broadcast kommt nicht zurück (self ist standardmäßig aus), deshalb die
+// örtliche Anzeige – sie ist ohnehin die schnellere Rückmeldung.
+let reaktZuletzt = 0;
+function reaktionSenden(katze) {
+  if (!G || G.state.solo || !channel) return;
+  const jetzt = Date.now();
+  if (jetzt - reaktZuletzt < REAKT_SPERRE) return;
+  reaktZuletzt = jetzt;
+  // Kurz sperren, damit der Knopf nicht zum Trommeln einlädt.
+  const b = $('btnReakt');
+  b.disabled = true;
+  setTimeout(() => { b.disabled = false; }, REAKT_SPERRE);
+
+  zeigeReaktion(katze, G.state.seats?.[seat]?.name || myName());
+  // Ohne await und mit stiller Abfuhr: eine verlorene Katze ist kein Fehler,
+  // der jemanden aufhalten darf.
+  try {
+    channel.send({ type:'broadcast', event:'katze',
+                   payload:{ katze, name: G.state.seats?.[seat]?.name || myName() } });
+  } catch (e) {}
+}
+
+function reaktionEmpfangen(p) {
+  // Alles von außen wird geprüft: Ein unbekannter Name wäre ein fehlendes
+  // Bild, und der Anzeigename geht ungefiltert in den DOM – deshalb kurz
+  // halten und über textContent setzen (siehe zeigeReaktion).
+  if (!p || !KATZEN.includes(p.katze)) return;
+  zeigeReaktion(p.katze, String(p.name || '').slice(0, 14));
+}
+
+function zeigeReaktion(katze, name) {
+  // An den body und nicht in den Spielbildschirm, aus demselben Grund wie
+  // beim Knopf: dessen transform beim Ein- und Ausblenden würde die fliegende
+  // Katze mitziehen.
+  const buehne = document.body;
+  // Nicht mehr als REAKT_MAX gleichzeitig: bei zwei tippfreudigen Spielern
+  // wäre der Bildschirm sonst zugeklebt. Die älteste weicht.
+  const laufende = buehne.querySelectorAll('.reaktFlug');
+  if (laufende.length >= REAKT_MAX) laufende[0].remove();
+
+  const el = document.createElement('div');
+  el.className = 'reaktFlug v' + (buehne.querySelectorAll('.reaktFlug').length % 3);
+  const img = document.createElement('img');
+  img.src = `reactions/${katze}.png`;
+  img.width = img.height = 320;
+  img.alt = '';
+  el.appendChild(img);
+  if (name) {
+    const s = document.createElement('span');
+    s.textContent = name;          // textContent, nicht innerHTML: fremder Name
+    el.appendChild(s);
+  }
+  // Aufräumen, wenn die zweite Animation durch ist. Der Rückfall per Timer
+  // ist nötig, weil animationend bei einem Tabwechsel ausbleiben kann und
+  // die Katze dann für immer im DOM stünde.
+  const weg = () => el.remove();
+  el.addEventListener('animationend', e => { if (e.animationName === 'reaktAus') weg(); });
+  setTimeout(weg, 3000);
+  buehne.appendChild(el);
 }
 
 function adopt(row) {
@@ -2517,6 +2747,13 @@ function renderGame(st) {
   show('gameScreen');
   if (!$('btnRaus').classList.contains('frag')) rausZuruecksetzen();
   const mine = st.turn === seat;
+
+  // Katzen nur im Duell und nur, solange noch jemand mitspielt: allein wäre
+  // niemand da, der sie sieht. Beim Wegschalten die Auswahl mitschließen,
+  // sonst bliebe sie über dem Endbildschirm offen stehen.
+  const katzenAn = !st.solo && mitspieler(st, seat).length > 0;
+  $('btnReakt').classList.toggle('da', katzenAn);
+  if (!katzenAn) katzenAuswahl(false);
 
   // ── Punktestand ──
   // Die Klasse wird in jedem Zweig gesetzt und nicht nur im Duell: sonst

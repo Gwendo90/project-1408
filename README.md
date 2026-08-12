@@ -402,6 +402,28 @@ absolut gesetzter Knopf würde beim Scrollen nach oben aus dem Bild wandern. Wei
 geklebten Zustand über den Kästen liegt, hat er eine eigene Fläche — sonst liefe der Text
 darunter durch.
 
+**Ein Neuladen behält die Seite.** Wer auf der Statistik F5 drückt, landete vorher auf dem
+Startbildschirm. `SICHT_KEY` hält jetzt fest, dass die Seite offen ist, dazu beide Umschalter
+und den Scrollstand. Das ist der **einzige Schlüssel im `sessionStorage`** statt im
+`localStorage`: ein Neuladen soll die Seite behalten, ein Besuch morgen aber wieder am Start
+beginnen, und in einem zweiten Tab hat der Stand nichts zu suchen. Drei Feinheiten, die man
+beim Nachbauen falsch machen kann:
+
+* **Geschrieben wird in `show()`**, der einzigen Stelle, an der der Bildschirm wechselt. Jeder
+  Weg von der Seite weg geht darüber, keiner muss selbst daran denken.
+* **`statistikWieder()` steht am Ende von `init()`**, hinter dem Wiederaufnehmen einer laufenden
+  Partie. Die zeichnet den Spielbildschirm, und die Statistik muss darüber liegen — der
+  Zurück-Knopf findet die Partie dann trotzdem vor und führt ins Spiel statt auf den Start.
+  Damit dieses erste `show('gameScreen')` den Schlüssel nicht löscht, bevor ihn jemand gelesen
+  hat, schreibt `statistikMerken()` nur bei echter Änderung. Der Vergleich ist nicht bloß
+  Sparsamkeit gegen das im Sekundentakt laufende `render()`, er ist tragend.
+* **Gescrollt wird erst nach `await zeigeStatistik()`.** Solange in allen Kästen „lädt…" steht,
+  ist die Seite ein Vielfaches kürzer, und der Scrollstand würde auf deren Ende
+  zusammengestaucht.
+
+Ohne Verbindung zur Datenbank bricht `init()` vorher ab und bleibt am Startbildschirm — dort
+steht dann die Fehlermeldung, die auf der Statistik niemand zu sehen bekäme.
+
 Geholt wird mit `Promise.allSettled`, und **jeder Kasten zeichnet für sich**, sobald seine
 Antwort da ist. Mit einem `Promise.all` über acht Aufrufe würde der langsamste zum
 Taktgeber für alle, und ein einziger Fehlschlag ließe die ganze Seite auf „lädt…" stehen.

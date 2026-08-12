@@ -785,6 +785,11 @@ const BEST_KEY  = 'duell1408best';      // Bestwert im Solo-Modus
 const LAUF_KEY  = 'duell1408lauf';      // Kennung dieses Geräts für die laufende Partie
 const NACH_KEY  = 'duell1408nachtrag';  // Partien, die nicht durchkamen
 const NACH_MAX  = 5;                    // so oft wird eine nachgereicht
+// Offene Statistikseite samt Umschaltern und Scrollstand. Der einzige
+// Schlüssel im sessionStorage statt im localStorage: ein Neuladen soll die
+// Seite behalten, ein neuer Besuch morgen aber wieder am Start beginnen –
+// und in einem zweiten Tab hat er nichts zu suchen.
+const SICHT_KEY = 'duell1408statistik';
 // Muss zur Zeitzone in den SQL-Auswertungen passen (supabase-statistik-2.sql).
 const ZONE = 'Europe/Zurich';
 const SOLO_FEHLER = 3;                  // nach dem dritten Fehler ist Schluss
@@ -853,8 +858,46 @@ function naechster(st, von) {
   }
   return a[0];
 }
-const show = id => document.querySelectorAll('.screen')
-  .forEach(s => s.classList.toggle('hidden', s.id !== id));
+const show = id => {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('hidden', s.id !== id));
+  // Die einzige Stelle, an der der Bildschirm wechselt – deshalb steht hier,
+  // ob die Statistik offen ist. Jeder Weg von ihr weg geht darüber, keiner
+  // muss selbst daran denken.
+  statistikMerken();
+};
+
+// Was ein Neuladen zurückholen soll: die offene Statistikseite mit beiden
+// Umschaltern und dem Scrollstand. Liest den Zustand aus dem DOM statt ihn
+// übergeben zu bekommen, damit kein Aufrufer etwas Falsches mitgeben kann.
+//
+// Der Vergleich mit dem letzten Stand ist nicht bloß Sparsamkeit, obwohl
+// render() den Bildschirm im Sekundentakt neu setzt: Beim Wiederaufnehmen
+// einer laufenden Partie zeigt init() erst das Spiel und holt die Statistik
+// danach zurück. Würde dieses erste show('gameScreen') den Schlüssel gleich
+// löschen, wäre er weg, bevor ihn jemand gelesen hat.
+//
+// Im privaten Modus wirft sessionStorage – dann eben ohne, das ist kein
+// Grund, einen Bildschirmwechsel scheitern zu lassen.
+let sichtGemerkt = null;
+function statistikMerken() {
+  const wert = $('statsScreen').classList.contains('hidden') ? null : JSON.stringify({
+    sicht:  statSicht,
+    zeit:   statZeit,
+    scroll: Math.round($('statsScreen').scrollTop)
+  });
+  if (wert === sichtGemerkt) return;
+  sichtGemerkt = wert;
+  try {
+    if (wert) sessionStorage.setItem(SICHT_KEY, wert);
+    else sessionStorage.removeItem(SICHT_KEY);
+  } catch (e) {}
+}
+
+// Umschalter auf einen Wert stellen. Wird beim Klicken gebraucht und beim
+// Wiederherstellen nach dem Neuladen – dort stünden sie sonst weiter auf
+// ihrer Grundstellung, während die Zahlen darunter etwas anderes zeigen.
+const segStellen = (id, merkmal, wert) => [...$(id).children]
+  .forEach(b => b.classList.toggle('on', b.dataset[merkmal] === wert));
 const setStat = (m,c) => { const e=$('stat'); e.textContent=m; e.className='stat'+(c?' '+c:''); };
 const setHomeStat = (m,c) => { const e=$('homeStat'); e.textContent=m; e.className='stat'+(c?' '+c:''); };
 const song = id => SONGS ? SONGS[id] : null;
@@ -898,11 +941,18 @@ async function init() {
     const wert = b && b.dataset[merkmal];
     if (!wert || wert === lies()) return;
     schreib(wert);
-    [...$(id).children].forEach(x => x.classList.toggle('on', x === b));
+    segStellen(id, merkmal, wert);
     zeigeStatistik();
   });
   segBinden('statSeg',  'sicht', () => statSicht, v => statSicht = v);
   segBinden('statZeit', 'zeit',  () => statZeit,  v => statZeit  = v);
+  // Scrollstand mitschreiben, damit ein Neuladen an derselben Stelle
+  // weitermacht. Gedrosselt, das Ereignis feuert sonst bei jedem Pixel.
+  let scrollMerker = null;
+  $('statsScreen').addEventListener('scroll', () => {
+    clearTimeout(scrollMerker);
+    scrollMerker = setTimeout(statistikMerken, 200);
+  }, { passive:true });
   $('btnLeaveLobby').addEventListener('click', leaveGame);
   $('btnHome').addEventListener('click', leaveGame);
   $('btnStart').addEventListener('click', startGame);
@@ -950,11 +1000,39 @@ async function init() {
     const { data } = await sb.from('games').select().eq('code', saved.code).maybeSingle();
     if (data && data.state.phase !== 'over') {
       seat = saved.seat; adopt(data); await subscribe(saved.code);
-      return;
+      return statistikWieder();
     }
   }
   const soloSt = JSON.parse(localStorage.getItem(SOLO_KEY) || 'null');
   if (soloSt && soloSt.phase !== 'over') { seat = 'p1'; G = { code:null, version:0, state:soloSt }; render(); }
+  return statistikWieder();
+}
+
+// Nach einem Neuladen zurück in die Statistik, wenn sie offen war. Steht
+// bewusst am Ende von init(), hinter dem Wiederaufnehmen einer laufenden
+// Partie: die zeichnet den Spielbildschirm, und die Statistik muss darüber
+// liegen, nicht darunter. Der Zurück-Knopf findet die Partie so trotzdem vor
+// und führt wieder ins Spiel statt auf den Startbildschirm.
+async function statistikWieder() {
+  let merk = null;
+  try { merk = JSON.parse(sessionStorage.getItem(SICHT_KEY) || 'null'); } catch (e) {}
+  if (!merk) return;
+  // Nur bekannte Werte übernehmen: im sessionStorage kann alles stehen, und
+  // ein Tippfehler darin würde sonst leere Kästen erzeugen.
+  if (merk.sicht === 'ich' || merk.sicht === 'alle')    statSicht = merk.sicht;
+  if (merk.zeit  === 'alles' || merk.zeit  === 'monat') statZeit  = merk.zeit;
+  segStellen('statSeg',  'sicht', statSicht);
+  segStellen('statZeit', 'zeit',  statZeit);
+  // Erst scrollen, wenn die Kästen gefüllt sind: solange überall "lädt…"
+  // steht, ist die Seite viel kürzer, und der Scrollstand würde auf deren
+  // Ende zusammengestaucht.
+  await zeigeStatistik();
+  $('statsScreen').scrollTop = merk.scroll || 0;
+  // Gleich festhalten und nicht auf das Scroll-Ereignis warten: wer zweimal
+  // hintereinander neu lädt, ohne die Seite anzufassen, landete sonst beim
+  // zweiten Mal wieder oben – show() hat den Stand beim Einblenden mit der
+  // 0 überschrieben, die vor dieser Zeile noch galt.
+  statistikMerken();
 }
 
 function fail(msg) {

@@ -267,6 +267,46 @@ diese Prüfung nie zurück. Die Funktion nimmt die Wiedergabe nur wieder auf und
 `audioAnweisung` verhindern soll. Sie greift ausschließlich in `turn` und `veto`, nie während
 Vorlauf oder nach dem Durchlaufen.
 
+#### Freischalten (`unlockAudio`) — und was daran zweimal schiefging
+
+iOS und Android erlauben programmatisches `play()` erst, wenn das Element einmal **aus einer
+Nutzergeste heraus** gespielt hat. Der wartende Spieler tippt aber nicht, also wird beim ersten
+Antippen irgendwo auf der Seite freigeschaltet.
+
+Ursprünglich immer über ein stummes Schnipsel (`SILENT`) auf demselben `<audio>`-Element. Auf
+dem Startbildschirm ist das harmlos — dort ist es leer. **Nach einem Neuladen mitten in der
+Partie steckt aber schon eine Preview darin**, und die war nach dem ersten Antippen weg: Das
+Umschalten setzt Dauer und Position zurück, und zurückgelegt wurde die Quelle nur im
+Erfolgsfall von `play()`. Genau der tritt hier nicht ein — nachgemessen im Kopfmodus:
+
+| Lage | `play()` auf `SILENT` | Folge vorher |
+|---|---|---|
+| ohne Geste (Zustand vor dem ersten Tippen) | wird abgelehnt | Quelle bleibt stumm |
+| Autoplay erlaubt | löst sich **nie** auf (`SILENT` hat Dauer 0 bzw. `Infinity`) | Quelle bleibt stumm |
+
+Und weil `syncAudio()` die Quelle nur bei einem **Kartenwechsel** neu setzte, kam die Preview
+für den Rest der Karte nicht wieder: kein Ton, Anzeige klebt auf „Lädt…", Playbutton ohne
+Wirkung. Im Duell fällt das besonders auf, weil der wartende Spieler nach dem Neuladen keinen
+Grund hat, irgendetwas anzutippen, bevor er hören will.
+
+Deshalb jetzt:
+
+* **Freigeschaltet wird mit dem, was schon geladen ist.** Steckt die Preview der aktuellen
+  Karte im Element, wird sie selbst angespielt — schaltet genauso frei, kann aber nichts
+  verlieren. Nur bei leerem Element kommt das stumme Schnipsel zum Einsatz. Danach
+  `audioAnweisung = null` und neu zeichnen, damit `syncAudio()` pausiert/läuft und die Position
+  wieder auf den Spielzustand bringt.
+* **`syncAudio()` und `weiterspielen()` prüfen die Quelle**, nicht nur die Kartennummer. Steht
+  etwas Fremdes im Element, wird die Preview neu gesetzt. Das fängt auch den Fall auf, dass iOS
+  geladene Medien im Hintergrund von sich aus hinauswirft.
+* **`previewUrl()` löst die Adresse auf**, statt `s.pr` direkt zu vergleichen. `aud.src` gibt
+  immer die aufgelöste Form zurück; mit einem relativen Eintrag in `songs.json` wäre der
+  Vergleich nie gleich und die Quelle würde bei jedem Zeichnen neu geladen — eine Endlosschleife
+  aus „Lädt…". Heute stehen dort absolute Adressen, das soll aber nicht die Bedingung sein.
+* **`onAudioEnded()` reagiert nur auf die Preview.** Läge das stumme Schnipsel im Element,
+  würde sein sofortiges Ende als „Song durchgelaufen" gelesen — und der Spieler am Ball
+  schaltete damit den Ton für **beide** ab.
+
 ### Kartenoptik
 
 Die gedruckten Karten sind ausgemessen und in CSS nachgebaut:

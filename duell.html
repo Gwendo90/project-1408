@@ -953,6 +953,10 @@ async function init() {
     clearTimeout(scrollMerker);
     scrollMerker = setTimeout(statistikMerken, 200);
   }, { passive:true });
+  // Und beim Verlassen der Seite noch einmal, ungedrosselt: wer scrollt und
+  // gleich neu lädt, unterbietet sonst die 200 ms und landete wieder oben.
+  // pagehide statt unload – nur das feuert auf dem iPhone verlässlich.
+  addEventListener('pagehide', statistikMerken);
   $('btnLeaveLobby').addEventListener('click', leaveGame);
   $('btnHome').addEventListener('click', leaveGame);
   $('btnStart').addEventListener('click', startGame);
@@ -1066,12 +1070,36 @@ async function calibrateClock() {
   }
 }
 
+// Freischalten fürs spätere programmatische play(): siehe die Bindung in
+// init(). Ein Medienelement darf ohne Nutzergeste abspielen, wenn es einmal
+// aus einer Geste heraus gespielt hat – und der wartende Spieler tippt nicht.
+//
+// Womit freigeschaltet wird, hängt davon ab, was im Element steht:
+//
+// Leer (Startbildschirm, der Normalfall) – über ein stummes Schnipsel. Genau
+// dafür war der Griff gedacht, hier ist nichts zu verlieren.
+//
+// Preview schon geladen (Neuladen mitten in der Partie) – mit ihr selbst. Das
+// Umschalten auf das Schnipsel war hier der Fehler: Es setzt Dauer und
+// Position zurück, und die Quelle kam nur im Erfolgsfall von play() wieder.
+// Gemessen tritt der aber gerade nicht ein – ohne Geste wird das play()
+// abgelehnt, und mit erlaubtem Autoplay löst es sich nie auf, weil das
+// Schnipsel keine brauchbare Dauer hat. Beides ließ die Stille im Element
+// stehen: kein Ton, Anzeige klebt auf „Lädt…", Playbutton ohne Wirkung.
+// Mit der Preview zu spielen schaltet genauso frei, kann aber nichts kaputt
+// machen – und syncAudio stellt gleich danach her, was der Spielzustand sagt,
+// pausiert also wieder, wenn dort niemand angespielt hat.
 function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
-  const src = aud.src;
+  if (aud.src && aud.src === previewUrl(G?.state?.current)) {
+    // audioAnweisung verwerfen, sonst hält syncAudio sie für erledigt und
+    // stellt pausiert/läuft und die Position nicht wieder her.
+    aud.play().then(() => { audioAnweisung = null; if (G) render(); }).catch(() => {});
+    return;
+  }
   aud.src = SILENT;
-  aud.play().then(() => { aud.pause(); if (src) aud.src = src; }).catch(() => {});
+  aud.play().then(() => aud.pause()).catch(() => {});
 }
 
 // ══ Spiel anlegen / beitreten ════════════════════════════════════
@@ -2026,14 +2054,33 @@ function targetTime(a) {
   return a.playing ? a.seek + (serverNow() - a.startedAt) / 1000 : a.seek;
 }
 
+// Preview-Adresse in der Form, die auch aud.src zurückgibt: aufgelöst. Ohne
+// das Auflösen wäre ein relativer Eintrag in songs.json nie gleich, und die
+// Quellenprüfung in syncAudio setzte die Quelle bei jedem Zeichnen neu –
+// eine Endlosschleife aus Nachladen, die nie fertig würde. Heute stehen dort
+// absolute Adressen, das soll aber nicht die Bedingung dafür sein.
+const previewUrl = id => {
+  const s = song(id);
+  return s ? new URL(s.pr, location.href).href : null;
+};
+
 function syncAudio(st) {
   const s = song(st.current);
   if (!s) return stopAudio();
-  if (lastRenderedCard !== st.current) {
+  // Nicht nur beim Kartenwechsel, sondern immer, wenn eine fremde Quelle im
+  // Element steht. unlockAudio() hängt zum Freischalten kurz ein stummes
+  // Schnipsel ein, und iOS wirft geladene Medien im Hintergrund von sich aus
+  // wieder hinaus – ohne diese Prüfung blieb das für den Rest der Karte so,
+  // weil hier sonst nur ein Kartenwechsel eine neue Quelle setzt.
+  const quelle = previewUrl(st.current);
+  if (lastRenderedCard !== st.current || aud.src !== quelle) {
     lastRenderedCard = st.current;
-    aud.src = s.pr;
+    aud.src = quelle;
     aud.load();
     setFortschritt(0);
+    // Die laufende Anweisung gilt sonst als erledigt, und auf der frischen
+    // Quelle stellt niemand Position und pausiert/läuft wieder her.
+    audioAnweisung = null;
   }
   // Die Previews sind unterschiedlich lang – im Katalog überwiegend 90 s,
   // vereinzelt 30 s. Vor den Metadaten kennen wir die Länge nicht, also
@@ -2126,8 +2173,12 @@ function stopAudio() {
 }
 
 function onAudioEnded() {
+  // Nur die Preview zählt. Läge das stumme Freischalt-Schnipsel im Element,
+  // würde sein sofortiges Ende hier als „Song durchgelaufen" gelesen – und
+  // der Zug am Ball schaltete damit den Ton für beide Spieler ab.
+  if (!G || aud.src !== previewUrl(G.state.current)) return;
   setFortschritt(1);
-  if (G && G.state.turn === seat && G.state.audio.playing)
+  if (G.state.turn === seat && G.state.audio.playing)
     commit(s => { s.audio = { playing:false, startedAt:0, seek:0 }; return s; });
 }
 
@@ -2144,7 +2195,11 @@ function weiterspielen() {
   if (!G || !G.state.audio?.playing || !aud.paused) return;
   const ph = G.state.phase;
   if (ph !== 'turn' && ph !== 'veto') return;
-  if (lastRenderedCard === null) return syncAudio(G.state);  // Quelle abgeräumt
+  // Quelle abgeräumt oder gegen eine fremde ausgetauscht: neu aufsetzen lassen.
+  // Der zweite Fall braucht diesen Weg, weil er sonst gleich darunter am
+  // fehlenden `duration` hängen bliebe und ihn kein Ereignis mehr aufweckt.
+  if (lastRenderedCard === null || aud.src !== previewUrl(G.state.current))
+    return syncAudio(G.state);
   if (!aud.duration) return;                                 // lädt noch
   const want = targetTime(G.state.audio);
   if (want < 0 || want >= aud.duration) return;              // Vorlauf bzw. durchgelaufen

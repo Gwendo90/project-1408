@@ -296,8 +296,14 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .gap.ziel .bar { transform:scaleX(3.5); background:linear-gradient(180deg,var(--grad-a),var(--grad-b));
                  box-shadow:0 4px 14px rgba(158,34,180,.45); }
 /* Die gewählte Lücke wird so breit wie eine Karte und zeigt die Rückseite –
-   die Karte liegt dann sichtbar an der Stelle, an der sie landen soll. */
-.gap.sel { width:82px; touch-action:none; }
+   die Karte liegt dann sichtbar an der Stelle, an der sie landen soll.
+   Breiter als die Karte selbst, sonst klebt die Rückseite an den Nachbarn:
+   Bei genau 82px begann sie auf dem Pixel, auf dem die Nachbarkarte endet
+   (gemessen: Karte 82–164, Lücke 164–246). Die 13px links und rechts sind
+   dieselbe Luft, die eine gewöhnliche 30px-Lücke um ihren 4px-Balken lässt –
+   die Leiste behält damit ihren Rhythmus. Die Rückseite ist mit flex:0 0 auto
+   fest 82px breit und bleibt in der Mitte, sie wächst also nicht mit. */
+.gap.sel { width:calc(82px + 2 * 13px); touch-action:none; }
 
 /* ── Kartenrückseite in klein ──────────────────────────────────────
    In der Zeitleiste an der gewählten Lücke und am Finger beim Ziehen.
@@ -491,9 +497,14 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .vpunkt.weg { background:var(--track); }
 .vlabel { font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
 
-/* Eingeloggte, noch nicht ausgewertete Karte in der Zeitleiste */
+/* Eingeloggte, noch nicht ausgewertete Karte in der Zeitleiste.
+   margin-right, weil renderTimeline() sie zwischen die Lücke und die echte
+   Karte hängt – dazwischen liegt keine weitere Lücke, sie klebte also an der
+   Nachbarkarte. 13px ist dieselbe Luft wie rund um den Balken einer
+   gewöhnlichen Lücke. */
 .tlcard.offen { background:var(--surface); border:2px dashed var(--grad-mid); box-shadow:none;
-                display:flex; align-items:center; justify-content:center; }
+                display:flex; align-items:center; justify-content:center;
+                margin-right:13px; }
 .tlcard.offen .fr { font-size:24px; font-weight:700; color:var(--grad-mid); }
 
 /* ── Bestenliste & Statistik ───────────────────────────────────── */

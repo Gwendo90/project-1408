@@ -221,6 +221,63 @@ Auflösung bleibt stehen, und erst „Ergebnis ansehen" schaltet in `naechsteKar
 `auswerten()` bzw. `nachAuswertung()`) — wer den Tab an dieser Stelle zumacht, verliert
 seinen Lauf nicht.
 
+### Kartenauswahl (Filter)
+
+Bei 1429 Karten ist „alle" nicht immer die beste Runde. Über **Kartenauswahl** auf dem
+Startbildschirm lässt sich der Kartenstapel eingrenzen — **für Solo und Duell, nicht fürs
+Tagesduell**, dessen ganzer Sinn ja das gemeinsame Deck ist.
+
+| Filter | Stufen | Karten |
+|---|---|---|
+| Platzierung | Alle · Finalisten · Top 10 · Top 5 · Top 3 · Sieger | 1429 · 1140 · 578 · 305 · 192 · 71 |
+| Jahrzehnte | 1950er … 2020er, mehrfach wählbar | 44 … 342 je Jahrzehnt |
+| Länder | 13 Gruppen, mehrfach wählbar | 29 (Verschwundene) … 365 (Mittelmeer) |
+| Frische Karten zuerst | Schalter | — |
+
+**„Finalisten" ist nicht dasselbe wie „Alle".** In `songs-online.json` steht `place` entweder als
+Zahl oder als `"x"` — Letzteres heißt „im Halbfinale ausgeschieden". Das betrifft genau die Jahre
+ab 2004, nachgezählt 289 Songs. Jede Stufe außer „Alle" wirft sie heraus, weil `parseInt("x")`
+`NaN` ergibt und der Vergleich damit fehlschlägt. Das ist beabsichtigt und der Grund für die
+eigene Stufe.
+
+**Die Ländergruppen überlappen absichtlich** — Österreich ist deutschsprachig *und*
+mitteleuropäisch, Israel liegt am Mittelmeer *und* außerhalb Europas. Ausgewählte Gruppen werden
+**vereinigt, nicht geschnitten**. Geprüft ist außerdem, dass jedes der 53 Länder in mindestens
+einer Gruppe steckt: Sonst wäre „alle Gruppen an" nicht dasselbe wie „alle Länder", und niemand
+käme darauf, welches Land fehlt.
+
+**`null` heißt „alle", nicht „keine".** Bei Jahrzehnten und Gruppen wird eine Vollauswahl als
+`null` gespeichert, nicht als vollständige Liste. Sonst würde das Ergänzen einer Gruppe oder eines
+Jahrzehnts aus jeder gespeicherten Vollauswahl stillschweigend eine Teilauswahl machen. `umschalten()`
+setzt deshalb auf `null` zurück, sobald alle Werte an sind — und ebenso, wenn der letzte abgewählt
+wird, denn ein leerer Pool wäre keine sinnvolle Antwort auf „ich will keins davon".
+
+**Frische Karten zuerst** sortiert den Stapel in Stufen: erst alle, die auf diesem Gerät noch nie
+dran waren, dann die einmal gezogenen und so weiter, innerhalb einer Stufe gemischt. Sobald jede
+Karte einmal lief, wird daraus von selbst „die seltenste zuerst". Zwei Dinge daran sind nicht
+offensichtlich:
+
+* **Die Stufen liegen absteigend im Array.** Gezogen wird mit `deck.pop()`, also vom *Ende* — die
+  frischesten Karten müssen deshalb hinten liegen. Nachgemessen: Zähler von vorn nach hinten
+  monoton fallend, am Deckende ausschließlich Karten mit Zähler 0.
+* **Gezählt wird in `renderGame()`, nicht im Mutator von `drawCard()`.** Der wird bei einem
+  Versionskonflikt erneut ausgeführt und zählte die Karte dann doppelt. Gezählt wird je Gerät, im
+  Duell also auf beiden — gesehen haben sie die Karte ja beide. (Die Startkarte einer Partie wird
+  mitgezählt, obwohl sie nur ausliegt; bei einer frischen Karte pro Runde nicht der Rede wert.)
+
+**Im Duell gilt die Auswahl des Gastgebers.** Es gibt ein Deck, also kann es nur eine Auswahl
+geben. Damit das niemanden überrascht, steht sie in der Lobby — beim Gastgeber als
+„Kartenauswahl: …", bei allen anderen als „Kartenauswahl des Gastgebers: …". Dafür liegt eine
+Kurzfassung als `state.filter` im Spielzustand; gefiltert wird daraus **nicht** erneut, das Deck
+steht ja längst fest.
+
+**Unter `FILT_MIN` (20) Karten wird nicht gestartet**, mit Begründung im Statustext. Technisch
+ginge es — das leere Deck beendet die Partie von selbst —, ergäbe aber keine Runde. Der Wächter
+sitzt **vor** dem Anlegen der `games`-Zeile, damit eine abgewiesene Auswahl keine verwaiste Partie
+hinterlässt. `neuesDeck()` für die Revanche mitten im Spiel greift dagegen notfalls auf alle Karten
+zurück: Wer schon spielt, soll nicht durch eine zwischenzeitlich verschärfte Auswahl aufgehalten
+werden.
+
 ### Tagesduell
 
 **Alle spielen an einem Tag dieselben zehn Karten in derselben Reihenfolge** (`TAG_KARTEN`).

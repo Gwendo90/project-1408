@@ -526,7 +526,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
    geklebtes Element kommt nicht über die Oberkante seines Elternrahmens
    hinaus, und mit padding-top am Bildschirm blieben oberhalb der Leiste
    40px offen, durch die eine halbe Zeile durchgescrollt käme. */
-#statsScreen { padding-top:0; }
+#statsScreen, #filterScreen { padding-top:0; }
 .statkopf { position:sticky; top:0; z-index:5;
             width:calc(100% + 48px); margin:0 -24px -14px;
             padding:max(env(safe-area-inset-top),12px) 24px 9px;
@@ -553,6 +553,37 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .oppo .row::-webkit-scrollbar { display:none; }
 .chip { flex:0 0 auto; font-size:11px; font-weight:600; padding:5px 9px; border-radius:50px;
         background:var(--surface); border:1px solid var(--border); color:var(--muted); }
+
+/* ── Kartenauswahl ─────────────────────────────────────────────── */
+.wahlgruppe { display:flex; flex-wrap:wrap; gap:6px; }
+/* Auswählbarer Chip. Eigene Klasse und nicht .chip erweitert: der ist reine
+   Anzeige in der Gegnerleiste und soll nicht plötzlich anklickbar wirken. */
+.wchip { font-family:inherit; font-size:12px; font-weight:600; padding:7px 12px; border-radius:50px;
+         background:var(--surface); border:1px solid var(--border); color:var(--text);
+         cursor:pointer; -webkit-appearance:none; transition:border-color .15s, color .15s; }
+.wchip.on { color:#fff; border-color:transparent;
+            background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); }
+.wchip:disabled { opacity:.4; cursor:default; }
+/* Zeile mit Schalter rechts, für "frische Karten zuerst". */
+.wzeile { display:flex; align-items:center; gap:12px; }
+.wzeile .wtext { flex:1; min-width:0; }
+.wzeile .wtext b { display:block; font-size:13px; font-weight:700; }
+.wzeile .wtext span { display:block; font-size:11px; color:var(--muted); line-height:1.5; margin-top:2px; }
+/* Schalter: reiner CSS-Umschalter über die Klasse .on, kein <input>, damit
+   er sich wie die übrigen Knöpfe hier verhält. */
+.schalter { flex:0 0 auto; width:46px; height:27px; border-radius:50px; border:1px solid var(--border);
+            background:var(--track); position:relative; cursor:pointer; -webkit-appearance:none;
+            transition:background .2s; }
+.schalter::after { content:''; position:absolute; top:2px; left:2px; width:21px; height:21px;
+                   border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2);
+                   transition:transform .2s; }
+.schalter.on { background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
+               border-color:transparent; }
+.schalter.on::after { transform:translateX(19px); }
+/* Zähler unten. .warn färbt ihn, wenn zu wenige Karten übrig sind. */
+.wzahl { font-size:13px; font-weight:600; text-align:center; line-height:1.6; }
+.wzahl b { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; }
+.wzahl.warn { color:var(--red); }
 
 .cf { position:fixed; inset:0; pointer-events:none; z-index:999; overflow:hidden; }
 .err-banner { width:100%; max-width:400px; background:#FDECEF; border:1px solid #F5C2CE; color:var(--red);
@@ -667,6 +698,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div class="divider">täglich</div>
     <button class="btn" id="btnTag">Tagesduell</button>
     <div class="sub" id="tagHinweis"></div>
+    <!-- Gilt für Solo und Duell, nicht fürs Tagesduell – deshalb steht der
+         Einstieg unter dem Tagesduell und nicht dazwischen. -->
+    <button class="btn ghost" id="btnFilter">Kartenauswahl</button>
+    <div class="sub" id="filterZeile"></div>
     <button class="btn ghost" id="btnStats">Bestenliste &amp; Statistik</button>
   </div>
   <div class="stat" id="homeStat"></div>
@@ -679,6 +714,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div class="sub">Spielcode</div>
     <div class="bigcode" id="lobbyCode">—</div>
     <div class="sub" id="lobbyHint">Gib den Code an deinen Mitspieler weiter</div>
+    <div class="sub" id="lobbyFilter"></div>
   </div>
   <div class="panel" id="lobbySeats"></div>
   <div class="actions">
@@ -765,6 +801,49 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <button class="btn prim" id="btnAgain">Nochmal spielen</button>
     <button class="btn" id="btnStatsOver">Bestenliste ansehen</button>
     <button class="btn ghost" id="btnHome">Zurück zum Start</button>
+  </div>
+</div>
+
+<!-- ══ KARTENAUSWAHL ══════════════════════════════════════════ -->
+<div class="screen hidden" id="filterScreen">
+  <div class="statkopf">
+    <button class="zurueck" id="btnFilterBack">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M14.5 5.5L8 12l6.5 6.5"/>
+      </svg>
+      Zurück
+    </button>
+  </div>
+  <div class="statwrap">
+    <div class="statblock">
+      <div class="statTitel">Platzierung</div>
+      <div class="wahlgruppe" id="wPlatz"></div>
+    </div>
+    <div class="statblock">
+      <div class="statTitel">Jahrzehnte</div>
+      <div class="wahlgruppe" id="wJahr"></div>
+    </div>
+    <div class="statblock">
+      <div class="statTitel">Länder</div>
+      <div class="wahlgruppe" id="wLand"></div>
+    </div>
+    <div class="statblock">
+      <div class="wzeile">
+        <div class="wtext">
+          <b>Frische Karten zuerst</b>
+          <span>Zuerst kommen Karten, die auf diesem Gerät noch nie dran waren.
+                Danach die seltensten.</span>
+        </div>
+        <button class="schalter" id="wFrisch" aria-label="Frische Karten zuerst"></button>
+      </div>
+    </div>
+    <div class="statblock">
+      <div class="wzahl" id="wZahl">—</div>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="btn ghost" id="btnFilterReset">Alles zurücksetzen</button>
   </div>
 </div>
 
@@ -900,6 +979,8 @@ const LAUF_KEY  = 'duell1408lauf';      // Kennung dieses Geräts für die laufe
 const NACH_KEY  = 'duell1408nachtrag';  // Partien, die nicht durchkamen
 const NACH_MAX  = 5;                    // so oft wird eine nachgereicht
 const TAG_KEY   = 'duell1408tag';       // gespieltes Tagesduell samt Ergebnis
+const FILT_KEY  = 'duell1408filter';    // Kartenauswahl für Solo und Duell
+const KART_KEY  = 'duell1408karten';    // wie oft welche Karte schon dran war
 // Offene Statistikseite samt Umschaltern und Scrollstand. Der einzige
 // Schlüssel im sessionStorage statt im localStorage: ein Neuladen soll die
 // Seite behalten, ein neuer Besuch morgen aber wieder am Start beginnen –
@@ -940,6 +1021,61 @@ const KATZEN = ['cat-playful', 'cat-superhero', 'cat-angel', 'cat-curious',
 const KATZ_BOGEN = { r: [112, 168], von: 178, bis: 88 };
 const REAKT_SPERRE = 1200;              // Mindestabstand zweier Reaktionen
 const REAKT_MAX = 3;                    // so viele gleichzeitig im Bild
+
+// ── Kartenauswahl (Filter) ───────────────────────────────────────
+// Gilt für Solo und Duell, nicht fürs Tagesduell – dessen Sinn ist ja, dass
+// alle dasselbe Deck spielen.
+//
+// Platzierung: `place` steht in songs-online.json als Zahl oder als "x".
+// "x" heißt: im Halbfinale ausgeschieden, also keine Finalplatzierung. Das
+// betrifft genau die Jahre ab 2004 (289 Songs, nachgezählt) – deshalb ist
+// "nur Finalisten" eine eigene Stufe und nicht dasselbe wie "alle".
+const PLATZ_STUFEN = [
+  { id:'alle',   text:'Alle',       bis:null },
+  { id:'final',  text:'Finalisten', bis:99 },
+  { id:'top10',  text:'Top 10',     bis:10 },
+  { id:'top5',   text:'Top 5',      bis:5 },
+  { id:'top3',   text:'Top 3',      bis:3 },
+  { id:'sieger', text:'Sieger',     bis:1 }
+];
+
+// Ländergruppen statt 53 einzelner Länder. Sie überlappen absichtlich
+// (Österreich ist deutschsprachig und mitteleuropäisch, Israel liegt am
+// Mittelmeer und außerhalb Europas) – ausgewählte Gruppen werden vereinigt,
+// nicht geschnitten. Geprüft: jedes der 53 Länder steckt in mindestens einer
+// Gruppe, sonst wäre "alle Gruppen an" nicht dasselbe wie "alle Länder".
+const LAND_GRUPPEN = [
+  { id:'big5',   text:'Big Five',      laender:['Deutschland','Frankreich','Italien','Spanien','UK'] },
+  { id:'de',     text:'Deutschsprachig', laender:['Deutschland','Österreich','Schweiz'] },
+  { id:'nord',   text:'Nordisch',      laender:['Dänemark','Finnland','Island','Norwegen','Schweden'] },
+  { id:'balt',   text:'Baltikum',      laender:['Estland','Lettland','Litauen'] },
+  { id:'balkan', text:'Balkan',        laender:['Albanien','Bosnien-Herzegowina','Bulgarien','Griechenland',
+                                                'Kroatien','Mazedonien','Nordmazedonien','Montenegro',
+                                                'Rumänien','Serbien','Serbien & Montenegro','Slowenien',
+                                                'Jugoslawien'] },
+  { id:'sowjet', text:'Ex-Sowjetunion', laender:['Armenien','Aserbaidschan','Belarus','Estland','Georgien',
+                                                 'Lettland','Litauen','Moldau','Russland','Ukraine'] },
+  { id:'mitte',  text:'Mitteleuropa',  laender:['Polen','Tschechien','Slowakei','Ungarn','Österreich','Slowenien'] },
+  { id:'mittel', text:'Mittelmeer',    laender:['Griechenland','Israel','Italien','Malta','Monaco','Portugal',
+                                                'San Marino','Spanien','Türkei','Zypern','Frankreich'] },
+  { id:'benelux',text:'Benelux',       laender:['Belgien','Niederlande','Luxemburg'] },
+  { id:'inseln', text:'Britische Inseln', laender:['UK','Irland'] },
+  { id:'zwerge', text:'Zwergstaaten',  laender:['Andorra','Monaco','San Marino','Malta','Luxemburg','Zypern'] },
+  { id:'welt',   text:'Außerhalb Europas', laender:['Australien','Israel','Marokko'] },
+  { id:'weg',    text:'Verschwundene Länder', laender:['Jugoslawien','Serbien & Montenegro','Mazedonien'] }
+];
+const JAHRZEHNTE = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
+// Unter so vielen Karten wird nicht gestartet. Weniger geht technisch (das
+// leere Deck beendet die Partie von selbst), ergibt aber keine Runde.
+const FILT_MIN = 20;
+// `null` heißt bei Jahrzehnten und Gruppen "alle" und nicht "keine". Das ist
+// mehr als Bequemlichkeit: Eine gespeicherte Vollauswahl würde beim Ergänzen
+// einer Gruppe oder eines Jahrzehnts stillschweigend zur Teilauswahl.
+//
+// Steht hier oben und nicht bei den Filterfunktionen, weil baueFilter() aus
+// init() heraus darauf zugreift – und init() wird im Modul weiter oben
+// aufgerufen als jene Zeilen stehen (siehe Fallstricke im README).
+const FILT_STANDARD = { platz:'alle', jahrzehnte:null, gruppen:null, frisch:false };
 // Vorlauf beim Autostart: beide Geräte bekommen Zeit, die Preview zu laden,
 // damit der Song bei beiden wirklich bei Sekunde 0 beginnt statt mittendrin.
 const VORLAUF_MS = 900;
@@ -962,10 +1098,12 @@ let clockOffset = 0;           // Serverzeit − lokale Zeit, in ms
 let pendingGap = null;         // vorgemerkte Lücke, wartet auf Bestätigung
 let audioUnlocked = false;
 let lastRenderedCard = null;   // um Audio nur bei Kartenwechsel neu zu laden
+let gezaehlteKarte = null;     // welche Karte schon in den Benutzungszähler ging
 let confettiShownFor = null;
 let soloRekord = false;        // war die letzte Solo-Partie ein Bestwert?
 let vorlaufTimer = null;       // wartet den Autostart-Vorlauf ab
 let audioAnweisung = null;     // welche Audio-Anweisung ist schon umgesetzt?
+let filt = { ...FILT_STANDARD };  // laufende Kartenauswahl im Filterbildschirm
 let statSicht = 'ich';         // 'ich' oder 'alle' auf der Statistikseite
 let statZeit = 'alles';        // 'alles' oder 'monat' – Zeitfilter der Seite
 let statLauf = 0;              // laufende Nummer gegen veraltete Antworten
@@ -1075,6 +1213,9 @@ async function init() {
     clearTimeout(rausFrage);
     rausFrage = setTimeout(rausZuruecksetzen, 4000);
   });
+  baueFilter();
+  $('btnFilter').addEventListener('click', () => { auffrischenFilter(); show('filterScreen'); });
+  $('btnFilterBack').addEventListener('click', () => show('homeScreen'));
   $('btnStats').addEventListener('click', zeigeStatistik);
   $('btnStatsOver').addEventListener('click', zeigeStatistik);
   // Zurück dorthin, wo man herkam. Beim Endbildschirm nur einblenden, nicht
@@ -1118,6 +1259,7 @@ async function init() {
   // Der Bestwert hängt am Namen, also muss er mitgehen, während getippt wird.
   $('nameInput').addEventListener('input', zeigeBestwert);
   zeigeTagHinweis();
+  zeigeFilterZeile();
   $('codeInput').addEventListener('input', e => {
     e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
   });
@@ -1142,6 +1284,7 @@ async function init() {
   // Songs zuerst: die braucht auch der Solo-Modus, und der soll selbst
   // dann laufen, wenn Supabase klemmt.
   await loadSongs();
+  zeigeFilterZeile();      // erst jetzt ist die Kartenzahl bekannt
 
   try {
     if (!createClient)
@@ -1289,6 +1432,198 @@ function shuffled(arr, rnd = Math.random) {
   return a;
 }
 
+// ══ Kartenauswahl ════════════════════════════════════════════════
+
+function filterLaden() {
+  let f = null;
+  try { f = JSON.parse(localStorage.getItem(FILT_KEY) || 'null'); } catch (e) {}
+  if (!f) return { ...FILT_STANDARD };
+  // Nur bekannte Werte übernehmen: im localStorage kann alles stehen, und
+  // eine unbekannte Stufe ergäbe einen leeren Pool ohne erkennbaren Grund.
+  const gueltig = (liste, erlaubt) =>
+    Array.isArray(liste) && liste.length ? liste.filter(x => erlaubt.includes(x)) : null;
+  return {
+    platz: PLATZ_STUFEN.some(s => s.id === f.platz) ? f.platz : 'alle',
+    jahrzehnte: gueltig(f.jahrzehnte, JAHRZEHNTE),
+    gruppen: gueltig(f.gruppen, LAND_GRUPPEN.map(g => g.id)),
+    frisch: !!f.frisch
+  };
+}
+
+function filterSpeichern(f) {
+  try { localStorage.setItem(FILT_KEY, JSON.stringify(f)); } catch (e) {}
+}
+
+// Alle Song-IDs, die der Filter durchlässt. Sortiert, damit das Ergebnis
+// nicht von der Reihenfolge in songs-online.json abhängt.
+function filterPool(f) {
+  const stufe = PLATZ_STUFEN.find(s => s.id === f.platz) || PLATZ_STUFEN[0];
+  const laender = f.gruppen
+    ? new Set(f.gruppen.flatMap(id => LAND_GRUPPEN.find(g => g.id === id)?.laender || []))
+    : null;
+  return Object.keys(SONGS).sort().filter(id => {
+    const s = SONGS[id];
+    if (stufe.bis != null) {
+      const p = parseInt(s.place, 10);
+      // NaN heißt "x", also im Halbfinale ausgeschieden – fällt bei jeder
+      // Stufe außer "alle" heraus.
+      if (!(p >= 1 && p <= stufe.bis)) return false;
+    }
+    if (f.jahrzehnte && !f.jahrzehnte.includes(Math.floor(parseInt(s.year, 10) / 10) * 10)) return false;
+    if (laender && !laender.has(s.country)) return false;
+    return true;
+  });
+}
+
+// Wie oft war welche Karte auf diesem Gerät schon dran? Bewusst je Gerät und
+// nicht je Name: Die Frage ist "hatte ich die schon?", und die Antwort soll
+// auch ohne Netz stimmen.
+function kartenZaehler() {
+  try { return JSON.parse(localStorage.getItem(KART_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+function karteBenutzt(id) {
+  if (!id) return;
+  const z = kartenZaehler();
+  z[id] = (z[id] || 0) + 1;
+  try { localStorage.setItem(KART_KEY, JSON.stringify(z)); } catch (e) {}
+}
+
+// Aus dem Pool ein Deck machen. Ohne "frisch" einfach mischen.
+//
+// Mit "frisch" in Stufen: alle noch nie gezogenen Karten zuerst, dann die
+// einmal gezogenen und so weiter, innerhalb einer Stufe gemischt. Sobald
+// jede Karte einmal dran war, wird daraus von selbst "die seltenste zuerst".
+//
+// Achtung, die Reihenfolge ist umgekehrt: Gezogen wird mit deck.pop(), also
+// vom Ende. Die frischesten Karten müssen deshalb hinten liegen – deshalb
+// die Stufen absteigend nach Zähler.
+function deckBauen(pool, frisch) {
+  if (!frisch) return shuffled(pool);
+  const z = kartenZaehler();
+  const stufen = new Map();
+  for (const id of pool) {
+    const n = z[id] || 0;
+    if (!stufen.has(n)) stufen.set(n, []);
+    stufen.get(n).push(id);
+  }
+  return [...stufen.keys()].sort((a, b) => b - a)
+    .flatMap(n => shuffled(stufen.get(n)));
+}
+
+// Deck für eine Revanche mitten im Spiel. Hier darf nichts fehlschlagen, also
+// notfalls mit allen Karten – wer schon spielt, soll nicht durch eine
+// zwischenzeitlich verscharfte Auswahl aufgehalten werden.
+function neuesDeck() {
+  const f = filterLaden();
+  const pool = filterPool(f);
+  return deckBauen(pool.length >= FILT_MIN ? pool : Object.keys(SONGS).sort(), f.frisch);
+}
+
+// Deck für einen Start vom Startbildschirm. Gibt null zurück, wenn die
+// Auswahl zu klein ist – dann steht der Grund im Statustext, statt dass
+// stillschweigend mit allen Karten gespielt wird.
+function deckOderMeldung() {
+  const f = filterLaden();
+  const pool = filterPool(f);
+  if (pool.length < FILT_MIN) {
+    setHomeStat(`Die Kartenauswahl lässt nur ${pool.length} `
+      + `${pool.length === 1 ? 'Karte' : 'Karten'} übrig – `
+      + `mindestens ${FILT_MIN} sind nötig.`, 'err');
+    return null;
+  }
+  return deckBauen(pool, f.frisch);
+}
+
+// Kurzfassung der Auswahl für den Startbildschirm und die Lobby.
+function filterText(f) {
+  const teile = [];
+  const stufe = PLATZ_STUFEN.find(s => s.id === f.platz);
+  if (stufe && stufe.id !== 'alle') teile.push(stufe.text);
+  if (f.jahrzehnte) teile.push(f.jahrzehnte.length === 1
+    ? f.jahrzehnte[0] + 'er'
+    : f.jahrzehnte.length + ' Jahrzehnte');
+  if (f.gruppen) teile.push(f.gruppen.length === 1
+    ? LAND_GRUPPEN.find(g => g.id === f.gruppen[0])?.text
+    : f.gruppen.length + ' Ländergruppen');
+  if (f.frisch) teile.push('frische zuerst');
+  return teile.join(' · ');
+}
+
+// ── Der Bildschirm dazu ──────────────────────────────────────────
+// Die Chips werden einmal gebaut, danach schaltet auffrischenFilter() nur
+// noch Klassen und den Zähler um. Die Listen stehen dadurch allein im JS.
+function baueFilter() {
+  filt = filterLaden();
+  // Ein Auswahlfeld: Umschalter (nur einer an) oder Mehrfachauswahl, wobei
+  // "leer" für "alle" steht.
+  const bauen = (wohin, liste, id, text, einzeln) => {
+    const el = $(wohin);
+    el.innerHTML = '';
+    liste.forEach(e => {
+      const b = document.createElement('button');
+      b.className = 'wchip';
+      b.dataset.wert = String(id(e));
+      b.textContent = text(e);
+      b.addEventListener('click', () => { einzeln(String(id(e))); auffrischenFilter(); });
+      el.appendChild(b);
+    });
+  };
+  bauen('wPlatz', PLATZ_STUFEN, s => s.id, s => s.text, w => { filt.platz = w; });
+  bauen('wJahr', JAHRZEHNTE, j => j, j => j + 'er', w => {
+    filt.jahrzehnte = umschalten(filt.jahrzehnte, Number(w), JAHRZEHNTE);
+  });
+  bauen('wLand', LAND_GRUPPEN, g => g.id, g => g.text, w => {
+    filt.gruppen = umschalten(filt.gruppen, w, LAND_GRUPPEN.map(g => g.id));
+  });
+  $('wFrisch').addEventListener('click', () => { filt.frisch = !filt.frisch; auffrischenFilter(); });
+  $('btnFilterReset').addEventListener('click', () => {
+    filt = { ...FILT_STANDARD }; auffrischenFilter();
+  });
+}
+
+// Einen Wert in einer Mehrfachauswahl an- oder abschalten. null heißt "alle";
+// wer bei "alle" einen Wert antippt, will genau den – und wer den letzten
+// abwählt, landet wieder bei "alle" statt bei einem leeren Pool.
+function umschalten(liste, wert, alleWerte) {
+  if (!liste) return [wert];
+  const drin = liste.includes(wert);
+  const neu = drin ? liste.filter(x => x !== wert) : [...liste, wert];
+  if (!neu.length) return null;
+  return neu.length === alleWerte.length ? null : neu;
+}
+
+function auffrischenFilter() {
+  const an = (wohin, ist) => [...$(wohin).children].forEach(b =>
+    b.classList.toggle('on', ist(b.dataset.wert)));
+  an('wPlatz', w => w === filt.platz);
+  an('wJahr', w => !filt.jahrzehnte || filt.jahrzehnte.includes(Number(w)));
+  an('wLand', w => !filt.gruppen || filt.gruppen.includes(w));
+  $('wFrisch').classList.toggle('on', filt.frisch);
+
+  const n = SONGS ? filterPool(filt).length : 0;
+  const ganz = SONGS ? Object.keys(SONGS).length : 0;
+  const e = $('wZahl');
+  e.className = 'wzahl' + (n < FILT_MIN ? ' warn' : '');
+  e.innerHTML = n < FILT_MIN
+    ? `<b>${n}</b> ${n === 1 ? 'Karte' : 'Karten'}<br>`
+      + `Mindestens ${FILT_MIN} werden gebraucht – Auswahl erweitern.`
+    : `<b>${n}</b> von ${ganz} Karten`;
+
+  filterSpeichern(filt);
+  zeigeFilterZeile();
+}
+
+// Zusammenfassung unter den Startknöpfen.
+function zeigeFilterZeile() {
+  const f = filterLaden();
+  const t = filterText(f);
+  const n = SONGS ? filterPool(f).length : 0;
+  $('filterZeile').textContent = t
+    ? `Karten: ${t} (${n})`
+    : 'Alle Karten – tippen zum Filtern';
+}
+
 // ══ Tagesduell ═══════════════════════════════════════════════════
 // Alle spielen an einem Tag dieselben Karten in derselben Reihenfolge –
 // erst dadurch sind die Läufe vergleichbar, und man kann sich zeitversetzt
@@ -1404,6 +1739,10 @@ function neueId() {
 
 async function createGame() {
   if (!SONGS) return setHomeStat('Songdaten laden noch…','');
+  // Vor dem Anlegen prüfen, nicht danach: eine abgewiesene Auswahl soll keine
+  // verwaiste Zeile in `games` hinterlassen.
+  const deck = deckOderMeldung();
+  if (!deck) return;
   setHomeStat('Spiel wird angelegt…','');
   const state = {
     phase: 'lobby',
@@ -1411,12 +1750,16 @@ async function createGame() {
     seats: { p1: { name: myName() }, p2: null, p3: null, p4: null },
     raus: {},
     turn: 'p1',
-    deck: shuffled(Object.keys(SONGS)),
+    deck,
     timelines: { p1: [], p2: [], p3: [], p4: [] },
     current: null,
     audio: { playing:false, startedAt:0, seek:0 },
     result: null,
-    winner: null
+    winner: null,
+    // Nur zur Anzeige in der Lobby: Das Deck steht schon fest, gefiltert wird
+    // nicht erneut. Der Gastgeber legt die Auswahl fest – es gibt ein Deck,
+    // also kann es auch nur eine Auswahl geben.
+    filter: filterText(filterLaden()) || null
   };
   for (let tries = 0; tries < 6; tries++) {
     const code = newCode();
@@ -1438,7 +1781,8 @@ async function createGame() {
 // ins Netz. Endlos ziehen, nach SOLO_FEHLER Fehlern ist Schluss.
 function startSolo() {
   if (!SONGS) return setHomeStat('Songdaten laden noch…','');
-  const deck = shuffled(Object.keys(SONGS));
+  const deck = deckOderMeldung();
+  if (!deck) return;
   seat = 'p1';
   G = { code:null, version:0, state:{
     solo: true,
@@ -2070,7 +2414,7 @@ async function playAgain() {
   await commit(s => {
     s.partieId = partieId;
     s.begonnen = begonnen;
-    s.deck = shuffled(Object.keys(SONGS));
+    s.deck = neuesDeck();
     const dabei = aktive(s);
     s.timelines = {}; s.vetos = {};
     for (const k of SITZE) s.timelines[k] = [];
@@ -2738,15 +3082,31 @@ function renderLobby(st) {
   $('btnStart').textContent = seat === 'p1'
     ? (ready ? `Spiel starten (${dabei.length})` : 'Warte auf Mitspieler')
     : (ready ? 'Warte auf Start…' : 'Warte auf Mitspieler');
+  // Die Kartenauswahl kommt vom Gastgeber. Für alle anderen ist das eine
+  // Information, die sie sonst nirgends bekämen – ihre eigene Einstellung
+  // gilt in dieser Partie nicht.
   $('lobbyHint').textContent = seat === 'p1'
     ? (voll ? 'Alle vier Plätze belegt' : 'Gib den Code an deine Mitspieler weiter')
     : 'Warte, bis gestartet wird';
+  $('lobbyFilter').textContent = st.filter
+    ? (seat === 'p1' ? 'Kartenauswahl: ' + st.filter
+                     : 'Kartenauswahl des Gastgebers: ' + st.filter)
+    : '';
 }
 
 function renderGame(st) {
   show('gameScreen');
   if (!$('btnRaus').classList.contains('frag')) rausZuruecksetzen();
   const mine = st.turn === seat;
+
+  // Gezogene Karte mitzählen, für "frische Karten zuerst". Hier und nicht im
+  // Mutator von drawCard: der wird bei einem Versionskonflikt erneut
+  // ausgeführt und zählte die Karte dann doppelt. Gezählt wird je Gerät, und
+  // im Duell zählt jedes für sich – gesehen haben sie die Karte beide.
+  if (st.current && st.current !== gezaehlteKarte) {
+    gezaehlteKarte = st.current;
+    karteBenutzt(st.current);
+  }
 
   // Katzen nur im Duell und nur, solange noch jemand mitspielt: allein wäre
   // niemand da, der sie sieht. Beim Wegschalten die Auswahl mitschließen,

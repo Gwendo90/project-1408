@@ -37,7 +37,7 @@ duell.html              Online-Modus: das eigentliche Spiel (~90 KB, alles inlin
 duell-config.js         Supabase-URL und öffentlicher Key
 supabase.js             Supabase-Bibliothek, eigenständig (siehe Fallstricke!)
 songs.json              336 Songs mit Vorschau-URLs — nur fürs Offlinespiel, unangetastet
-songs-online.json       1430 Songs fürs Onlinespiel (enthält die 336)
+songs-online.json       1429 Songs fürs Onlinespiel (enthält die 336)
 flags/                  53 Herzflaggen als PNG, 128×128 — eine je Land der Online-Datei
 anleitung.html          Spielanleitung fürs gedruckte Kartenspiel
 anleitung-online.html   Spielanleitung für den Online-Modus (Prinzip, Solo vs. Mehrspieler, Veto)
@@ -74,7 +74,7 @@ Nicht im Repo, nur lokal im Projektordner: `Set_1/`, `Set_2/` (Kartenbilder für
 | Datei | Songs | Wer liest sie |
 |---|---|---|
 | `songs.json` | 336 | `index.html` — das Offlinespiel. Entspricht genau den gedruckten Karten. |
-| `songs-online.json` | 1430 | `duell.html` — das Onlinespiel. Enthält die 336 und 1094 weitere. |
+| `songs-online.json` | 1429 | `duell.html` — das Onlinespiel. Enthält die 336 und 1093 weitere. |
 
 `songs.json` bleibt bewusst **unangetastet**: Ihre IDs sind die QR-Codes auf den gedruckten
 Karten, dort darf sich nichts verschieben. Wer Songs ergänzen will, ergänzt die Online-Datei.
@@ -88,7 +88,7 @@ Zeilen die falschen Songs. **Wer die Online-Datei erweitert, muss die bestehende
 unberührt lassen und nur hinten anhängen.**
 
 Beide sind ein **Objekt**, kein Array — die Schlüssel laufen von `"001"` bis `"336"` bzw.
-`"1430"` (ab 1000 vierstellig).
+`"1430"` (ab 1000 vierstellig; `479` fehlt, siehe unten).
 
 ```json
 "001": {
@@ -111,11 +111,53 @@ Beide sind ein **Objekt**, kein Array — die Schlüssel laufen von `"001"` bis 
 * **`sid` und `u` liest das Onlinespiel nicht** (nur `year`, `artist`, `title`, `country`,
   `flag`, `place`, `pr`). Sie bleiben trotzdem in der Datei: Ohne sie wären es 104 statt 142 KB
   gzip — die 38 KB wiegen den Informationsverlust nicht auf.
-* **Ein bekannter Datenfehler in `songs-online.json`:** Die IDs `379` (Conchita Bautista,
+* **Vorschauen liegen in zwei Fassungen vor:** `…plus.aac.ep.m4a` ist die verlängerte
+  (~90 s), `…plus.aac.p.m4a` die kurze (~30 s). In `songs-online.json` sind 1395 verlängert und
+  33 kurz. Wichtig beim Prüfen: Die iTunes-Lookup-API gibt **immer die kurze** zurück. Ein
+  Vergleich `pr` gegen `previewUrl` meldet deshalb fast die ganze Datei als „falsch". Verglichen
+  werden muss der **Asset-Ordner** (der UUID-Teil des Pfads), nicht der Dateiname.
+
+* **Ein behobener Datenfehler, und wie er gefunden wurde.** Die IDs `379` (Conchita Bautista,
   *Estando contigo*, 1961) und `423` (dieselbe Interpretin, *Qué bueno, qué bueno*, 1965)
-  verweisen auf **dieselbe Vorschau-URL**. Bei einem der beiden erklingt also der falsche Song.
-  `sid` und `u` sind bei beiden verschieden, die Zeilen selbst sind korrekt — nur `pr` ist
-  einmal falsch aufgelöst worden.
+  zeigten auf **dieselbe** Vorschau-URL — die einzige Dopplung unter 1430 Einträgen. Welche der
+  beiden falsch war, ließ sich am Ton entscheiden: die geteilte Datei (89,9 s) gegen die
+  offiziellen 30-Sekunden-Vorschauen beider `sid` gestellt und über die Energie-Hüllkurve in
+  20-ms-Fenstern kreuzkorreliert.
+
+  | Vergleich | Korrelation |
+  |---|---|
+  | 379 *Estando contigo* gegen die geteilte Datei | **0,995** bei Versatz 0,0 s |
+  | 423 *Qué bueno, qué bueno* gegen die geteilte Datei | 0,177 |
+
+  Also: `379` war richtig (verlängerte Fassung des eigenen Songs, die kurze ist exakt deren
+  Anfang), `423` falsch — dort erklang der Song von 1961, obwohl die Karte auf 1965 gehört.
+  `423` hat jetzt seine eigene Vorschau, notwendigerweise die kurze 30-Sekunden-Fassung; eine
+  verlängerte gibt die API für diesen Track nicht heraus.
+
+* **Vier weitere Zeilen, bei denen iTunes eine andere Fassung nennt als die Datei.** Sie fielen
+  beim Ordnervergleich auf. Das exakte Werkzeug zur Aufklärung ist nicht die Korrelation, sondern
+  **der Asset-Ordner als Kennung**: Alle Titel des Interpreten aufzählen und schauen, zu welchem
+  der Ordner gehört. Damit steht fest, was tatsächlich erklingt.
+
+  | ID | Karte | Was tatsächlich erklang | Stand |
+  |---|---|---|---|
+  | `428` | Madalena Iglésias – *Ele e ela* (1966) | *Quemé Tus Cartas* — anderer Song derselben Interpretin vom selben EP | **behoben**: jetzt *Él y Ella*, die spanische Fassung desselben ESC-Titels. Eine portugiesische gibt es bei iTunes nicht. |
+  | `1244` | Gjon's Tears – *Répondez-moi* (2020) | die **Originalfassung**, also richtig — nur `sid` und `u` zeigten auf den Sunlike-Brothers-Remix | **behoben**: `sid`/`u` auf den Track gesetzt, zu dem die Vorschau gehört. Der Ton blieb unverändert. |
+  | `830` | Donna & Joseph McCaul – *Love?* (2005) | *Love (Remix)* von 2017 — richtiger Song, falsche Fassung | **nicht behebbar**: Das ESC-Original von 2005 ist in keinem der Stores DE/IE/GB/US vorhanden. |
+  | `479` | Marie – *Un train qui part* (Monaco 1973) | ein Titel, der zu **keinem** Track der angegebenen Interpreten gehört | **entfernt** (siehe unten). In den Stores DE/FR/MC/GB/US/CH/BE und in 32 Eurovision-Sammelalben nicht auffindbar. |
+
+  Bei `830` ist immerhin die Melodie die richtige, die Karte bleibt also spielbar.
+
+  **`479` ist aus `songs-online.json` entfernt**, deshalb 1429 statt 1430 Einträge und eine Lücke
+  in der Nummerierung. Eine Karte mit fremdem Ton ist schlechter als eine fehlende: Sie bestraft
+  gerade die Spieler, die den Ton zum Schätzen nutzen. Die ID wird **nicht neu vergeben** — sonst
+  zeigte die Statistik zu einer alten `tipps`-Zeile den falschen Song (dieselbe Regel wie bei den
+  336 gemeinsamen IDs). Auf `479` verwies zum Zeitpunkt des Entfernens keine einzige Zeile.
+  Nichts im Code setzt eine lückenlose Nummerierung voraus: Das Tagesduell mischt über
+  `Object.keys(SONGS).sort()`, und `verlauf()` hasht die ID.
+
+* **Die Quelldatei unter `Sonstiges/songs-online.json` im Desktop-Ordner kennt keine dieser
+  Korrekturen** (`423`, `428`, `1244`). Ein Neubau daraus bringt sie alle zurück.
 * Die Vorschauen sind **überwiegend 90 Sekunden lang**, nicht 30 (Stichprobe: 22 von 24).
   Nirgends 30 Sekunden fest annehmen.
 * Die Kartenbilder in `Set_1/` und `Set_2/` sind nach **Druckreihenfolge** benannt, nicht nach
@@ -209,7 +251,7 @@ allein `tag` im Spielzustand; ohne ihn ist es eine gewöhnliche Solo-Partie. Was
 
 | | Solo | Tagesduell |
 |---|---|---|
-| Deck | `shuffled()` über alle 1430 | zehn Karten aus dem Tages-Seed |
+| Deck | `shuffled()` über alle 1429 | zehn Karten aus dem Tages-Seed |
 | Ende | nach drei Fehlern (`SOLO_FEHLER`) | wenn das Deck leer ist |
 | `maxFehler` | `3` | `null` — keine Leben |
 | Anzeige | Karten + Herzen | Fortschritt + Fehler + Uhr |

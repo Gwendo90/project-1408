@@ -1075,7 +1075,7 @@ function fail(msg) {
   $('btnCreate').disabled = $('btnJoin').disabled = true;
 }
 
-// Eigene Songdatei fürs Onlinespiel: songs-online.json mit 1430 Titeln bis
+// Eigene Songdatei fürs Onlinespiel: songs-online.json mit 1429 Titeln bis
 // 2026, gegen die 336 gedruckten Karten in songs.json. Die bleibt unberührt,
 // weil index.html sie fürs Offlinespiel per QR-Code liest – dort darf sich
 // nichts verschieben.
@@ -1604,7 +1604,7 @@ async function drawCard() {
 }
 
 // Richtig einsortiert, wenn die Karte zwischen ihre beiden Nachbarn passt.
-// Gleiche Jahre zählen als passend – bei 1430 Songs auf 71 Jahrgänge ist
+// Gleiche Jahre zählen als passend – bei 1429 Songs auf 71 Jahrgänge ist
 // das der Normalfall, nicht die Ausnahme.
 function isCorrect(timeline, index, cardId) {
   const y = yearOf(cardId);
@@ -2911,7 +2911,7 @@ const VERLAEUFE = [
 
 // Der Verlauf muss aus der Song-ID folgen, nicht aus Zufall: dieselbe
 // Karte soll in der Zeitleiste, in der Auflösung und auf beiden Handys
-// gleich aussehen. FNV-1a streut die 1430 IDs gut über die 25 Paare.
+// gleich aussehen. FNV-1a streut die 1429 IDs gut über die 25 Paare.
 function verlauf(id) {
   let h = 2166136261;
   const s = String(id);

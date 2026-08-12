@@ -424,15 +424,35 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .rueck .breit b { font-size:14px; font-weight:700; line-height:1.4; }
 .rueck span { display:block; margin-top:3px; font-size:9px; font-weight:700;
               letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); }
-/* Aktivität: ein Feld je Tag, Wochen als Spalten wie in einem Kalender.
-   grid-auto-flow:column füllt erst die sieben Wochentage nach unten, dann
-   die nächste Woche – deshalb die Zeilen fest und die Spalten wachsend.
-   Reines Raster, kein Diagramm: die Zahl steckt in der Deckkraft. */
-.kal { display:grid; grid-auto-flow:column; grid-template-rows:repeat(7,1fr);
-       grid-auto-columns:1fr; gap:3px; }
-.kal span { aspect-ratio:1; border-radius:2px; background:var(--track); }
-.kal span.an { background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); }
-.kalfuss { font-size:11px; color:var(--muted); margin-top:9px; line-height:1.5; }
+/* Zurück oben auf der Statistikseite. position:sticky statt absolute wie bei
+   .raus und .hilfe: der Bildschirm selbst ist der scrollende Kasten, ein
+   absolut gesetzter Knopf würde beim Scrollen aus dem Bild wandern.
+   Der Knopf steckt in einer Leiste über die volle Breite, nicht frei im
+   Bild: geklebt liegt er über den Kästen, und ohne deckende Fläche schöbe
+   sich eine halbe Tabellenzeile neben ihm durch. Die negativen Ränder
+   heben das Seitenpolster des Bildschirms auf, damit die Leiste bis an den
+   Rand deckt; der untere holt die 22px Bildschirmlücke zum Logo zurück.
+   Das obere Polster des Bildschirms wandert dabei in die Leiste hinein: ein
+   geklebtes Element kommt nicht über die Oberkante seines Elternrahmens
+   hinaus, und mit padding-top am Bildschirm blieben oberhalb der Leiste
+   40px offen, durch die eine halbe Zeile durchgescrollt käme. */
+#statsScreen { padding-top:0; }
+.statkopf { position:sticky; top:0; z-index:5;
+            width:calc(100% + 48px); margin:0 -24px -14px;
+            padding:max(env(safe-area-inset-top),12px) 24px 9px;
+            background:var(--bg); }
+/* Am linken Rand der Kästen, nicht am linken Rand des Bildschirms: auf dem
+   Handy fällt beides zusammen, am Rechner steht die 520er-Spalte mittig und
+   ein Knopf in der Fensterecke hätte nichts, worauf er sich bezieht. Der
+   Einzug ist derselbe, den auto-Rand und max-width der Spalte ergeben. */
+.zurueck { margin-left:max(0px, calc((100% - 520px) / 2));
+           display:inline-flex; align-items:center; gap:5px;
+           padding:7px 13px 7px 9px; border:1px solid var(--border); border-radius:50px;
+           background:var(--surface); box-shadow:0 4px 16px rgba(40,30,80,.07);
+           font-family:inherit; font-size:12px; font-weight:600; line-height:1.2;
+           color:var(--muted); cursor:pointer; -webkit-appearance:none; }
+.zurueck svg { width:14px; height:14px; flex-shrink:0; display:block; }
+.zurueck:active { opacity:.6; }
 .seg { display:flex; gap:5px; width:100%; max-width:520px; background:var(--surface);
        border:1px solid var(--border); border-radius:13px; padding:4px; }
 .segbtn { flex:1; border:none; background:none; font-family:inherit; font-size:13px; font-weight:600;
@@ -657,6 +677,17 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 
 <!-- ══ BESTENLISTE & STATISTIK ════════════════════════════════ -->
 <div class="screen hidden" id="statsScreen">
+  <!-- Die Seite ist lang. Der Knopf am Fuß bleibt, aber nach dem Scrollen
+       ist er weit weg – dieser hier klebt oben und ist immer erreichbar. -->
+  <div class="statkopf">
+    <button class="zurueck" id="btnStatsOben">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M14.5 5.5L8 12l6.5 6.5"/>
+      </svg>
+      Zurück
+    </button>
+  </div>
   <div class="logo"><img src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408"></div>
   <div class="statwrap">
     <!-- Gilt für die ganze Seite, steht deshalb ganz oben – anders als der
@@ -701,20 +732,8 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       <div id="statLand" class="statleer">lädt…</div>
     </div>
     <div class="statblock">
-      <div class="statTitel">Nach Lückenposition</div>
-      <div id="statPos" class="statleer">lädt…</div>
-    </div>
-    <div class="statblock">
-      <div class="statTitel">Längste Serie</div>
-      <div id="statSerie" class="statleer">lädt…</div>
-    </div>
-    <div class="statblock">
       <div class="statTitel">Kartenklau</div>
       <div id="statKlau" class="statleer">lädt…</div>
-    </div>
-    <div class="statblock">
-      <div class="statTitel">Aktivität</div>
-      <div id="statAktiv" class="statleer">lädt…</div>
     </div>
   </div>
   <div class="actions">
@@ -862,13 +881,16 @@ async function init() {
   });
   $('btnStats').addEventListener('click', zeigeStatistik);
   $('btnStatsOver').addEventListener('click', zeigeStatistik);
-  $('btnStatsBack').addEventListener('click', () => {
-    // Zurück dorthin, wo man herkam. Beim Endbildschirm nur einblenden,
-    // nicht neu zeichnen – renderOver würde sonst erneut Konfetti werfen.
+  // Zurück dorthin, wo man herkam. Beim Endbildschirm nur einblenden, nicht
+  // neu zeichnen – renderOver würde sonst erneut Konfetti werfen. Oben und
+  // am Fuß derselbe Weg, deshalb nur eine Funktion für beide Knöpfe.
+  const statsZurueck = () => {
     if (!G) show('homeScreen');
     else if (G.state.phase === 'over') show('overScreen');
     else render();
-  });
+  };
+  $('btnStatsBack').addEventListener('click', statsZurueck);
+  $('btnStatsOben').addEventListener('click', statsZurueck);
   // Beide Umschalter der Statistikseite verhalten sich gleich, nur das
   // Merkmal und die Variable dahinter unterscheiden sie.
   const segBinden = (id, merkmal, lies, schreib) => $(id).addEventListener('click', e => {
@@ -1733,11 +1755,6 @@ function monatsbeginn(jetzt) {
   return d.toISOString();
 }
 
-// "2026-08-11" → "11.08.2026". Nicht über Date: eine reine Datumszeichenkette
-// wird als UTC-Mitternacht gelesen und rutscht beim Anzeigen westlich von
-// Greenwich auf den Vortag.
-const datDe = t => t ? `${t.slice(8,10)}.${t.slice(5,7)}.${t.slice(0,4)}` : '';
-
 function statLeer(id, text) {
   const e = $(id);
   e.className = 'statleer';
@@ -1764,44 +1781,6 @@ function kartenZeile(i, id, wert) {
       <span class="zdat">${esc(s ? s.year : '')}</span>
       <span class="zwert">${esc(wert)}</span>
     </div>`;
-}
-
-// Ein Feld je Tag, Wochen als Spalten. Die Deckkraft trägt die Zahl. Der
-// Bezugswert dafür ist der höchste Tageswert der Auswahl selbst – eine
-// erfundene Skala wäre keine Aussage.
-function zeichneKalender(id, { data, error }, leer) {
-  if (error) return statFehler(id, error);
-  const rows = data || [];
-  if (!rows.length) return statLeer(id, leer);
-
-  const zahl  = new Map(rows.map(r => [r.tag, Number(r.partien)]));
-  const hoch  = Math.max(...zahl.values());
-  const heute = inZone(new Date()).slice(0, 10);
-  // Höchstens ein halbes Jahr, sonst werden die Felder unleserlich schmal.
-  const grenze = new Date(heute + 'T00:00:00Z');
-  grenze.setUTCDate(grenze.getUTCDate() - 181);
-  const d = new Date(Math.max(new Date(rows[0].tag + 'T00:00:00Z'), grenze));
-  const erster = d.toISOString().slice(0, 10);
-
-  const felder = [];
-  // In UTC weitergezählt: Datumszeichenketten kennen keine Sommerzeit, und
-  // ein Tag ist hier immer genau ein Tag.
-  for (let i = 0; i < 400 && d.toISOString().slice(0, 10) <= heute; i++) {
-    const t  = d.toISOString().slice(0, 10);
-    const n  = zahl.get(t) || 0;
-    const wt = ((d.getUTCDay() + 6) % 7) + 1;          // Mo=1 … So=7
-    const stil = [];
-    if (!felder.length) stil.push('grid-row:' + wt);   // erster Tag auf seinen Wochentag
-    if (n) stil.push('opacity:' + (0.3 + 0.7 * n / hoch).toFixed(2));
-    felder.push(`<span class="${n ? 'an' : ''}" style="${stil.join(';')}" title="${
-      esc(datDe(t) + (n ? ` · ${n} ${n === 1 ? 'Partie' : 'Partien'}` : ''))}"></span>`);
-    d.setUTCDate(d.getUTCDate() + 1);
-  }
-
-  $(id).className = '';
-  $(id).innerHTML = `<div class="kal">${felder.join('')}</div>
-    <div class="kalfuss">${esc(datDe(erster))} bis ${esc(datDe(heute))} · kräftiger heißt mehr
-      Partien, am meisten waren es ${hoch} an einem Tag.</div>`;
 }
 
 // Ein Block je Kasten: wohin gezeichnet wird, was geholt wird, womit
@@ -1840,17 +1819,6 @@ function statBloecke() {
       mal: a => zeichneQuote('statJahrzehnt', a, r => r.jahrzehnt + 'er', 0) },
     { id:'statLand', ruf:['quote_land', { p_name:wer, p_seit:seit }],
       mal: a => zeichneQuote('statLand', a, r => r.land, 3, 10) },
-    { id:'statPos', ruf:['quote_position', { p_name:wer, p_seit:seit }],
-      mal: a => zeichneQuote('statPos', a, r => r.bucket, 0, 0, NEU) },
-
-    { id:'statSerie', ruf:['serien', { p_name:wer, p_seit:seit, p_limit:8 }],
-      mal: a => zeichneListe('statSerie', a, NEU, (r, i) => `
-        <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
-          <span class="rang">${i + 1}</span>
-          <span class="znam">${esc(r.name)}</span>
-          <span class="zdat">${esc(datDe(r.datum))}</span>
-          <span class="zwert">${r.laenge}</span>
-        </div>`) },
 
     { id:'statKlau', ruf:['klaubilanz', { p_seit:seit }],
       mal: a => zeichneListe('statKlau', a, NEU, r => `
@@ -1858,10 +1826,7 @@ function statBloecke() {
           <span class="znam">${esc(r.name)}</span>
           <span class="zdat">${r.bestohlen} verloren</span>
           <span class="zwert">${r.geklaut} erbeutet</span>
-        </div>`) },
-
-    { id:'statAktiv', ruf:['aktivitaet', { p_name:wer, p_seit:seit }],
-      mal: a => zeichneKalender('statAktiv', a, 'Noch keine beendete Partie.') }
+        </div>`) }
   ];
 }
 
@@ -1941,15 +1906,15 @@ function zeichneBilanz({ data, error }) {
 }
 
 // mindestens: unter so vielen Tipps ist eine Quote nicht aussagekräftig
-function zeichneQuote(id, { data, error }, beschriftung, mindestens, grenze, leerText) {
+function zeichneQuote(id, { data, error }, beschriftung, mindestens, grenze) {
   if (error) return statFehler(id, error);
   const el = $(id);
   let rows = (data || []).filter(r => Number(r.gesamt) >= (mindestens || 0));
   if (grenze) rows = rows.slice(0, grenze);
   if (!rows.length) {
-    return statLeer(id, leerText || (mindestens
+    return statLeer(id, mindestens
       ? `Noch zu wenig Daten – ab ${mindestens} Tipps je Land wird gezählt.`
-      : 'Noch keine Tipps erfasst.'));
+      : 'Noch keine Tipps erfasst.');
   }
   el.className = '';
   el.innerHTML = rows.map(r => {

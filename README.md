@@ -340,13 +340,20 @@ und für `anon` nur ausführbar, nicht mehr.
 | `quote_land(p_name, p_seit)` | Trefferquote je Land | Migration |
 | `schwerste_karten(p_seit, p_min, p_limit)` | Karten mit der schlechtesten Quote, über alle | Statistik-2 |
 | `angstgegner(p_name, p_seit, p_limit)` | Karten, die *dir* mehrfach danebengingen | Statistik-2 |
-| `aktivitaet(p_name, p_seit)` | Partien je Kalendertag | Statistik-2 |
+| `aktivitaet(p_name, p_seit)` | Partien je Kalendertag | Statistik-2 † |
 | `duellmatrix(p_seit)` | Paarungen und ihr Siegstand | Statistik-2 |
-| `quote_position(p_name, p_seit)` | Quote nach Anfang / Mitte / Ende der Leiste | Statistik-2 |
-| `serien(p_name, p_seit, p_limit)` | längste Folge richtiger Tipps je Person | Statistik-2 |
+| `quote_position(p_name, p_seit)` | Quote nach Anfang / Mitte / Ende der Leiste | Statistik-2 † |
+| `serien(p_name, p_seit, p_limit)` | längste Folge richtiger Tipps je Person | Statistik-2 † |
 | `klaubilanz(p_seit)` | erbeutete und verlorene Karten je Person | Statistik-2 |
 | `partie_rueckblick(p_partie_id, p_name)` | Quote, beste Serie und härteste Karte einer Partie | Statistik-2 |
 | `anzeigename(p_key)` | Hilfsfunktion: zuletzt benutzte Schreibweise | Statistik-2 |
+
+† **Wird von der Statistikseite nicht mehr aufgerufen.** Die drei Kästen sind wieder
+entfernt worden: „Aktivität" hat nur Betrieb angezeigt, nicht Können, „Längste Serie"
+steht schon im Solospiel, und „Nach Lückenposition" sagt mehr über die Länge der Leiste
+als über den Spieler. Die Funktionen bleiben in der Datenbank — ein `DROP` wäre eine
+weitere Migration, und `partie_rueckblick` rechnet die beste Serie einer Partie ohnehin
+selbst (für den Rückblick auf dem Endbildschirm, der bleibt).
 
 Ein paar Entscheidungen, die man den Signaturen nicht ansieht:
 
@@ -369,10 +376,12 @@ Ein paar Entscheidungen, die man den Signaturen nicht ansieht:
 
 #### Zeitzone
 
-`aktivitaet` schneidet die Tage in **Europe/Zurich**, nicht in UTC — sonst kippte eine Partie um
-23:30 auf den Folgetag. Der Client muss dieselbe Zone rechnen, sonst zählte „Dieser Monat" ein
-bis zwei Stunden des Vormonats mit: `ZONE` in `duell.html` und die Zeichenkette in
-`supabase-statistik-2.sql` gehören zusammen.
+Tagesgrenzen liegen in **Europe/Zurich**, nicht in UTC — sonst kippte eine Partie um 23:30 auf
+den Folgetag. Der Client rechnet dieselbe Zone, sonst zählte „Dieser Monat" ein bis zwei Stunden
+des Vormonats mit: `ZONE` in `duell.html` und die Zeichenkette in `supabase-statistik-2.sql`
+gehören zusammen. Wer eine neue Auswertung nach Tagen oder Monaten baut, muss beide anfassen.
+(Im SQL steht die Zone derzeit nur noch in `aktivitaet` und `serien` — beide werden von der
+Seite nicht mehr aufgerufen; im Client zählt sie weiter, `monatsbeginn()` hängt daran.)
 
 `monatsbeginn()` nähert sich dem Monatsersten in **zwei Durchgängen** an: erst so tun, als wäre
 Zürich UTC, dann den tatsächlichen Versatz abziehen. Ein Durchgang reicht nicht — am 30. März
@@ -385,8 +394,16 @@ Zwei Umschalter: `statSicht` (ich / alle → `p_name`) und `statZeit` (Monat / a
 `statBloecke()` ist die **einzige** Stelle, an der ein Kasten angemeldet wird — id, Aufruf,
 Zeichenfunktion, Leertext.
 
+**Zwei Zurück-Knöpfe, ein Weg.** Der am Fuß (`btnStatsBack`) und der oben (`btnStatsOben`)
+hängen an derselben Funktion — die Seite ist lang, und nach dem Scrollen ist der Fuß weit weg.
+Der obere ist `position:sticky`, nicht `absolute` wie `.raus` und `.hilfe` auf den anderen
+Bildschirmen: hier ist der Bildschirm selbst der scrollende Kasten (`overflow-y:auto`), ein
+absolut gesetzter Knopf würde beim Scrollen nach oben aus dem Bild wandern. Weil er im
+geklebten Zustand über den Kästen liegt, hat er eine eigene Fläche — sonst liefe der Text
+darunter durch.
+
 Geholt wird mit `Promise.allSettled`, und **jeder Kasten zeichnet für sich**, sobald seine
-Antwort da ist. Mit einem `Promise.all` über inzwischen elf Aufrufe würde der langsamste zum
+Antwort da ist. Mit einem `Promise.all` über acht Aufrufe würde der langsamste zum
 Taktgeber für alle, und ein einziger Fehlschlag ließe die ganze Seite auf „lädt…" stehen.
 `statLauf` zählt dabei mit: Antworten aus einer älteren Einstellung werden verworfen, sonst
 könnte man sich beim schnellen Umschalten gemischte Zahlen zusammenklicken.

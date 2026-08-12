@@ -1075,8 +1075,19 @@ function fail(msg) {
   $('btnCreate').disabled = $('btnJoin').disabled = true;
 }
 
+// Eigene Songdatei fürs Onlinespiel: songs-online.json mit 1430 Titeln bis
+// 2026, gegen die 336 gedruckten Karten in songs.json. Die bleibt unberührt,
+// weil index.html sie fürs Offlinespiel per QR-Code liest – dort darf sich
+// nichts verschieben.
+//
+// Die 336 alten IDs bezeichnen in beiden Dateien denselben Song (geprüft über
+// Jahr, Interpret, Titel und Land). Das ist die Bedingung dafür, dass die
+// bisherige Statistik gültig bleibt: In `tipps` steht die Song-ID, und
+// schwerste_karten und angstgegner geben sie zurück, damit der Client Titel
+// und Interpret hier nachschlägt. Wären IDs neu vergeben worden, zeigte die
+// Statistik zu alten Zeilen die falschen Songs.
 function loadSongs() {
-  return fetch('songs.json?v=' + Date.now())
+  return fetch('songs-online.json?v=' + Date.now())
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(d => { SONGS = d; })
     .catch(() => fail('Songdaten konnten nicht geladen werden – Internetverbindung prüfen.'));
@@ -1593,7 +1604,7 @@ async function drawCard() {
 }
 
 // Richtig einsortiert, wenn die Karte zwischen ihre beiden Nachbarn passt.
-// Gleiche Jahre zählen als passend – bei 336 Songs auf 71 Jahrgänge ist
+// Gleiche Jahre zählen als passend – bei 1430 Songs auf 71 Jahrgänge ist
 // das der Normalfall, nicht die Ausnahme.
 function isCorrect(timeline, index, cardId) {
   const y = yearOf(cardId);
@@ -2900,7 +2911,7 @@ const VERLAEUFE = [
 
 // Der Verlauf muss aus der Song-ID folgen, nicht aus Zufall: dieselbe
 // Karte soll in der Zeitleiste, in der Auflösung und auf beiden Handys
-// gleich aussehen. FNV-1a streut die 336 IDs gut über die 25 Paare.
+// gleich aussehen. FNV-1a streut die 1430 IDs gut über die 25 Paare.
 function verlauf(id) {
   let h = 2166136261;
   const s = String(id);

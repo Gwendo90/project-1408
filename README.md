@@ -36,8 +36,9 @@ index.html              Offline-Modus: QR scannen und abspielen
 duell.html              Online-Modus: das eigentliche Spiel (~90 KB, alles inline)
 duell-config.js         Supabase-URL und öffentlicher Key
 supabase.js             Supabase-Bibliothek, eigenständig (siehe Fallstricke!)
-songs.json              336 Songs mit Vorschau-URLs
-flags/                  44 Herzflaggen als PNG, 128×128
+songs.json              336 Songs mit Vorschau-URLs — nur fürs Offlinespiel, unangetastet
+songs-online.json       1430 Songs fürs Onlinespiel (enthält die 336)
+flags/                  53 Herzflaggen als PNG, 128×128 — eine je Land der Online-Datei
 anleitung.html          Spielanleitung fürs gedruckte Kartenspiel
 anleitung-online.html   Spielanleitung für den Online-Modus (Prinzip, Solo vs. Mehrspieler, Veto)
 Logo.png / Logo.svg     Bildmarke (Logo.svg NICHT verwenden, siehe Fallstricke)
@@ -68,15 +69,33 @@ Nicht im Repo, nur lokal im Projektordner: `Set_1/`, `Set_2/` (Kartenbilder für
 
 ## Die Songdaten
 
-`songs.json` ist ein **Objekt mit den Schlüsseln `"001"` bis `"336"`** — kein Array. Die IDs
-entsprechen den QR-Codes auf den gedruckten Karten.
+**Zwei Dateien, eine gemeinsame Nummerierung:**
+
+| Datei | Songs | Wer liest sie |
+|---|---|---|
+| `songs.json` | 336 | `index.html` — das Offlinespiel. Entspricht genau den gedruckten Karten. |
+| `songs-online.json` | 1430 | `duell.html` — das Onlinespiel. Enthält die 336 und 1094 weitere. |
+
+`songs.json` bleibt bewusst **unangetastet**: Ihre IDs sind die QR-Codes auf den gedruckten
+Karten, dort darf sich nichts verschieben. Wer Songs ergänzen will, ergänzt die Online-Datei.
+
+**Die 336 gemeinsamen IDs bezeichnen in beiden Dateien denselben Song** — geprüft über Jahr,
+Interpret, Titel und Land, null Abweichungen. Das ist keine Kosmetik, sondern die Bedingung
+dafür, dass die bisherige Statistik gültig bleibt: In `tipps` steht die Song-ID, und
+`schwerste_karten` und `angstgegner` geben sie zurück, damit der Client Titel und Interpret in
+der Songdatei nachschlägt. Wären IDs neu vergeben worden, zeigte die Statistik zu allen alten
+Zeilen die falschen Songs. **Wer die Online-Datei erweitert, muss die bestehenden IDs deshalb
+unberührt lassen und nur hinten anhängen.**
+
+Beide sind ein **Objekt**, kein Array — die Schlüssel laufen von `"001"` bis `"336"` bzw.
+`"1430"` (ab 1000 vierstellig).
 
 ```json
 "001": {
   "year": "1956",           // String, nicht Zahl
   "artist": "Lys Assia",
   "title": "Refrain",
-  "country": "Schweiz",     // deutscher Name, 44 verschiedene
+  "country": "Schweiz",     // deutscher Name, 44 offline / 53 online
   "flag": "🇨🇭",             // Emoji, dient als Rückfall
   "place": "1",             // Platzierung beim ESC
   "sid": "448456972",       // iTunes-Track-ID
@@ -86,8 +105,17 @@ entsprechen den QR-Codes auf den gedruckten Karten.
 ```
 
 * Jahre **1956–2026**, 71 Jahrgänge, jeder mehrfach belegt — gleiche Jahre sind der Normalfall.
-* **Alle 336 Einträge haben ein gefülltes `pr`-Feld.** Der iTunes-Lookup in `index.html` ist
-  reiner Rückfall und greift praktisch nie.
+  Online sind es rund 20 Songs je Jahrgang, gleiche Jahre also noch häufiger als offline.
+* **Alle Einträge in beiden Dateien haben ein gefülltes `pr`-Feld.** Der iTunes-Lookup in
+  `index.html` ist reiner Rückfall und greift praktisch nie.
+* **`sid` und `u` liest das Onlinespiel nicht** (nur `year`, `artist`, `title`, `country`,
+  `flag`, `place`, `pr`). Sie bleiben trotzdem in der Datei: Ohne sie wären es 104 statt 142 KB
+  gzip — die 38 KB wiegen den Informationsverlust nicht auf.
+* **Ein bekannter Datenfehler in `songs-online.json`:** Die IDs `379` (Conchita Bautista,
+  *Estando contigo*, 1961) und `423` (dieselbe Interpretin, *Qué bueno, qué bueno*, 1965)
+  verweisen auf **dieselbe Vorschau-URL**. Bei einem der beiden erklingt also der falsche Song.
+  `sid` und `u` sind bei beiden verschieden, die Zeilen selbst sind korrekt — nur `pr` ist
+  einmal falsch aufgelöst worden.
 * Die Vorschauen sind **überwiegend 90 Sekunden lang**, nicht 30 (Stichprobe: 22 von 24).
   Nirgends 30 Sekunden fest annehmen.
 * Die Kartenbilder in `Set_1/` und `Set_2/` sind nach **Druckreihenfolge** benannt, nicht nach
@@ -181,7 +209,7 @@ allein `tag` im Spielzustand; ohne ihn ist es eine gewöhnliche Solo-Partie. Was
 
 | | Solo | Tagesduell |
 |---|---|---|
-| Deck | `shuffled()` über alle 336 | zehn Karten aus dem Tages-Seed |
+| Deck | `shuffled()` über alle 1430 | zehn Karten aus dem Tages-Seed |
 | Ende | nach drei Fehlern (`SOLO_FEHLER`) | wenn das Deck leer ist |
 | `maxFehler` | `3` | `null` — keine Leben |
 | Anzeige | Karten + Herzen | Fortschritt + Fehler + Uhr |
@@ -415,6 +443,19 @@ Die gedruckten Karten sind ausgemessen und in CSS nachgebaut:
 * **Herzflaggen** in `flags/`, Dateiname aus dem deutschen Ländernamen abgeleitet
   (`flagSlug()` in `duell.html` **muss identisch zu `slug()` in `build_flags.py` bleiben**).
   Fehlt eine Datei, springt per `onerror` das Emoji ein.
+
+  Mit `songs-online.json` kamen **neun Länder** dazu — Andorra, Belarus, Georgien, Marokko,
+  Mazedonien, Nordmazedonien, Slowakei, Slowenien, Tschechien (83 Songs). Alle neun sind
+  gebaut, es fällt also nirgends auf das Emoji zurück. Mazedonien und Nordmazedonien zeigen
+  dieselbe Flagge (die Sonnenflagge gilt seit 1995, die Umbenennung 2019 änderte sie nicht) —
+  zwei Dateien braucht es dennoch, weil der Dateiname aus dem Ländernamen entsteht.
+
+  **`build_flags.py` erzeugt diesen Stand noch nicht wieder.** Das Skript liegt nur lokal
+  (Desktop-Projektordner), liest `songs.json` und schreibt nach `Website/flags` — also in die
+  *alte* Kopie der Website, nicht ins Repo. Für Reproduzierbarkeit fehlen ihm drei Dinge: die
+  Online-Datei als zweite Quelle der Länderliste, die Einträge `"Belarus": "Belarus"` und
+  `"Nordmazedonien": "NorthMacedonia"` in `LAND_ZU_DATEI`, und das Repo als Ziel. Das
+  Quellmaterial (`Flaggen Herzen/*/New<Land>.png`, 72 Dateien) deckt alle 53 Länder ab.
 
 ### Statistik
 

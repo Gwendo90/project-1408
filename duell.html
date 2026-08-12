@@ -58,6 +58,29 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .btn.prim:active { opacity:.9; transform:scale(.98); }
 .btn.ghost { background:transparent; border:none; color:var(--muted); font-size:12px; padding:5px; }
 .actions { width:100%; max-width:400px; display:flex; flex-direction:column; gap:7px; flex-shrink:0; }
+/* ── Kopfzeile über der Namenseingabe ──────────────────────────────
+   Links die Kartenauswahl mit ihrer Zusammenfassung, rechts die Statistik.
+   Beides Einstellungen bzw. Nachschau – sie stehen deshalb vor der Wahl des
+   Spielmodus und nicht zwischen den Startknöpfen. */
+.kopfleiste { width:100%; max-width:400px; display:flex; gap:7px; flex-shrink:0; }
+.kopfbtn { display:flex; align-items:center; gap:9px; padding:9px 12px;
+           background:var(--surface); border:1px solid var(--border); border-radius:14px;
+           font-family:inherit; cursor:pointer; -webkit-appearance:none; text-align:left;
+           color:var(--muted); transition:border-color .15s; }
+.kopfbtn:active { border-color:var(--grad-mid); }
+.kopfbtn svg { width:18px; height:18px; flex-shrink:0; display:block; }
+/* Die linke Kachel nimmt den Rest der Breite, die rechte bleibt quadratisch. */
+.kopfbtn.breit { flex:1; min-width:0; }
+.kopfbtn.rund { justify-content:center; padding:9px 11px; }
+/* Zwei Zeilen: Anzahl oben in Textfarbe, Auswahl darunter kleiner. Die
+   Zusammenfassung wird abgeschnitten statt umzubrechen – bei vier gesetzten
+   Filtern würde sie die Kachel sonst auf drei Zeilen aufblähen. */
+.ktext { min-width:0; }
+.ktext b { display:block; font-size:12.5px; font-weight:700; color:var(--text); line-height:1.3; }
+.ktext i { display:block; font-style:normal; font-size:11px; line-height:1.35; margin-top:1px;
+           overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ktext i:empty { display:none; }
+
 .divider { display:flex; align-items:center; gap:12px; width:100%; color:var(--muted); font-size:12px; }
 .divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
 
@@ -683,27 +706,47 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     So geht's
   </a>
   <div class="logo"><img src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408"></div>
+  <!-- Kartenauswahl und Statistik: beides betrifft nicht einen Spielmodus,
+       sondern alle – deshalb über der Namenseingabe und nicht zwischen den
+       Startknöpfen. Die Kartenauswahl gilt für Mehrspieler und Endlosmodus;
+       das Tagesduell ignoriert sie, dessen Sinn ist das gemeinsame Deck. -->
+  <div class="kopfleiste">
+    <button class="kopfbtn breit" id="btnFilter">
+      <!-- Drei Regler statt Zahnrad. Nebeneinander gerendert und verglichen:
+           Ein Zahnrad wird bei 18px zur Sonne – die Zähne verschmelzen mit den
+           Speichen, egal ob dünn oder dick gestrichen. Die Regler bleiben in
+           der Größe eindeutig und sagen dasselbe: hier ist etwas einstellbar. -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 21v-6M5 11V3M12 21v-9M12 8V3M19 21v-4M19 13V3"/>
+        <path d="M2 14h6M9 8h6M16 16h6"/>
+      </svg>
+      <span class="ktext"><b id="filterZahl">Kartenauswahl</b><i id="filterZeile"></i></span>
+    </button>
+    <button class="kopfbtn rund" id="btnStats" aria-label="Bestenliste und Statistik">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 20.6h18"/>
+        <path d="M6.6 20.6V12.4M12 20.6V4.6M17.4 20.6V9"/>
+      </svg>
+    </button>
+  </div>
   <div class="panel">
     <input class="inp" id="nameInput" placeholder="Dein Name" maxlength="14" autocomplete="off">
   </div>
   <div class="actions">
-    <!-- Ganz oben, noch vor der Wahl des Spielmodus: die Kartenauswahl gilt
-         für Solo und Duell gleichermaßen. Nur das Tagesduell darunter
-         ignoriert sie – dessen Sinn ist ja das gemeinsame Deck. -->
-    <button class="btn ghost" id="btnFilter">Kartenauswahl</button>
-    <div class="sub" id="filterZeile"></div>
+    <div class="divider">Mehrspieler</div>
     <button class="btn prim" id="btnCreate">Neues Spiel starten</button>
     <div class="divider">oder</div>
     <input class="inp code" id="codeInput" placeholder="CODE" maxlength="5" autocomplete="off"
            autocapitalize="characters" autocorrect="off" spellcheck="false">
     <button class="btn" id="btnJoin">Spiel beitreten</button>
-    <div class="divider">alleine</div>
-    <button class="btn" id="btnSolo">Solo spielen</button>
+    <div class="divider">Solo</div>
+    <button class="btn" id="btnSolo">Endlosmodus</button>
     <div class="sub" id="soloBest"></div>
-    <div class="divider">täglich</div>
+    <div class="divider">Herausforderung</div>
     <button class="btn" id="btnTag">Tagesduell</button>
     <div class="sub" id="tagHinweis"></div>
-    <button class="btn ghost" id="btnStats">Bestenliste &amp; Statistik</button>
   </div>
   <div class="stat" id="homeStat"></div>
 </div>
@@ -1615,16 +1658,17 @@ function auffrischenFilter() {
   zeigeFilterZeile();
 }
 
-// Zusammenfassung direkt unter dem Knopf. Die Zahl zuerst, weil sie das ist,
-// was man vor dem Start wissen will. Kein "Karten:"-Präfix und kein Hinweis
-// zum Antippen: Der Knopf darüber heißt schon "Kartenauswahl", und die Zeile
-// steht jetzt über dem Hauptknopf – jedes Wort weniger hält sie einzeilig.
+// Beschriftung der Zahnrad-Kachel: oben die Anzahl, darunter die Auswahl.
+// Solange songs-online.json noch lädt, steht dort schlicht "Kartenauswahl" –
+// eine Null wäre eine falsche Angabe, kein Ladehinweis.
 function zeigeFilterZeile() {
+  if (!SONGS) return;
   const f = filterLaden();
   const t = filterText(f);
-  const n = SONGS ? filterPool(f).length : 0;
-  const ganz = SONGS ? Object.keys(SONGS).length : 0;
-  $('filterZeile').textContent = t ? `${n} von ${ganz} · ${t}` : `Alle ${ganz} Karten`;
+  const n = filterPool(f).length;
+  const ganz = Object.keys(SONGS).length;
+  $('filterZahl').textContent = t ? `${n} von ${ganz} Karten` : `Alle ${ganz} Karten`;
+  $('filterZeile').textContent = t;
 }
 
 // ══ Tagesduell ═══════════════════════════════════════════════════

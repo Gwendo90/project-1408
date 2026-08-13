@@ -403,7 +403,12 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
                     cursor:pointer; -webkit-appearance:none;
                     opacity:0; transform:translate(0,0) scale(.4);
                     transition:transform .26s cubic-bezier(.34,1.56,.64,1), opacity .18s; }
-.reaktWahl button img { width:78%; height:78%; display:block; margin:11%; }
+/* Füllt die Kachel ganz aus, obwohl die Katze früher mit Rand saß: Seit der
+   Aufkleberrand in den PNG steckt, bringt jedes Bild rund 16% Polster mit.
+   Auf der weißen Kachel ist der Rand unsichtbar, die Katze wäre bei 78% nur
+   noch halb so groß erschienen. Die Ecken des Quadrats ragen zwar über den
+   runden Knopf hinaus, sind dort aber durchsichtig. */
+.reaktWahl button img { width:100%; height:100%; display:block; }
 .reaktWahl.da { pointer-events:auto; }
 .reaktWahl.da button { opacity:1; transform:translate(var(--x),var(--y)) scale(1); }
 .reaktWahl button:active { filter:brightness(.92); }
@@ -421,18 +426,14 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
              display:flex; flex-direction:column; align-items:center; gap:4px;
              animation:reaktEin .55s cubic-bezier(.2,1.5,.4,1) forwards,
                        reaktAus .7s ease-in 1.5s forwards; }
-/* Weißer Rand wie bei einem Aufkleber. Die Katzen sind schwarze Silhouetten,
-   und die einfliegende zieht über die Karte – die ist dunkel, dort war die
-   Katze kaum zu erkennen. Vier verkettete drop-shadow ohne Weichzeichnung:
-   Jeder wirkt auf das Ergebnis des vorigen, dadurch schließt sich der Rand
-   auch an den Ecken, wo vier einzelne Schatten Lücken ließen. Der weiche
-   Schatten kommt zuletzt, damit er der umrandeten Silhouette folgt.
-   Nur hier und nicht in der Auswahl: dort sitzen die Katzen auf weißen
-   Kacheln und brauchen keinen Rand. */
+/* Der weiße Aufkleberrand steckt in den PNG selbst, nicht in einem Filter.
+   Über verkettete drop-shadow ging es nicht: Die verfolgen die Alphakante
+   genau und umrandeten deshalb jede Fellzacke und jeden Zitterstrich einzeln –
+   ein weißer Kamm statt einer Kontur. Gebacken wird sie über eine
+   weichgezeichnete und hart geschwellte Alphamaske, die rundet und Lücken
+   überbrückt (siehe reactions/ im README). Hier bleibt nur der Schatten. */
 .reaktFlug img { width:100%; height:auto; display:block;
-                 filter:drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff)
-                        drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff)
-                        drop-shadow(0 8px 18px rgba(40,30,80,.22)); }
+                 filter:drop-shadow(0 8px 18px rgba(40,30,80,.22)); }
 .reaktFlug span { font-size:11px; font-weight:700; letter-spacing:.4px;
                   color:var(--muted); background:var(--surface);
                   border:1px solid var(--border); border-radius:50px; padding:3px 9px;

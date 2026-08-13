@@ -39,7 +39,7 @@ supabase.js             Supabase-Bibliothek, eigenständig (siehe Fallstricke!)
 songs.json              336 Songs mit Vorschau-URLs — nur fürs Offlinespiel, unangetastet
 songs-online.json       1429 Songs fürs Onlinespiel (enthält die 336)
 flags/                  53 Herzflaggen als PNG, 128×128 — eine je Land der Online-Datei
-reactions/              14 Katzen als PNG, 320×320 — Reaktionen im Duell
+reactions/              14 Katzen als PNG, 320×320, mit gebackenem Aufkleberrand
 anleitung.html          Spielanleitung fürs gedruckte Kartenspiel
 anleitung-online.html   Spielanleitung für den Online-Modus (Prinzip, Solo vs. Mehrspieler, Veto)
 Logo.png / Logo.svg     Bildmarke (Logo.svg NICHT verwenden, siehe Fallstricke)
@@ -453,12 +453,26 @@ Vier Sachen, die beim Bauen nicht auf Anhieb saßen:
   Die Knöpfe sind deshalb von 42 auf **36px** geschrumpft, sonst reichte der dritte Ring über
   den rechten Rand. Nachgemessen auf 320×568, 390×844 und 430×932: keine Überlappung, keine
   Katze außerhalb.
-* **Weißer Rand nur an der fliegenden Katze.** Die Katzen sind schwarze Silhouetten, und die
-  einfliegende zieht über die Karte — die ist dunkel, dort war sie kaum zu erkennen. Vier
-  verkettete `drop-shadow` ohne Weichzeichnung ergeben den Aufkleberrand: Jeder wirkt auf das
-  Ergebnis des vorigen, dadurch schließt er sich auch an den Ecken, wo vier einzelne Schatten
-  Lücken ließen. Der weiche Schatten kommt zuletzt, damit er der umrandeten Silhouette folgt.
-  In der Auswahl bleibt der Rand weg, dort sitzen die Katzen auf weißen Kacheln.
+* **Der weiße Aufkleberrand steckt in den PNG, nicht in einem Filter.** Die Katzen sind schwarze
+  Silhouetten, und die einfliegende zieht über die dunkle Karte — dort war sie kaum zu erkennen.
+  Der erste Versuch über verkettete `drop-shadow` scheiterte an der Bildsprache: Die verfolgen
+  die Alphakante genau und umrandeten deshalb **jede Fellzacke und jeden Zitterstrich einzeln** —
+  bei `cat-spooked-fur` ein weißer Kamm am Schwanz, bei `cat-startled` verstreute Schnipsel um
+  die Katze herum. Ein Stanz-Sticker folgt aber der groben Form, nicht der Zeichnung.
+
+  Gebacken wird er deshalb beim Aufbereiten der Bilder: Alphakanal weichzeichnen (σ 16), hart
+  schwellen (18), einmal nachglätten, 1,2 px Antialiasing. Das Weichzeichnen rundet Ecken und
+  überbrückt Lücken bis etwa 2σ — genau das lässt die Zacken in einer geschlossenen Form
+  verschwinden. Die Werte sind erprobt: σ 8 und 12 folgten den Zacken noch, σ 20 schnitt bei
+  `cat-grumpy` am Bildrand ab. Ein echtes morphologisches Schließen (stark wachsen, dann
+  zurückschrumpfen) fasste die Zitterstriche besser, brauchte aber so viel Rand, dass die Katze
+  zu klein wurde.
+
+  Dafür sitzt der Inhalt mit **26 px Polster** im 320er-Rahmen, sonst würde die Kontur an der
+  Bildkante abgeschnitten — geprüft ist für alle 14, dass die Maske den Rand nicht berührt. Weil
+  jedes Bild dadurch rund 16 % Polster mitbringt, füllt es in der Auswahl die Kachel **ganz**
+  (vorher 78 %): Auf der weißen Kachel ist der Rand unsichtbar, die Katze wäre sonst geschrumpft.
+  Im CSS bleibt nur der weiche Schatten.
 * **Knopf und Katzen liegen außerhalb der Bildschirme**, obwohl sie nur zum Spielbildschirm
   gehören. `.screen.hidden` trägt ein `transform`, und das spannt für `position:fixed` einen
   eigenen Bezugsrahmen auf — als Kind läge der Knopf relativ zum geschrumpften Bildschirm und

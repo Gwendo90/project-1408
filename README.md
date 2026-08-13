@@ -278,6 +278,46 @@ hinterlässt. `neuesDeck()` für die Revanche mitten im Spiel greift dagegen not
 zurück: Wer schon spielt, soll nicht durch eine zwischenzeitlich verschärfte Auswahl aufgehalten
 werden.
 
+### Schwierigkeit und Duellmodi
+
+Beides steht im **Einstellungsbildschirm** (dem früheren „Kartenauswahl"), weil es dieselbe
+Frage beantwortet: Wie soll die nächste Partie aussehen?
+
+| | Stufen |
+|---|---|
+| Schwierigkeit (Mehrspieler + Endlosmodus) | Einfach · Fortgeschritten |
+| Mehrspieler-Modus | Klassisch (10) · Individuell (5–20) · Deathmatch |
+
+**Fortgeschritten sortiert nach Jahr *und* Platzierung** — und daran hängt eine Feinheit, die
+`place = "x"` betrifft. Diese Karten sind im Halbfinale ausgeschieden und haben keine
+Finalplatzierung, ihre Reihenfolge innerhalb des Jahres ist also unbestimmt. Naiv umgesetzt
+(„neben einer x-Karte ist alles erlaubt") entstünde daraus eine Leiste, die als Ganzes falsch
+sortiert ist, obwohl jeder einzelne Tipp galt: Aus `9 · x` würde durch Einsortieren von `1` am
+Ende die Folge `9 · x · 1`. `isCorrect()` vergleicht deshalb mit dem nächsten Nachbarn desselben
+Jahres, **der eine Platzierung hat**, und überspringt die x-Karten. Geprüft sind 18 Fälle gegen
+die echten Funktionen, darunter genau dieser.
+
+**Die Spielweise steht im Spielzustand, nicht auf dem Gerät** (`state.schwer`, `state.ziel`,
+`state.tod`). Das ist keine Bequemlichkeit: `isCorrect()` läuft auf **beiden** Clients, und mit
+einer gerätelokalen Einstellung würden sie unterschiedlich urteilen. Im Duell gilt deshalb die
+Einstellung des Gastgebers, sichtbar in der Lobby.
+
+**Deathmatch trennt Ausscheiden vom Verlassen.** `state.raus[k]` heißt „hat das Spiel verlassen"
+und gilt für immer, `state.aus[k]` heißt „im Deathmatch ausgeschieden" und wird bei der Revanche
+geleert. Ohne getrennte Kennzeichen ließe sich beim Neustart nicht unterscheiden, wen man
+zurückholen darf. `aktive()` schließt beides aus.
+
+Zwei Entscheidungen zum Deathmatch, die man ihm nicht ansieht:
+
+* **Nur der eigene Zug scheidet aus, kein misslungenes Veto.** Sonst wäre Vetogeben Selbstmord
+  und niemand würde es je wagen — ein Fehlveto kostet weiterhin nur das Veto.
+* **Das Kartenziel bleibt** (10 bzw. die eingestellte Zahl). Ohne eines liefe eine Partie zweier
+  vorsichtiger Spieler durch den ganzen Stapel von 1429 Karten.
+
+**Das Tagesduell ist ausdrücklich einfach**, unabhängig von der Einstellung — `schwer: false`
+steht dort fest im Zustand. Alle sollen dieselbe Aufgabe haben, sonst wäre die Tagesbestenliste
+wertlos.
+
 ### Tagesduell
 
 **Alle spielen an einem Tag dieselben zehn Karten in derselben Reihenfolge** (`TAG_KARTEN`).

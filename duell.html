@@ -564,7 +564,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .statkopf { position:sticky; top:0; z-index:5;
             width:calc(100% + 48px); margin:0 -24px -14px;
             padding:max(env(safe-area-inset-top),12px) 24px 9px;
-            background:var(--bg); }
+            background:var(--bg);
+            /* Flex, damit rechts ein zweiter Knopf Platz hat (Zurücksetzen in
+               der Kartenauswahl). Mit nur einem Kind ändert sich nichts. */
+            display:flex; align-items:center; gap:10px; }
 /* Am linken Rand der Kästen, nicht am linken Rand des Bildschirms: auf dem
    Handy fällt beides zusammen, am Rechner steht die 520er-Spalte mittig und
    ein Knopf in der Fensterecke hätte nichts, worauf er sich bezieht. Der
@@ -577,6 +580,11 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
            color:var(--muted); cursor:pointer; -webkit-appearance:none; }
 .zurueck svg { width:14px; height:14px; flex-shrink:0; display:block; }
 .zurueck:active { opacity:.6; }
+/* Gegenstück am rechten Spaltenrand. margin-left:auto schiebt ihn hinüber,
+   der rechte Rand spiegelt den Einzug des linken Knopfes – am Rechner stehen
+   beide damit auf den Kanten der 520er-Spalte. */
+.zurueck.rechts { margin-left:auto; margin-right:max(0px, calc((100% - 520px) / 2));
+                  padding:7px 13px; }
 .seg { display:flex; gap:5px; width:100%; max-width:520px; background:var(--surface);
        border:1px solid var(--border); border-radius:13px; padding:4px; }
 .segbtn { flex:1; border:none; background:none; font-family:inherit; font-size:13px; font-weight:600;
@@ -595,8 +603,12 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .wchip { font-family:inherit; font-size:12px; font-weight:600; padding:7px 12px; border-radius:50px;
          background:var(--surface); border:1px solid var(--border); color:var(--text);
          cursor:pointer; -webkit-appearance:none; transition:border-color .15s, color .15s; }
-.wchip.on { color:#fff; border-color:transparent;
-            background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b)); }
+/* Einfarbig statt Verlauf: 27 Chips mit je einem Dreifarbverlauf sind zu
+   viel Unruhe auf einer Seite. Den Ton setzt das JS als --c – jedes Feld hat
+   seine eigene Familie (Platzierung türkis-blau, Jahrzehnte pink, Länder
+   violett), und innerhalb des Feldes wird er von Chip zu Chip dunkler. Der
+   Rückfall auf --grad-mid greift nur, falls --c fehlt. */
+.wchip.on { color:#fff; border-color:transparent; background:var(--c, var(--grad-mid)); }
 .wchip:disabled { opacity:.4; cursor:default; }
 /* Zeile mit Schalter rechts, für "frische Karten zuerst". */
 .wzeile { display:flex; align-items:center; gap:12px; }
@@ -611,8 +623,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .schalter::after { content:''; position:absolute; top:2px; left:2px; width:21px; height:21px;
                    border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2);
                    transition:transform .2s; }
-.schalter.on { background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
-               border-color:transparent; }
+/* Auch hier einfarbig. Nicht aus den drei Familien, sondern die Signaturfarbe
+   des Verlaufs: Der Schalter gehört zu keinem der Auswahlfelder. */
+.schalter.on { background:var(--grad-mid); border-color:transparent; }
 .schalter.on::after { transform:translateX(19px); }
 /* Zähler unten. .warn färbt ihn, wenn zu wenige Karten übrig sind. */
 .wzahl { font-size:13px; font-weight:600; text-align:center; line-height:1.6; }
@@ -869,6 +882,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       </svg>
       Zurück
     </button>
+    <button class="zurueck rechts" id="btnFilterReset">Alles zurücksetzen</button>
   </div>
   <div class="statwrap">
     <div class="statblock">
@@ -896,9 +910,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div class="statblock">
       <div class="wzahl" id="wZahl">—</div>
     </div>
-  </div>
-  <div class="actions">
-    <button class="btn ghost" id="btnFilterReset">Alles zurücksetzen</button>
   </div>
 </div>
 
@@ -1131,6 +1142,28 @@ const FILT_MIN = 20;
 // init() heraus darauf zugreift – und init() wird im Modul weiter oben
 // aufgerufen als jene Zeilen stehen (siehe Fallstricke im README).
 const FILT_STANDARD = { platz:'alle', jahrzehnte:null, gruppen:null, frisch:false };
+// Farbfamilie je Auswahlfeld der Kartenauswahl, jeweils von hell nach dunkel.
+// Die Anker sind die Stopps des Hauptverlaufs: türkisblau aus --grad-b, pink
+// aus --grad-a, violett aus --grad-mid. Ein Bereich statt einer festen Farbe,
+// weil jeder Chip seinen eigenen Ton bekommt – bei Platzierung und Jahrzehnten
+// liegt darin sogar eine Ordnung (je strenger bzw. je jünger, desto dunkler).
+//
+// Steht wie FILT_STANDARD hier oben, weil baueFilter() aus init() heraus
+// darauf zugreift und init() im Modul weiter oben aufgerufen wird. Als const
+// weiter unten lag sie in der temporalen Todeszone: baueFilter() brach beim
+// ersten Chip ab, und mit ihr der ganze Rest von init() – keine Chips, keine
+// Songs, kein Spiel (siehe Fallstricke im README).
+// Die hellen Enden sind dunkler, als die Familien es nahelegen würden: Auf
+// dem Chip steht weiße Schrift, und gemessen am WCAG-Kontrast trug das erste
+// Türkis (#5FC9E4) nur 1,92 : 1 – unlesbar. Jetzt liegt das schlechteste Feld
+// bei 3,37 : 1 und die übrigen über 4,1 : 1. Der Hauptverlauf selbst kommt an
+// seinem hellsten Stopp auf 2,21 : 1; das verzeiht er nur, weil die Schrift
+// dort über der dunkleren Mitte sitzt und nicht über einer einfarbigen Fläche.
+const WAHL_FARBEN = {
+  wPlatz: ['#2F96BE', '#3F63D8'],   // Türkis nach Blau
+  wJahr:  ['#D8447E', '#A81450'],   // helles nach tiefem Pink
+  wLand:  ['#A94BC4', '#6B1583']    // helles nach tiefem Violett
+};
 // Vorlauf beim Autostart: beide Geräte bekommen Zeit, die Preview zu laden,
 // damit der Song bei beiden wirklich bei Sekunde 0 beginnt statt mittendrin.
 const VORLAUF_MS = 900;
@@ -1606,6 +1639,17 @@ function filterText(f) {
 }
 
 // ── Der Bildschirm dazu ──────────────────────────────────────────
+// Zwei Farben linear mischen, i von 0 bis n-1. Ein Bereich statt einer Liste
+// fester Werte, damit eine zusätzliche Gruppe oder ein weiteres Jahrzehnt die
+// Abstufung von selbst mitnimmt.
+function farbTon([von, bis], i, n) {
+  const teile = h => [1, 3, 5].map(k => parseInt(h.slice(k, k + 2), 16));
+  const a = teile(von), b = teile(bis);
+  const t = n > 1 ? i / (n - 1) : 0;
+  return '#' + a.map((v, k) => Math.round(v + (b[k] - v) * t)
+    .toString(16).padStart(2, '0')).join('');
+}
+
 // Die Chips werden einmal gebaut, danach schaltet auffrischenFilter() nur
 // noch Klassen und den Zähler um. Die Listen stehen dadurch allein im JS.
 function baueFilter() {
@@ -1615,11 +1659,14 @@ function baueFilter() {
   const bauen = (wohin, liste, id, text, einzeln) => {
     const el = $(wohin);
     el.innerHTML = '';
-    liste.forEach(e => {
+    liste.forEach((e, i) => {
       const b = document.createElement('button');
       b.className = 'wchip';
       b.dataset.wert = String(id(e));
       b.textContent = text(e);
+      // Eigener Ton je Chip. Als Variable und nicht als background, damit die
+      // Farbe nur im eingeschalteten Zustand greift (siehe .wchip.on).
+      b.style.setProperty('--c', farbTon(WAHL_FARBEN[wohin], i, liste.length));
       b.addEventListener('click', () => { einzeln(String(id(e))); auffrischenFilter(); });
       el.appendChild(b);
     });

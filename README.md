@@ -39,7 +39,7 @@ supabase.js             Supabase-Bibliothek, eigenständig (siehe Fallstricke!)
 songs.json              336 Songs mit Vorschau-URLs — nur fürs Offlinespiel, unangetastet
 songs-online.json       1429 Songs fürs Onlinespiel (enthält die 336)
 flags/                  53 Herzflaggen als PNG, 128×128 — eine je Land der Online-Datei
-reactions/              8 Katzen als PNG, 320×320 — Reaktionen im Duell
+reactions/              14 Katzen als PNG, 320×320 — Reaktionen im Duell
 anleitung.html          Spielanleitung fürs gedruckte Kartenspiel
 anleitung-online.html   Spielanleitung für den Online-Modus (Prinzip, Solo vs. Mehrspieler, Veto)
 Logo.png / Logo.svg     Bildmarke (Logo.svg NICHT verwenden, siehe Fallstricke)
@@ -419,7 +419,7 @@ Rückfall** — Realtime reißt bei Netzwechsel (WLAN → mobil) still ab.
 
 ### Katzen-Reaktionen
 
-Ein Knopf unten rechts, aufgefaltet erscheinen acht Katzen (`reactions/`), eine Auswahl fliegt
+Ein Knopf unten rechts, aufgefaltet erscheinen vierzehn Katzen (`reactions/`), eine Auswahl fliegt
 bei allen Mitspielern ein. Nur im Duell — im Solo und Tagesduell wäre niemand da, der sie sieht,
 deshalb schaltet `renderGame()` den Knopf nur bei `!st.solo && mitspieler(...).length > 0`.
 
@@ -436,14 +436,29 @@ Broadcasts. Für Zierrat ist das der richtige Tausch.
 ist. Alles von außen wird geprüft: ein unbekannter Dateiname wird verworfen (feste Liste
 `KATZEN`), und der fremde Anzeigename geht über `textContent` in den DOM, nie über `innerHTML`.
 
-Drei Sachen, die beim Bauen nicht auf Anhieb saßen:
+Vier Sachen, die beim Bauen nicht auf Anhieb saßen:
 
 * **Die Winkel.** `fuelleKatzen()` rechnet `y = -r·sin θ`, weil y auf dem Bildschirm nach unten
-  zeigt. Damit heißt 180° links und 90° oben, der Bogen läuft also von 178° **abwärts** auf 88°.
+  zeigt. Damit heißt 180° links und 90° oben, der Bogen läuft also von 178° **abwärts** auf 86°.
   Mit 178→268 fiel er nach unten aus dem Bild (gemessen: fünf von acht Katzen außerhalb).
-* **Zwei Bögen statt einem.** Vier Katzen je Bogen liegen 25,7° auseinander; die Sehne
-  2·r·sin(12,86°) muss über dem Knopfdurchmesser von 42px liegen, also r > 108. Mit r=88 lagen
-  sie übereinander (39px Sehne). Jetzt 112 innen, 168 außen.
+* **Die Ringzahl wird gerechnet, nicht festgelegt.** `katzenRinge(n)` sucht das kleinste k, bei
+  dem die Sehne zwischen Nachbarn desselben Rings — 2·r₀·sin(k·Schritt/2) — den
+  Knopfdurchmesser samt Luft übertrifft. Mit acht Katzen reichten zwei Ringe, mit vierzehn sind
+  es drei. Fest verdrahtet hätten die sechs neuen Katzen die alten überlappt: Die Sehne wäre von
+  50 auf 27px gefallen.
+
+  Die **Spanne** lässt sich dabei nicht ausweichen: unter 178° käme eine Katze über die
+  Aktionsknöpfe, über 86° hinaus rechts aus dem Bild — bei 82° ragte die oberste auf einem
+  320px-Schirm genau 1px hinaus (gemessen). Mehr Katzen heißt also: mehr Ringe, nicht mehr Grad.
+  Die Knöpfe sind deshalb von 42 auf **36px** geschrumpft, sonst reichte der dritte Ring über
+  den rechten Rand. Nachgemessen auf 320×568, 390×844 und 430×932: keine Überlappung, keine
+  Katze außerhalb.
+* **Weißer Rand nur an der fliegenden Katze.** Die Katzen sind schwarze Silhouetten, und die
+  einfliegende zieht über die Karte — die ist dunkel, dort war sie kaum zu erkennen. Vier
+  verkettete `drop-shadow` ohne Weichzeichnung ergeben den Aufkleberrand: Jeder wirkt auf das
+  Ergebnis des vorigen, dadurch schließt er sich auch an den Ecken, wo vier einzelne Schatten
+  Lücken ließen. Der weiche Schatten kommt zuletzt, damit er der umrandeten Silhouette folgt.
+  In der Auswahl bleibt der Rand weg, dort sitzen die Katzen auf weißen Kacheln.
 * **Knopf und Katzen liegen außerhalb der Bildschirme**, obwohl sie nur zum Spielbildschirm
   gehören. `.screen.hidden` trägt ein `transform`, und das spannt für `position:fixed` einen
   eigenen Bezugsrahmen auf — als Kind läge der Knopf relativ zum geschrumpften Bildschirm und

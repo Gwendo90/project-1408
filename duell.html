@@ -393,8 +393,11 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
              right:calc(max(env(safe-area-inset-right),16px) + 23px);
              bottom:calc(max(env(safe-area-inset-bottom),16px) + 62px + 23px);
              width:0; height:0; pointer-events:none; }
-.reaktWahl button { position:absolute; left:-21px; top:-21px;
-                    width:42px; height:42px; border-radius:50%; padding:0;
+/* 36px statt 42: mit vierzehn Katzen braucht die Auffaltung drei Ringe, und
+   der äußere reicht sonst über den rechten Bildrand hinaus. Die Größe steht
+   auch in KATZ_BOGEN.knopf – katzenRinge() rechnet damit. */
+.reaktWahl button { position:absolute; left:-18px; top:-18px;
+                    width:36px; height:36px; border-radius:50%; padding:0;
                     border:1px solid var(--border); background:var(--surface);
                     box-shadow:0 4px 14px rgba(40,30,80,.13);
                     cursor:pointer; -webkit-appearance:none;
@@ -418,8 +421,18 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
              display:flex; flex-direction:column; align-items:center; gap:4px;
              animation:reaktEin .55s cubic-bezier(.2,1.5,.4,1) forwards,
                        reaktAus .7s ease-in 1.5s forwards; }
+/* Weißer Rand wie bei einem Aufkleber. Die Katzen sind schwarze Silhouetten,
+   und die einfliegende zieht über die Karte – die ist dunkel, dort war die
+   Katze kaum zu erkennen. Vier verkettete drop-shadow ohne Weichzeichnung:
+   Jeder wirkt auf das Ergebnis des vorigen, dadurch schließt sich der Rand
+   auch an den Ecken, wo vier einzelne Schatten Lücken ließen. Der weiche
+   Schatten kommt zuletzt, damit er der umrandeten Silhouette folgt.
+   Nur hier und nicht in der Auswahl: dort sitzen die Katzen auf weißen
+   Kacheln und brauchen keinen Rand. */
 .reaktFlug img { width:100%; height:auto; display:block;
-                 filter:drop-shadow(0 8px 18px rgba(40,30,80,.22)); }
+                 filter:drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff)
+                        drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff)
+                        drop-shadow(0 8px 18px rgba(40,30,80,.22)); }
 .reaktFlug span { font-size:11px; font-weight:700; letter-spacing:.4px;
                   color:var(--muted); background:var(--surface);
                   border:1px solid var(--border); border-radius:50px; padding:3px 9px;
@@ -1069,22 +1082,41 @@ const PLAY_U = 2 * Math.PI * PLAY_R;
 // geht – deshalb steht hier eine feste Liste und nicht das, was gerade im
 // Ordner liegt: Ein unbekannter Name vom anderen Gerät wird verworfen,
 // statt ein fehlendes Bild anzuzeigen.
-const KATZEN = ['cat-playful', 'cat-superhero', 'cat-angel', 'cat-curious',
-                'cat-grumpy', 'cat-sailing', 'cat-pool-float', 'cat-sleeping'];
-// Zwei versetzte Bögen um den Knopf, der unten rechts sitzt – aufgefaltet
-// wird also nach links und oben.
+const KATZEN = ['cat-playful', 'cat-superhero', 'cat-startled', 'cat-angel',
+                'cat-curious', 'cat-spooked-fur', 'cat-grumpy', 'cat-sneaking',
+                'cat-sailing', 'cat-stuck-in-cup', 'cat-pool-float', 'cat-candy-cane',
+                'cat-sleeping', 'cat-hanging-head'];
+// Versetzte Ringe um den Knopf, der unten rechts sitzt – aufgefaltet wird
+// also nach links und oben.
 //
 // Winkel im gewöhnlichen Sinn, aber y zeigt auf dem Bildschirm nach unten,
 // deshalb rechnet fuelleKatzen() mit -sin. Damit heißt 180° links, 90° oben,
-// und der Bogen läuft von 178° *abwärts* auf 88°. Mit 178→268 fiel er
+// und der Bogen läuft von 178° *abwärts* auf 86°. Mit 178→268 fiel er
 // stattdessen nach unten aus dem Bild (gemessen: fünf von acht Katzen
-// außerhalb, eine Überlappung).
+// außerhalb).
 //
-// Zwei Bögen, weil acht Katzen auf einem einzigen zu eng stünden: Vier je
-// Bogen liegen 25,7° auseinander, die Sehne 2·r·sin(12,86°) muss über dem
-// Knopfdurchmesser von 42px liegen. Das heißt r > 108, also 112 innen; der
-// äußere 56px weiter, damit sich auch die Bögen nicht berühren.
-const KATZ_BOGEN = { r: [112, 168], von: 178, bis: 88 };
+// Die Spanne lässt sich nicht wesentlich erweitern: unter 178° käme eine Katze
+// über die Aktionsknöpfe, über 86° hinaus rechts aus dem Bild – bei 82° ragte
+// die oberste Katze auf einem 320px-Schirm genau 1px hinaus (gemessen). Bei mehr Katzen
+// müssen deshalb Ringe dazukommen, nicht Grad – siehe katzenRinge().
+const KATZ_BOGEN = { r0: 104, dr: 54, von: 178, bis: 86, knopf: 36, luft: 2 };
+
+// Wie viele Ringe braucht die Auffaltung? Nachbarn desselben Rings liegen
+// k·Schritt auseinander, ihre Sehne ist 2·r·sin(k·Schritt/2) – gerechnet am
+// innersten Ring, dort steht es am engsten. Gesucht ist das kleinste k, bei
+// dem die Sehne den Knopfdurchmesser samt Luft übertrifft.
+//
+// Gerechnet statt festgelegt, weil die Zahl der Katzen wächst: Mit acht
+// reichten zwei Ringe, mit vierzehn sind es drei. Fest verdrahtet hätten die
+// sechs neuen die alten überlappt – die Sehne wäre auf 27px gefallen.
+function katzenRinge(n) {
+  const spanne = Math.abs(KATZ_BOGEN.bis - KATZ_BOGEN.von);
+  for (let k = 1; k <= 4; k++) {
+    const winkel = (spanne / (n - 1)) * k * Math.PI / 180;
+    if (2 * KATZ_BOGEN.r0 * Math.sin(winkel / 2) >= KATZ_BOGEN.knopf + KATZ_BOGEN.luft) return k;
+  }
+  return 4;
+}
 const REAKT_SPERRE = 1200;              // Mindestabstand zweier Reaktionen
 const REAKT_MAX = 3;                    // so viele gleichzeitig im Bild
 
@@ -2107,18 +2139,20 @@ async function subscribe(code) {
 }
 
 // ══ Katzen-Reaktionen ════════════════════════════════════════════
-// Die Auswahl wird einmal beim Start gebaut. Die Plätze auf den beiden
-// Bögen werden hier gerechnet und als --x/--y an die Knöpfe geschrieben:
-// im CSS stünde derselbe Sinus achtmal von Hand.
+// Die Auswahl wird einmal beim Start gebaut. Die Plätze auf den Ringen werden
+// hier gerechnet und als --x/--y an die Knöpfe geschrieben: im CSS stünde
+// derselbe Sinus vierzehnmal von Hand.
 function fuelleKatzen() {
   const wahl = $('reaktWahl');
-  const { r, von, bis } = KATZ_BOGEN;
+  const { r0, dr, von, bis } = KATZ_BOGEN;
+  const ringe = katzenRinge(KATZEN.length);
   const schritt = (bis - von) / (KATZEN.length - 1);
   KATZEN.forEach((k, i) => {
     const winkel = (von + i * schritt) * Math.PI / 180;
-    // Jede zweite Katze auf den äußeren Bogen. cos/sin im Bildschirmsinn:
-    // y wächst nach unten, deshalb das Minus.
-    const radius = r[i % 2];
+    // Der Reihe nach nach außen und wieder von vorn – so sitzen benachbarte
+    // Katzen nie auf demselben Ring. cos/sin im Bildschirmsinn: y wächst nach
+    // unten, deshalb das Minus.
+    const radius = r0 + (i % ringe) * dr;
     const b = document.createElement('button');
     b.style.setProperty('--x', (Math.cos(winkel) * radius).toFixed(1) + 'px');
     b.style.setProperty('--y', (-Math.sin(winkel) * radius).toFixed(1) + 'px');

@@ -3159,7 +3159,10 @@ function zeichneBilanz({ data, error }) {
     <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
       <span class="znam">${esc(r.name)}</span>
       <span class="zdat">${r.spiele} ${r.spiele === 1 ? 'Spiel' : 'Spiele'}</span>
-      <span class="zwert">${r.siege} ✓</span>
+      <!-- Ausgeschrieben statt Haken: der stand als einziges Sonderzeichen in
+           der ganzen Datei, und eine nackte Zahl neben "1 Spiel" wäre nicht zu
+           deuten. Die Nachbarkästen machen es genauso ("5 erbeutet"). -->
+      <span class="zwert">${r.siege} ${r.siege === 1 ? 'Sieg' : 'Siege'}</span>
     </div>`).join('');
 }
 

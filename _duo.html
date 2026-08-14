@@ -1,0 +1,71 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>läuft…</title>
+<style>body{margin:0;display:flex}iframe{width:390px;height:800px;border:0}</style>
+</head><body>
+<iframe id="A" src="duell.html"></iframe><iframe id="B" src="duell.html"></iframe>
+<script>
+var log=[], code=null, songs=null, n=0, laeuft=false, fertig=false;
+var KEY='sb_publishable_Be6H_Tncld2TlUOC27HRCg_BUwkXowz';
+function d(f){ return document.getElementById(f).contentDocument; }
+function w(f){ return document.getElementById(f).contentWindow; }
+function btn(f,l){ return [...d(f).querySelectorAll('#gameActions .btn')].filter(function(b){return b.textContent.trim()===l;})[0]; }
+function zst(){ return fetch('https://smdpjadtbrgjufuxwtpg.supabase.co/rest/v1/games?select=state&code=eq.'+code,
+  {headers:{apikey:KEY,Authorization:'Bearer '+KEY}}).then(function(r){return r.json();}).then(function(x){return x[0].state;}); }
+function melde(){ fertig=true; fetch('/ergebnis',{method:'POST',body:log.join('\n')}); }
+fetch('songs-online.json').then(function(r){return r.json();}).then(function(j){songs=j;});
+setTimeout(function(){ w('A').localStorage.clear(); w('B').localStorage.clear();
+  w('A').localStorage.setItem('duell1408filter', JSON.stringify(
+   {platz:'alle',jahrzehnte:null,gruppen:null,frisch:false,schwer:false,modus:'tod',zielN:10})); }, 400);
+setTimeout(function(){ d('A').getElementById('nameInput').value='ZZ-Sieger';
+  d('A').getElementById('nameInput').dispatchEvent(new Event('input'));
+  d('A').getElementById('btnCreate').click(); }, 9000);
+setTimeout(function(){ code=d('A').getElementById('lobbyCode').textContent.trim(); log.push('Code = '+code); }, 14000);
+setTimeout(function(){ w('B').localStorage.removeItem('duell1408'); }, 14800);
+setTimeout(function(){ d('B').getElementById('nameInput').value='ZZ-Verlierer';
+  d('B').getElementById('nameInput').dispatchEvent(new Event('input'));
+  d('B').getElementById('codeInput').value=code; d('B').getElementById('btnJoin').click(); }, 15000);
+setTimeout(function(){ d('A').getElementById('btnStart').click(); }, 21000);
+setTimeout(function(){ zst().then(function(st){ log.push('tod='+st.tod+' turn='+st.turn); laeuft=true; }); }, 26000);
+var t=setInterval(function(){
+  if (!laeuft || fertig) return;
+  if (++n>45) { clearInterval(t); log.push('ABBRUCH'); melde(); return; }
+  ['A','B'].forEach(function(f){ var z=btn(f,'Karte ziehen'), we=btn(f,'Nächste Karte');
+    if (we) we.click(); else if (z) z.click(); });
+  var amZug=['A','B'].filter(function(f){ return d(f).querySelectorAll('#tl .gap.live').length; })[0];
+  if (!amZug) return;
+  laeuft=false;
+  zst().then(function(st){
+    var jetzt=parseInt(songs[st.current].year,10);
+    var leiste=(st.timelines[st.turn]||[]).map(function(id){return parseInt(songs[id].year,10);});
+    var falsch=-1;
+    for (var i=0;i<=leiste.length;i++){ var v=i>0?leiste[i-1]:-1e9, na=i<leiste.length?leiste[i]:1e9;
+      if(!(v<=jetzt&&jetzt<=na)){falsch=i;break;} }
+    if (falsch<0) { laeuft=true; return; }
+    log.push(st.turn+' setzt '+jetzt+' absichtlich falsch auf Lücke '+falsch);
+    var g=[...d(amZug).querySelectorAll('#tl .gap.live')].filter(function(x){return +x.dataset.i===falsch;})[0];
+    if (!g) { laeuft=true; return; }
+    g.click();
+    setTimeout(function(){ var e=btn(amZug,'Karte einloggen'); if (e) e.click(); }, 500);
+    setTimeout(function(){ zst().then(function(s2){
+      log.push('Partie: phase='+s2.phase+' winner='+s2.winner+' aus='+JSON.stringify(s2.aus||{})
+        +' partieId='+(s2.partieId||'').slice(0,8));
+      log.push('Endstand A: "'+d('A').getElementById('overSub').textContent+'"');
+      // Jetzt die Datenbank fragen
+      setTimeout(function(){
+        var H={apikey:KEY,Authorization:'Bearer '+KEY};
+        fetch('https://smdpjadtbrgjufuxwtpg.supabase.co/rest/v1/partien?select=name,partie_id,gewonnen,karten,gegner&partie_id=eq.'+s2.partieId,{headers:H})
+         .then(function(r){return r.json();}).then(function(rows){
+           log.push('--- Zeilen in partien zu dieser partie_id: '+rows.length+' ---');
+           rows.forEach(function(x){ log.push('   '+x.name+'  gewonnen='+x.gewonnen+'  karten='+x.karten+'  gegner='+x.gegner); });
+           return fetch('https://smdpjadtbrgjufuxwtpg.supabase.co/rest/v1/rpc/duellmatrix',
+             {method:'POST',headers:Object.assign({'Content-Type':'application/json'},H),body:'{}'});
+         }).then(function(r){return r.json();}).then(function(m){
+           log.push('--- duellmatrix: '+m.length+' Paarung(en) ---');
+           m.forEach(function(x){ log.push('   '+x.name_a+' gegen '+x.name_b+'  '+x.siege_a+' : '+x.siege_b); });
+           clearInterval(t); melde();
+         });
+      }, 3000);
+    }); }, 19000);
+  });
+}, 1000);
+setTimeout(function(){ if(!fertig && log.length) fetch('/ergebnis',{method:'POST',body:'ZWISCHENSTAND\n'+log.join('\n')}); }, 95000);
+</script></body></html>

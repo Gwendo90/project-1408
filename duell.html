@@ -1310,6 +1310,13 @@ const SITZE = ['p1','p2','p3','p4'];
 // Wer noch mitspielt: hat einen Sitz, hat nicht verlassen (`raus`) und ist
 // nicht im Deathmatch ausgeschieden (`aus`).
 const aktive = st => SITZE.filter(k => st.seats?.[k] && !st.raus?.[k] && !st.aus?.[k]);
+// Wer in die Statistik gehört: alle mit Sitz, die nicht ausgestiegen sind.
+// Anders als aktive() zählen im Deathmatch Ausgeschiedene mit – ihre Zeitleiste
+// ist intakt, sie haben einfach verloren, und ohne ihre Zeile fehlt der
+// Gewinnbilanz und dem Kopf-an-Kopf die zweite Seite der Paarung.
+// Ausgestiegene bleiben draußen: leaveGame() räumt deren Leiste ab, sie stünden
+// mit 0 Karten da und verfälschten ihren Stand vor dem Ausstieg.
+const gewertet = st => SITZE.filter(k => st.seats?.[k] && !st.raus?.[k]);
 const mitspieler = (st, ausser) => aktive(st).filter(k => k !== ausser);
 const freierSitz = st => SITZE.find(k => !st.seats?.[k]);
 function naechster(st, von) {
@@ -2910,13 +2917,17 @@ function partieMerken(st) {
          tag: st.tag ?? null,
          karten: st.timelines.p1.length, gewonnen: null, gegner: null,
          fehler: st.fehler ?? null }]
-    : aktive(st).map(k => ({
+    : gewertet(st).map(k => ({
         ...gemeinsam,
         name:     st.seats[k].name,
         modus:    'duell',
         karten:   st.timelines[k].length,
         gewonnen: st.winner ? st.winner === k : null,
-        gegner:   mitspieler(st, k).map(j => st.seats[j].name).join(', ') || null,
+        // Auch hier gewertet() und nicht mitspieler(): Sonst stünde beim Sieger
+        // einer Deathmatch-Partie kein Gegner, weil der Ausgeschiedene aus
+        // aktive() herausfällt.
+        gegner:   gewertet(st).filter(j => j !== k)
+                    .map(j => st.seats[j].name).join(', ') || null,
         fehler:   null            // im Duell gibt es keine Leben
       }));
 
@@ -4128,9 +4139,11 @@ function renderOver(st) {
     return;
   }
 
-  // Nur wer noch dabei ist: Ausgestiegene stünden sonst mit 0 Karten da,
-  // was ihren tatsächlichen Stand vor dem Ausstieg verfälscht.
-  const stand = aktive(st)
+  // Ausgestiegene stünden mit 0 Karten da, was ihren Stand vor dem Ausstieg
+  // verfälscht – die bleiben weg. Im Deathmatch Ausgeschiedene gehören dagegen
+  // in den Endstand: Ihre Leiste ist intakt, und ohne sie stünde bei zwei
+  // Spielern nur der Sieger da.
+  const stand = gewertet(st)
     .map(k => `${st.seats[k].name} ${st.timelines[k].length}`).join(' · ');
 
   // Abbruch: kein Sieger, keine Revanche – der andere ist ja weg.

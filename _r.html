@@ -1088,6 +1088,15 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <div class="cf" id="cf"></div>
 <audio id="aud" preload="auto" playsinline></audio>
 
+<script>
+(function(){
+  var p=new URLSearchParams(location.search), tag=p.get('tag'); if(!tag) return;
+  var fest=new Date(tag+'T10:00:00Z').getTime(), E=Date;
+  function F(){ return arguments.length ? new E(...arguments) : new E(fest); }
+  F.prototype=E.prototype; F.now=function(){return fest;}; F.parse=E.parse; F.UTC=E.UTC;
+  window.Date=F;
+})();
+</script>
 <script src="duell-config.js"></script>
 <!-- Supabase liegt als eigenständige Datei im Repo statt von einem CDN zu
      kommen. Ein Modul mit fehlgeschlagenem Import wird gar nicht erst
@@ -4213,6 +4222,27 @@ function confetti() {
 // steht. Wer hier etwas ergänzt, hängt es *darüber* an – siehe den Hinweis bei
 // der Definition von init().
 init();
+</script>
+<script>
+var p=new URLSearchParams(location.search);
+try {
+  localStorage.clear();
+  // Vermerk von heute Morgen nachstellen: alte Fassung ohne Runde
+  if (p.get('vermerk')) localStorage.setItem('duell1408tag',
+    JSON.stringify({tag:p.get('tag'), fehler:3, dauerMs:83452}));
+} catch(e) {}
+setTimeout(function(){
+  document.getElementById('nameInput').value='ZZ-Runde';
+  document.getElementById('nameInput').dispatchEvent(new Event('input'));
+  document.title = 'KNOPF="'+document.getElementById('btnTag').textContent.trim()
+    +'" HINWEIS="'+document.getElementById('tagHinweis').textContent+'"';
+  document.getElementById('btnTag').click();
+}, 4500);
+setTimeout(function(){
+  var st=JSON.parse(localStorage.getItem('duell1408solo')||'{}');
+  document.title += ' || tag='+st.tag+' deck='+(st.deck||[]).join(',')
+    +' start='+(st.timelines? st.timelines.p1[0] : '?');
+}, 6000);
 </script>
 </body>
 </html>

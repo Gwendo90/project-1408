@@ -1,0 +1,7 @@
+# macOS
+.DS_Store
+
+# Prüfstände: Kopien von duell.html mit eingebautem Testskript. Sie legen
+# Partien an und leeren den Browserspeicher – auf GitHub Pages wären sie
+# öffentlich erreichbar und dürfen deshalb nie mitcommittet werden.
+_*.html

@@ -784,7 +784,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     </button>
   </div>
   <div class="panel">
-    <input class="inp" id="nameInput" placeholder="Dein Name" maxlength="14" autocomplete="off">
+    <input class="inp" id="nameInput" placeholder="Dein Name" maxlength="14" autocomplete="off"
+           required aria-describedby="nameHinweis">
+    <div class="sub" id="nameHinweis"></div>
   </div>
   <div class="actions">
     <div class="divider">Mehrspieler</div>
@@ -1276,6 +1278,7 @@ let confettiShownFor = null;
 let soloRekord = false;        // war die letzte Solo-Partie ein Bestwert?
 let vorlaufTimer = null;       // wartet den Autostart-Vorlauf ab
 let audioAnweisung = null;     // welche Audio-Anweisung ist schon umgesetzt?
+let netzKaputt = false;        // Supabase nicht erreichbar (siehe fail)
 let filt = { ...FILT_STANDARD };  // laufende Kartenauswahl im Filterbildschirm
 let statSicht = 'ich';         // 'ich' oder 'alle' auf der Statistikseite
 let statZeit = 'alles';        // 'alles' oder 'monat' – Zeitfilter der Seite
@@ -1432,9 +1435,10 @@ async function init() {
   $('btnAgain').addEventListener('click', playAgain);
   $('pbtn').addEventListener('click', togglePlay);
   // Der Bestwert hängt am Namen, also muss er mitgehen, während getippt wird.
-  $('nameInput').addEventListener('input', zeigeBestwert);
+  $('nameInput').addEventListener('input', () => { zeigeBestwert(); namePflicht(); });
   zeigeTagHinweis();
   zeigeFilterZeile();
+  namePflicht();
   $('codeInput').addEventListener('input', e => {
     e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
   });
@@ -1455,6 +1459,7 @@ async function init() {
   const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
   if (saved?.name) $('nameInput').value = saved.name;
   zeigeBestwert();
+  namePflicht();          // erst jetzt steht der gemerkte Name im Feld
 
   // Songs zuerst: die braucht auch der Solo-Modus, und der soll selbst
   // dann laufen, wenn Supabase klemmt.
@@ -1522,7 +1527,10 @@ function fail(msg) {
   b.className = 'err-banner';
   b.textContent = '⚠️ ' + msg;
   $('homeScreen').insertBefore(b, $('homeScreen').children[1]);
-  $('btnCreate').disabled = $('btnJoin').disabled = true;
+  // Vermerkt, nicht nur gesperrt: namePflicht() schaltet die Knöpfe bei jeder
+  // Eingabe neu und hätte die Sperre sonst beim ersten Buchstaben aufgehoben.
+  netzKaputt = true;
+  namePflicht();
 }
 
 // Eigene Songdatei fürs Onlinespiel: songs-online.json mit 1429 Titeln bis
@@ -1593,7 +1601,42 @@ function unlockAudio() {
 
 // ══ Spiel anlegen / beitreten ════════════════════════════════════
 function myName() {
+  // Der Rückfall auf "Spieler" bleibt als letzte Absicherung stehen, ist aber
+  // nicht mehr erreichbar: namePflicht() sperrt alle Einstiege, solange das
+  // Feld leer ist, und jede Startfunktion prüft zusätzlich selbst. Vorher
+  // legten namenlose Partien Zeilen unter "Spieler" in der Statistik an, die
+  // niemandem zuzuordnen waren.
   return ($('nameInput').value || '').trim().slice(0,14) || 'Spieler';
+}
+
+// Ist ein Name eingetragen? Eine Stelle für alle Prüfungen.
+//
+// Funktionsdeklaration und nicht const: namePflicht() ruft sie aus init()
+// heraus auf, und init() steht im Modul weiter oben als diese Zeile. Als const
+// lag sie dort in der temporalen Todeszone – init() brach ab, es wurden keine
+// Songs geladen und die Sperre kam nie zustande (siehe Fallstricke im README).
+function nameDa() {
+  return !!($('nameInput').value || '').trim();
+}
+
+// Sperrt die Einstiege, solange das Feld leer ist, und sagt auch, warum. Wird
+// bei jeder Eingabe und beim Start aufgerufen.
+function namePflicht() {
+  const da = nameDa();
+  // Solo und Tagesduell brauchen nur den Namen, das Duell zusätzlich ein
+  // erreichbares Supabase.
+  $('btnSolo').disabled = $('btnTag').disabled = !da;
+  $('btnCreate').disabled = $('btnJoin').disabled = !da || netzKaputt;
+  $('nameHinweis').textContent = da ? '' : 'Bitte zuerst einen Namen eingeben.';
+  return da;
+}
+
+// Für die Startfunktionen: leeres Feld heißt abbrechen und hinschauen lassen.
+function nameVerlangen() {
+  if (namePflicht()) return true;
+  $('nameInput').focus();
+  setHomeStat('Ohne Namen geht es nicht – die Bestenliste braucht einen.', 'err');
+  return false;
 }
 
 // Der Zufallsgeber ist austauschbar, damit das Tagesduell mit einem
@@ -1970,6 +2013,7 @@ function neueId() {
 }
 
 async function createGame() {
+  if (!nameVerlangen()) return;
   if (!SONGS) return setHomeStat('Songdaten laden noch…','');
   // Vor dem Anlegen prüfen, nicht danach: eine abgewiesene Auswahl soll keine
   // verwaiste Zeile in `games` hinterlassen.
@@ -2017,6 +2061,7 @@ async function createGame() {
 // Läuft ohne Supabase: G wird lokal gehalten, commit() schreibt nicht
 // ins Netz. Endlos ziehen, nach SOLO_FEHLER Fehlern ist Schluss.
 function startSolo() {
+  if (!nameVerlangen()) return;
   if (!SONGS) return setHomeStat('Songdaten laden noch…','');
   const deck = deckOderMeldung();
   if (!deck) return;
@@ -2055,6 +2100,7 @@ function startSolo() {
 // statt der Leben und die Uhr. `tag` ist gleichzeitig das Kennzeichen, an
 // dem alle drei hängen – ohne ihn ist es eine gewöhnliche Solo-Partie.
 function startTagesduell() {
+  if (!nameVerlangen()) return;
   if (!SONGS) return setHomeStat('Songdaten laden noch…','');
   const tag = heuteTag();
   const deck = tagesDeck(tag);
@@ -2138,6 +2184,7 @@ function zeigeTagHinweis() {
 }
 
 async function joinGame() {
+  if (!nameVerlangen()) return;
   const code = ($('codeInput').value || '').trim().toUpperCase();
   if (code.length !== 5) return setHomeStat('Bitte den 5-stelligen Code eingeben.','err');
   setHomeStat('Suche Spiel…','');
@@ -3138,6 +3185,12 @@ function zeichneQuote(id, { data, error }, beschriftung, mindestens, grenze) {
 // iTunes-Preview und springen an dieselbe Stelle.
 async function togglePlay() {
   if (!G || G.state.turn !== seat) return;
+  // In der Ziehphase liegt noch keine Karte, die man anspielen könnte – dann
+  // zieht der Knopf eine. Der Player ist dort ausgegraut zu sehen, und darauf
+  // zu drücken ist die naheliegende Geste, um loszulegen. Nebenwirkung, die
+  // erwünscht ist: Der Zug beginnt damit aus einer Nutzergeste heraus, das
+  // Audio ist also von der ersten Karte an freigeschaltet (siehe unlockAudio).
+  if (G.state.phase === 'draw') return drawCard();
   const playing = G.state.audio.playing;
   const pos = aud.currentTime || 0;
   await commit(s => {
@@ -3478,7 +3531,10 @@ function renderGame(st) {
   // gehört dem Countdown –, der Ton läuft aber unverändert weiter.
   const audible = st.phase === 'turn' || st.phase === 'veto';
   $('playerBox').style.display = (auflösung || vetoPhase) ? 'none' : 'flex';
-  $('pbtn').disabled = !(audible && mine);
+  // Beim Ziehen ebenfalls bedienbar: dort zieht der Knopf eine Karte, statt
+  // Ton anzuhalten (siehe togglePlay). Ausgegraut wäre er nur, wenn man gar
+  // nichts tun kann – und das stimmt in der Ziehphase des eigenen Zugs nicht.
+  $('pbtn').disabled = !((audible || st.phase === 'draw') && mine);
   if (audible) {
     const lauf = syncAudio(st);
     $('pbtn').classList.toggle('on', lauf === 'laeuft');

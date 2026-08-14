@@ -34,6 +34,38 @@ alter table public.partien
   add column if not exists dauer_ms integer;
 
 
+-- ── 1b. `modus` muss 'tag' zulassen ────────────────────────────────────────
+--
+-- NACHTRÄGLICH ERGÄNZT. Ohne diesen Abschnitt wird jede Tagesduell-Zeile
+-- abgewiesen, und zwar mit:
+--
+--   23514  new row for relation "partien" violates check constraint
+--          "partien_modus_check"
+--
+-- `partien.modus` trägt eine CHECK-Bedingung, die nur 'solo' und 'duell'
+-- erlaubt. Sie steht in `supabase-schema.sql`, und die fehlt im Repo (siehe
+-- README) – beim Bauen dieser Migration war sie deshalb nicht zu sehen. Wer
+-- eine Bedingung nicht in den Dateien findet, hat sie noch nicht ausgeschlossen:
+-- die Datenbank fragen, nicht die Ablage.
+--
+-- Nachgeprüft per Insert: 'solo' und 'duell' gehen (201), 'tag' und beliebige
+-- andere Werte werden abgewiesen (400).
+--
+-- Ablegen und neu anlegen statt ändern – eine CHECK-Bedingung lässt sich nicht
+-- erweitern. Wiederholbar: erst löschen, wenn vorhanden, dann anlegen.
+
+do $$
+begin
+  if exists (select 1 from pg_constraint
+              where conrelid = 'public.partien'::regclass
+                and conname  = 'partien_modus_check') then
+    alter table public.partien drop constraint partien_modus_check;
+  end if;
+  alter table public.partien
+    add constraint partien_modus_check check (modus in ('solo', 'duell', 'tag'));
+end $$;
+
+
 -- ── 2. Nur der erste Lauf des Tages zählt ──────────────────────────────────
 --
 -- Die Sperre gehört in die Datenbank, nicht in den Client: der Vermerk im

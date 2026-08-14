@@ -113,8 +113,8 @@ Beide sind ein **Objekt**, kein Array — die Schlüssel laufen von `"001"` bis 
   `flag`, `place`, `pr`). Sie bleiben trotzdem in der Datei: Ohne sie wären es 104 statt 142 KB
   gzip — die 38 KB wiegen den Informationsverlust nicht auf.
 * **Vorschauen liegen in zwei Fassungen vor:** `…plus.aac.ep.m4a` ist die verlängerte
-  (~90 s), `…plus.aac.p.m4a` die kurze (~30 s). In `songs-online.json` sind 1395 verlängert und
-  33 kurz. Wichtig beim Prüfen: Die iTunes-Lookup-API gibt **immer die kurze** zurück. Ein
+  (~90 s), `…plus.aac.p.m4a` die kurze (~30 s). In `songs-online.json` sind 1364 verlängert und
+  65 kurz. Wichtig beim Prüfen: Die iTunes-Lookup-API gibt **immer die kurze** zurück. Ein
   Vergleich `pr` gegen `previewUrl` meldet deshalb fast die ganze Datei als „falsch". Verglichen
   werden muss der **Asset-Ordner** (der UUID-Teil des Pfads), nicht der Dateiname.
 
@@ -134,6 +134,41 @@ Beide sind ein **Objekt**, kein Array — die Schlüssel laufen von `"001"` bis 
   Anfang), `423` falsch — dort erklang der Song von 1961, obwohl die Karte auf 1965 gehört.
   `423` hat jetzt seine eigene Vorschau, notwendigerweise die kurze 30-Sekunden-Fassung; eine
   verlängerte gibt die API für diesen Track nicht heraus.
+
+* **Der Ordnervergleich allein reicht nicht — es braucht den Hörtest.** Ein abweichender
+  Asset-Ordner kann zwei Dinge heißen: dieselbe Aufnahme aus einer anderen Veröffentlichung
+  (harmlos) oder eine fremde Aufnahme (Fehler). Über die Titel lässt sich das **nicht**
+  unterscheiden, und diese Verwechslung stand hier lange: Der Titel kommt aus dem `sid` und damit
+  aus dem **Link**, nicht aus der Vorschau. Eine vom Nachbartrack gegriffene Datei fällt so
+  grundsätzlich nicht auf.
+
+  Entschieden wird es am Ton: Energie-Hüllkurve in 20-ms-Fenstern, normierte Kreuzkorrelation
+  gegen die offizielle Vorschau des verlinkten Tracks, bestes Fenster gesucht. ≥ 0,90 heißt
+  dieselbe Aufnahme, < 0,60 eine fremde. Von 87 Abweichungen im Bestand:
+
+  | Urteil | Anzahl |
+  |---|---|
+  | gleiche Aufnahme (≥ 0,90) | 54 |
+  | unklar (0,60–0,90) | 8 |
+  | fremde Aufnahme (< 0,60) | 25 |
+
+  Für die 25 wurde über den Asset-Ordner bestimmt, **welcher** Titel dort erklingt — alle Titel
+  des Interpreten aufzählen und den Ordner vergleichen. Acht davon waren nachweislich ein anderer
+  Song desselben Interpreten (`343` *La rue s'allume* statt *Ne crois pas*, `436`
+  *Kolmatta Linjaa Takaisin* statt *Varjoon-suojaan*, `1349` *Yerku Mas* statt *Jako* und fünf
+  weitere), einer nur eine andere Einspielung desselben Titels (`129`), sechzehn gehörten zu
+  keinem Titel des angegebenen Interpreten.
+
+  **Alle 33 Zeilen unter 0,90 tragen jetzt die offizielle Vorschau ihres verlinkten Tracks** —
+  damit garantiert der richtige Song, dafür 30 statt 90 Sekunden. Die 54 mit gleicher Aufnahme
+  blieben unangetastet: Sie sind richtig *und* lang, ein Tausch wäre nur Verlust. Nachgeprüft ist
+  für alle 33, dass die neue Vorschau zum eigenen `sid` gehört und mit HTTP 200 antwortet.
+
+  Die Fehlerquote passt zu der des Werkzeugs: `esc_links.py` löst die verlängerte Vorschau über
+  eine Nähe-Heuristik im HTML der Albumseite auf („die `.ep`-URL, die am dichtesten hinter der
+  Track-ID steht"), weil der strukturierte Weg über das eingebettete JSON nicht mehr greift. Bei
+  einem Lauf über 258 Taylor-Swift-Titel lagen damit 6 daneben (2,3 %), hier mindestens 16 von
+  1429 (1,1 %). **Wer das Skript erneut laufen lässt, muss den Hörtest hinterherschicken.**
 
 * **Vier weitere Zeilen, bei denen iTunes eine andere Fassung nennt als die Datei.** Sie fielen
   beim Ordnervergleich auf. Das exakte Werkzeug zur Aufklärung ist nicht die Korrelation, sondern
@@ -870,13 +905,29 @@ die richtige Erfolgsmeldung. Reihenfolge:
 2. `supabase-migration-namen.sql` — Spalten, `name_key`, Entdopplung.
 3. `supabase-statistik-2.sql` — der zweite Satz Auswertungen. Setzt Schritt 2 voraus und legt
    dabei auch die vier alten Funktionen mit `p_seit` neu an.
-4. `supabase-tagesduell.sql` — Spalten `tag` und `dauer_ms`, die Tagessperre und
-   `tagesbestenliste()`. Setzt Schritt 2 voraus (`name_key`).
+4. `supabase-tagesduell.sql` — Spalten `tag` und `dauer_ms`, die Tagessperre,
+   `tagesbestenliste()` und die erweiterte `modus`-Bedingung. Setzt Schritt 2 voraus
+   (`name_key`). **Wer eine frühere Fassung dieser Datei eingespielt hat, muss sie erneut
+   ausführen** — Abschnitt 1b kam später dazu, und ohne ihn wird jede Tagesduell-Zeile
+   abgewiesen.
 
 Alle neuen Dateien sind wiederholbar: nochmal ausführen ändert nichts mehr und lässt
 bestehende Zeilen unangetastet. Wer eine Datei erweitert, muss sie **erneut ganz** einspielen —
 ein nachträglich angehängter Abschnitt ist sonst nirgends angekommen, und die Prüfabfrage zeigt
 dann völlig zu Recht noch den alten Stand.
+
+**`partien.modus` trägt eine CHECK-Bedingung.** Sie erlaubt `'solo'`, `'duell'` und – seit
+`supabase-tagesduell.sql` – `'tag'`. Die ursprüngliche Fassung steht in `supabase-schema.sql`,
+und die **fehlt im Repo**: In den vorhandenen Dateien ist die Bedingung also nicht zu sehen. Genau
+daran ist das Tagesduell zunächst gescheitert — die Zeilen prallten mit `23514` ab, weil beim
+Bauen der Migration aus „steht in keiner Datei" auf „gibt es nicht" geschlossen wurde. **Was das
+Schema angeht, ist die Datenbank die Quelle, nicht die Ablage.** Ein neuer `modus` braucht immer
+auch eine erweiterte Bedingung; abfragen lässt sie sich mit:
+
+```sql
+select conname, pg_get_constraintdef(oid)
+  from pg_constraint where conrelid = 'public.partien'::regclass;
+```
 
 | Tabelle | Inhalt | RLS für `anon` |
 |---|---|---|
@@ -938,7 +989,9 @@ Viewport-Höhe; Safaris untere Leiste verdeckt dann den letzten Knopf.
 
 **`songs.json` ist ein Objekt**, kein Array. `Object.keys()` liefert die IDs.
 
-**`init()` läuft, bevor das Modul fertig ausgewertet ist.** Der Aufruf steht mitten in der
+**`init()` läuft, bevor das Modul fertig ausgewertet ist.** Das ist der Fallstrick, der in
+dieser Datei am häufigsten zugeschlagen hat — bisher viermal (`heuteTag`, `FILT_STANDARD`,
+`WAHL_FARBEN`, `nameDa`). Der Aufruf steht mitten in der
 Datei, alle `const` weiter unten liegen zu diesem Zeitpunkt noch in der temporalen Todeszone.
 Wer aus `init()` heraus etwas benutzt, das unterhalb als `const` definiert ist, bekommt einen
 `ReferenceError` — Funktionsdeklarationen (`function name()`) sind hochgezogen und gehen. Ein

@@ -548,6 +548,8 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .tabkopf .tspalte { font-size:10px; letter-spacing:1px; }
 /* Die Spalte, um die es geht – im Kopf wie in den Zeilen hervorgehoben. */
 .tspalte.stark { font-weight:700; color:var(--text); }
+/* Für Werte, die nicht in 52px passen: "12:34,5", "12 : 10", "ERBEUTET". */
+.tspalte.breit { flex-basis:66px; }
 
 .quote { display:flex; align-items:center; gap:9px; padding:4px 0; font-size:13px; }
 .qlabel { width:104px; flex-shrink:0; font-weight:600; overflow:hidden;
@@ -1014,6 +1016,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       <div id="statKopf" class="statleer">lädt…</div>
     </div>
     <div class="statblock">
+      <div class="statTitel">Kartenklau</div>
+      <div id="statKlau" class="statleer">lädt…</div>
+    </div>
+    <div class="statblock">
       <div class="statTitel">Schwerste Karten</div>
       <div id="statSchwer" class="statleer">lädt…</div>
     </div>
@@ -1034,10 +1040,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div class="statblock">
       <div class="statTitel">Nach Land</div>
       <div id="statLand" class="statleer">lädt…</div>
-    </div>
-    <div class="statblock">
-      <div class="statTitel">Kartenklau</div>
-      <div id="statKlau" class="statleer">lädt…</div>
     </div>
   </div>
   <div class="actions">
@@ -3021,12 +3023,25 @@ function statLeer(id, text) {
 }
 
 // Gerüst für alle Listenkästen: Fehler, Leerfall, sonst Zeilen zeichnen.
-function zeichneListe(id, { data, error }, leer, zeile) {
+// `kopf` ist der Spaltenkopf einer Zahlentabelle, siehe tabKopf().
+function zeichneListe(id, { data, error }, leer, zeile, kopf) {
   if (error) return statFehler(id, error);
   const rows = data || [];
   if (!rows.length) return statLeer(id, leer);
   $(id).className = '';
-  $(id).innerHTML = rows.map(zeile).join('');
+  $(id).innerHTML = (kopf || '') + rows.map(zeile).join('');
+}
+
+// Spaltenkopf für eine Zahlentabelle. Die Angaben müssen zu den Zeilen passen:
+// dieselbe Reihenfolge, dieselben Zusatzklassen und – wenn die Zeilen mit einem
+// Platz beginnen – auch dieselbe Platzspalte. Sonst stehen Kopf und Werte
+// nicht übereinander.
+function tabKopf(spalten, mitRang) {
+  return `<div class="tabkopf">${mitRang ? '<span class="rang"></span>' : ''}`
+    + `<span class="znam"></span>`
+    + spalten.map(([text, klassen]) =>
+        `<span class="tspalte ${klassen || ''}">${text}</span>`).join('')
+    + `</div>`;
 }
 
 // Eine Kartenzeile. Titel und Interpret kommen aus songs.json, nicht aus der
@@ -3063,9 +3078,9 @@ function statBloecke() {
         <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
           <span class="rang">${r.platz}</span>
           <span class="znam">${esc(r.name)}</span>
-          <span class="zdat">${r.fehler} ${r.fehler === 1 ? 'Fehler' : 'Fehler'}</span>
-          <span class="zwert">${esc(uhrText(r.dauer_ms))}</span>
-        </div>`) },
+          <span class="tspalte">${r.fehler}</span>
+          <span class="tspalte stark breit">${esc(uhrText(r.dauer_ms))}</span>
+        </div>`, tabKopf([['Fehler'], ['Zeit', 'stark breit']], true)) },
 
     { id:'statBesten', ruf:['bestenliste', { p_limit:10, p_seit:seit }], mal:zeichneBesten },
     { id:'statDuell',  ruf:['duellbilanz', { p_seit:seit }],             mal:zeichneBilanz },
@@ -3074,8 +3089,16 @@ function statBloecke() {
       mal: a => zeichneListe('statKopf', a, NEU, r => `
         <div class="zeile${normName(r.name_a) === ich || normName(r.name_b) === ich ? ' selbst' : ''}">
           <span class="znam">${esc(r.name_a)} gegen ${esc(r.name_b)}</span>
-          <span class="zwert">${r.siege_a} : ${r.siege_b}</span>
-        </div>`) },
+          <span class="tspalte stark breit">${r.siege_a} : ${r.siege_b}</span>
+        </div>`, tabKopf([['Siege', 'stark breit']])) },
+
+    { id:'statKlau', ruf:['klaubilanz', { p_seit:seit }],
+      mal: a => zeichneListe('statKlau', a, NEU, r => `
+        <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
+          <span class="znam">${esc(r.name)}</span>
+          <span class="tspalte breit">${r.bestohlen}</span>
+          <span class="tspalte stark breit">${r.geklaut}</span>
+        </div>`, tabKopf([['Verloren', 'breit'], ['Erbeutet', 'stark breit']])) },
 
     { id:'statSchwer', ruf:['schwerste_karten', { p_seit:seit, p_min:3, p_limit:8 }],
       mal: a => zeichneListe('statSchwer', a,
@@ -3092,13 +3115,6 @@ function statBloecke() {
     { id:'statLand', ruf:['quote_land', { p_name:wer, p_seit:seit }],
       mal: a => zeichneQuote('statLand', a, r => r.land, 3, 10) },
 
-    { id:'statKlau', ruf:['klaubilanz', { p_seit:seit }],
-      mal: a => zeichneListe('statKlau', a, NEU, r => `
-        <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
-          <span class="znam">${esc(r.name)}</span>
-          <span class="zdat">${r.bestohlen} verloren</span>
-          <span class="zwert">${r.geklaut} erbeutet</span>
-        </div>`) }
   ];
 }
 
@@ -3149,13 +3165,14 @@ function zeichneBesten({ data, error }) {
   }
   const ich = normName(statName());
   el.className = '';
-  el.innerHTML = data.map((r, i) => `
+  el.innerHTML = tabKopf([['Datum', 'breit'], ['Karten', 'stark']], true)
+    + data.map((r, i) => `
     <div class="zeile${normName(r.name) === ich ? ' selbst' : ''}">
       <span class="rang">${i + 1}</span>
       <span class="znam">${esc(r.name)}</span>
-      <span class="zdat">${new Date(r.beendet_am).toLocaleDateString('de-DE',
+      <span class="tspalte breit">${new Date(r.beendet_am).toLocaleDateString('de-DE',
         { day:'2-digit', month:'2-digit', year:'2-digit' })}</span>
-      <span class="zwert">${r.karten}</span>
+      <span class="tspalte stark">${r.karten}</span>
     </div>`).join('');
 }
 

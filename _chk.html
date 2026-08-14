@@ -4165,5 +4165,21 @@ function confetti() {
 // der Definition von init().
 init();
 </script>
+<script>
+try { localStorage.clear(); } catch(e) {}
+setTimeout(function(){ document.getElementById('nameInput').value='Gwen';
+  document.getElementById('nameInput').dispatchEvent(new Event('input'));
+  document.getElementById('btnStats').click(); }, 5000);
+setTimeout(function(){
+  // Kasten in Sicht scrollen, damit er aufs Bild kommt
+  document.getElementById('statDuell').closest('.statblock').scrollIntoView({block:'center'});
+  var e=document.getElementById('statDuell');
+  var kopf=[...e.querySelectorAll('.tabkopf span')].map(function(c){return c.textContent.trim()||'—';});
+  var z=[...e.querySelectorAll('.zeile')].slice(0,3).map(function(r){
+    return [...r.children].map(function(c){ var b=c.getBoundingClientRect();
+      return c.textContent.trim()+'@'+Math.round(b.right); }).join(' | '); });
+  document.title = 'Kopf: '+kopf.join(' | ')+'  ||  '+z.join('  ///  ');
+}, 9000);
+</script>
 </body>
 </html>

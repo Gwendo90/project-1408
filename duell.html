@@ -1369,7 +1369,14 @@ const serverNow = () => Date.now() + clockOffset;
 const solo = () => !!(G && G.state.solo);
 
 // ══ Start ════════════════════════════════════════════════════════
-init();
+// Der Aufruf steht am **Ende der Datei**, nicht hier. Das ist die einzige
+// Stelle, an der die Reihenfolge im Modul überhaupt eine Rolle spielt, und sie
+// hat viermal zugeschlagen: Stand er hier, war alles, was weiter unten als
+// `const` definiert ist, zum Zeitpunkt von init() noch nicht ausgewertet – ein
+// Zugriff darauf warf einen ReferenceError. Betroffen waren `heuteTag`,
+// `FILT_STANDARD`, `WAHL_FARBEN` und `nameDa`, und jedes Mal fiel es erst auf,
+// weil etwas Größeres nicht mehr ging (keine Songs, keine Chips, keine Sperre).
+// Am Dateiende ist das Modul fertig ausgewertet, und die Falle ist zu.
 
 async function init() {
   $('btnCreate').addEventListener('click', createGame);
@@ -4127,6 +4134,14 @@ function confetti() {
     setTimeout(() => { el.remove(); st.remove(); }, 1400);
   }
 }
+
+
+// ══ Und los ══════════════════════════════════════════════════════
+// Bewusst die letzte Zeile des Moduls: Jetzt sind alle Deklarationen
+// ausgewertet, init() darf also auf jede Hilfsfunktion zugreifen, egal wo sie
+// steht. Wer hier etwas ergänzt, hängt es *darüber* an – siehe den Hinweis bei
+// der Definition von init().
+init();
 </script>
 </body>
 </html>

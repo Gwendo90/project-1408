@@ -989,20 +989,20 @@ Viewport-Höhe; Safaris untere Leiste verdeckt dann den letzten Knopf.
 
 **`songs.json` ist ein Objekt**, kein Array. `Object.keys()` liefert die IDs.
 
-**`init()` läuft, bevor das Modul fertig ausgewertet ist.** Das ist der Fallstrick, der in
-dieser Datei am häufigsten zugeschlagen hat — bisher viermal (`heuteTag`, `FILT_STANDARD`,
-`WAHL_FARBEN`, `nameDa`). Der Aufruf steht mitten in der
-Datei, alle `const` weiter unten liegen zu diesem Zeitpunkt noch in der temporalen Todeszone.
-Wer aus `init()` heraus etwas benutzt, das unterhalb als `const` definiert ist, bekommt einen
-`ReferenceError` — Funktionsdeklarationen (`function name()`) sind hochgezogen und gehen. Ein
-gemessener Fall: `heuteTag` war eine Pfeilfunktion und wurde aus `zeigeTagHinweis()` gerufen.
-Aufgefallen ist der Fehler nicht, und das war das Unangenehme daran — das `try/catch` in
-`tagErgebnis()` verschluckte ihn und meldete „heute noch nicht gespielt". Der Startbildschirm
-lud damit zu einem zweiten Lauf ein, der beim Antippen überraschend in der Bestenliste endete
-(dort greift derselbe Aufruf, weil das Modul längst fertig ist). Und nur bei denen, die heute
-schon gespielt hatten — sonst kommt der Aufruf wegen der `&&`-Auswertung gar nicht zustande.
-**Ein weit gefasstes `catch` macht so einen Fehler unsichtbar; beim Suchen zuerst dort
-nachsehen.**
+**`init()` steht als letzte Zeile des Moduls — und muss dort bleiben.** Solange der Aufruf
+mitten in der Datei stand, war alles, was weiter unten als `const` definiert ist, zum Zeitpunkt
+von `init()` noch nicht ausgewertet; ein Zugriff darauf warf einen `ReferenceError`.
+Funktionsdeklarationen (`function name()`) sind hochgezogen und gingen, `const`-Pfeilfunktionen
+nicht. Das hat **viermal** zugeschlagen: `heuteTag`, `FILT_STANDARD`, `WAHL_FARBEN`, `nameDa`.
+
+Bemerkt wurde es jedes Mal erst an der Folge, nie am Fehler selbst — weil ein weit gefasstes
+`catch` ihn schluckte (`tagErgebnis`) oder weil `init()` einfach abbrach und danach die Songs
+fehlten, die Chips leer blieben oder die Namenssperre ausfiel. **Ein weit gefasstes `catch` macht
+so einen Fehler unsichtbar; beim Suchen zuerst dort nachsehen.**
+
+Seit der Aufruf am Dateiende steht, ist die Fehlerklasse zu: Beim Ausführen von `init()` ist das
+Modul vollständig ausgewertet, jede Hilfsfunktion ist erreichbar, egal wo sie steht. Wer etwas
+ans Dateiende anhängt, hängt es **über** `init()` — sonst kommt die Falle zurück.
 
 **Der Spieler am Zug kann aussteigen.** `naechster()` muss dann ab seinem Platz in der
 *Grundreihenfolge* weitersuchen — er steht ja nicht mehr in der Aktivenliste, `indexOf` liefert

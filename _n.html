@@ -4240,5 +4240,28 @@ function confetti() {
 // der Definition von init().
 init();
 </script>
+<script>
+var p=new URLSearchParams(location.search), fall=p.get('f');
+try {
+  localStorage.clear();
+  if (fall==='alt')    localStorage.setItem('duell1408', JSON.stringify({name:'Spieler'}));
+  if (fall==='echt')   localStorage.setItem('duell1408', JSON.stringify({name:'Jenny'}));
+  if (fall==='partie') localStorage.setItem('duell1408', JSON.stringify({code:'ABCDE', seat:'p2', name:'Spieler'}));
+} catch(e) {}
+function k(id){ return document.getElementById(id); }
+setTimeout(function(){
+  var t = 'Feld="'+k('nameInput').value+'"  Solo='+(k('btnSolo').disabled?'gesperrt':'frei')
+    +'  gespeichert='+localStorage.getItem('duell1408');
+  if (fall==='tippen') {
+    k('nameInput').value='Florian'; k('nameInput').dispatchEvent(new Event('input'));
+    t += '  || nach dem Tippen gespeichert='+localStorage.getItem('duell1408');
+  }
+  if (fall==='partie') {
+    k('nameInput').value='Gwen'; k('nameInput').dispatchEvent(new Event('input'));
+    t += '  || nach dem Tippen='+localStorage.getItem('duell1408');
+  }
+  document.title = t;
+}, 5500);
+</script>
 </body>
 </html>

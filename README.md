@@ -226,6 +226,30 @@ Entspricht dem „Einspruch" der gedruckten Anleitung:
 * Der Spieler am Zug legt sich mit **„Karte einloggen"** verbindlich fest.
 * Danach 15 Sekunden Fenster für alle Mitspieler. **Wer zuerst tippt, bekommt den Zugriff**,
   die anderen sind raus. Meldet niemand ein Veto, wird automatisch aufgelöst.
+* **„Durchlassen" ist eine Stimme, keine Entscheidung.** Aufgelöst wird erst, wenn *alle*
+  Berechtigten verzichtet haben — oder wenn die 15 Sekunden ablaufen. Wer die Berechtigten
+  sind, sagt `vetoBerechtigt()`: alle Aktiven außer dem Spieler am Zug, sofern Vetos übrig
+  sind. Wer keine mehr hat, hält die Runde nicht auf.
+
+  Bis zum 17.08.2026 beendete der **erste** Verzicht die Runde für alle. Ab drei Spielern
+  nahm das den übrigen ihre Bedenkzeit, ohne dass sie etwas falsch gemacht hätten. Im
+  Zweispieler-Duell ist „alle" genau einer, dort ist das Verhalten unverändert.
+
+  Der Verzicht ist **endgültig**: nach dem Klick verschwindet der Vetoknopf. Sonst wäre die
+  Stimme nichts wert, und zwischen Meinungswechsel und Auflösung könnte die Runde hängen.
+* Zwei getrennte Wege beenden das Fenster, und das ist Absicht: `durchlassen()` stimmt ab und
+  löst nur bei Vollständigkeit auf, `vetoAblauf()` löst bedingungslos auf. Der Countdown darf
+  nicht an `durchlassen()` hängen — auf dem Gerät des Spielers am Zug hätte der keine Stimme
+  und käme nie durch.
+* **Stimmen hängen an einer Marke, nicht nur am Sitz.** `durchFuer` hält
+  `partieId|current|seat|index` der Runde fest, für die abgestimmt wurde; `durchStand(st)`
+  liefert nur Stimmen mit passender Marke. Grund sind gemischte Versionen beim Hochladen:
+  Ein Client mit dem Stand *vor* dem 17.08.2026 kennt `durch` nicht, räumt es beim Auswerten
+  nicht ab und setzt es beim Einloggen nicht zurück. Ohne Marke könnte eine Stimme aus der
+  Vorrunde die nächste Abstimmung sofort kippen und das Vetofenster überspringen. Die Marke
+  fällt im Zweifel auf „noch nicht abgestimmt" zurück — es wird gewartet, nicht abgekürzt.
+  Die `partieId` steckt mit drin, weil `playAgain` das Deck neu mischt und dieselbe Karte in
+  der Revanche wieder auftauchen kann.
 * Der Vetogeber tippt eine Lücke **in der Zeitleiste des Spielers am Zug** — dieselbe Aufgabe,
   an der dieser gerade gescheitert ist. Die angefochtene Stelle selbst ist gesperrt.
 * Ein Veto zieht **nur**, wenn der Spieler am Zug daneben lag **und** der Vetogeber richtig
@@ -458,6 +482,7 @@ deutlich einfacher zu handhaben als normalisierte Tabellen, und Realtime schickt
   pending:   { seat, index },         // eingeloggt, noch nicht ausgewertet
   vetoBis:   1785412863168,           // Serverzeit in ms, 0 = kein Countdown
   vetoAngemeldet: 'p4',               // wer den Wettlauf gewonnen hat
+  durch:     { p2:true },             // wer schon durchgelassen hat (Veto-Abstimmung)
   audio:     { playing, startedAt, seek },
   result:    { seat, id, index, correct, klau },
   hinweis:   'Jenny hat das Spiel verlassen',
@@ -467,7 +492,18 @@ deutlich einfacher zu handhaben als normalisierte Tabellen, und Realtime schickt
 ```
 
 **Sitzplätze:** Feste Liste `SITZE = ['p1','p2','p3','p4']`. Nie `p1`/`p2` fest verdrahten —
-dafür gibt es `aktive(st)`, `mitspieler(st, ausser)`, `naechster(st, von)`, `freierSitz(st)`.
+dafür gibt es `aktive(st)`, `mitspieler(st, ausser)`, `naechster(st, von)`, `freierSitz(st)`,
+`vetoBerechtigt(st)`, `alleDurch(st)`, `vetoOffen(st)`.
+
+**`durch` gehört zu `vetoBis` und `vetoAngemeldet`** und wird an fünf Stellen mit zurückgesetzt:
+`einloggen` (Fenster öffnet), `auswerten` (Fenster schließt), `leaveGame`, `startGame`,
+`playAgain`. Ein Rest aus der Vorrunde ließe die nächste Abstimmung zu früh kippen.
+
+Die **sechste** Stelle mit `vetoAngemeldet = null` ist `vetoZurueck` („Doch nicht") — und die
+lässt `durch` absichtlich stehen: die Stimmen der anderen sind weiter gültig, nur der
+Zurücktretende hat noch keine abgegeben. Ein Hängen ist dabei nicht möglich, weil er selbst
+nie in `durch` steht (der Vetoknopf verschwindet nach dem Verzicht) und weil `vetoZurueck` das
+Fenster mit vollen 15 Sekunden neu öffnet.
 
 ### Schreiben: optimistisches Sperren
 

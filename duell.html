@@ -476,6 +476,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .vetobox.scharf { border-color:transparent; box-shadow:0 0 0 2px var(--red), 0 8px 28px rgba(232,0,61,.14); }
 .vetoTitel { font-size:15px; font-weight:700; line-height:1.3; }
 .vetoText { font-size:12px; color:var(--muted); line-height:1.5; max-width:230px; }
+/* Abstimmungsstand ab drei Spielern. Bewusst leiser als .vetoText: die Frage
+   steht darüber, das hier ist nur die Auskunft, worauf noch gewartet wird. */
+.vetoWarte { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase;
+             color:var(--muted); opacity:.75; }
 /* Countdown als Ring: der Verlauf füllt sich im Uhrzeigersinn, die Sekunden
    stehen in der Mitte. Der Fortschritt läuft über stroke-dashoffset – eine
    Alternative über conic-gradient könnte den Verlauf nicht gleichzeitig
@@ -1331,6 +1335,28 @@ const aktive = st => SITZE.filter(k => st.seats?.[k] && !st.raus?.[k] && !st.aus
 // mit 0 Karten da und verfälschten ihren Stand vor dem Ausstieg.
 const gewertet = st => SITZE.filter(k => st.seats?.[k] && !st.raus?.[k]);
 const mitspieler = (st, ausser) => aktive(st).filter(k => k !== ausser);
+// Wer die laufende Platzierung noch anfechten könnte: alle Aktiven außer dem
+// Spieler am Zug, sofern Vetos übrig sind. Ohne Vetos gibt es keinen Knopf –
+// wer nicht anfechten kann, darf die Runde also auch nicht aufhalten.
+const vetoBerechtigt = st => mitspieler(st, st.turn).filter(k => (st.vetos?.[k] || 0) > 0);
+// Zu welcher Runde gehört eine Stimme? Der eingeloggte Tipp ist je Runde
+// eindeutig – jede Karte wird nur einmal gezogen, und die Partiekennung trennt
+// zusätzlich die Revanchen.
+//
+// Nötig ist die Marke wegen gemischter Versionen: Ein Client mit dem Stand vor
+// dem 17.08.2026 kennt `durch` nicht und räumt es beim Auswerten nicht ab. Ohne
+// die Marke könnte eine Stimme aus der Vorrunde die nächste Abstimmung sofort
+// kippen und das Vetofenster überspringen. Stimmen ohne passende Marke gelten
+// als nicht abgegeben – im Zweifel wird gewartet, nicht abgekürzt.
+const vetoMarke = st => st.pending
+  ? `${st.partieId}|${st.current}|${st.pending.seat}|${st.pending.index}` : '';
+const durchStand = st => st.durchFuer === vetoMarke(st) ? (st.durch || {}) : {};
+// Haben alle Berechtigten durchgelassen? Dann geht es weiter, ohne die
+// restliche Bedenkzeit abzuwarten. Bei zwei Spielern ist das genau einer,
+// das Spiel verhält sich dort also wie vorher.
+const alleDurch = st => vetoBerechtigt(st).every(k => durchStand(st)[k]);
+// Wer noch nicht abgestimmt hat – für den Hinweis, worauf gewartet wird.
+const vetoOffen = st => vetoBerechtigt(st).filter(k => !durchStand(st)[k]);
 const freierSitz = st => SITZE.find(k => !st.seats?.[k]);
 function naechster(st, von) {
   const a = aktive(st);
@@ -2320,7 +2346,7 @@ async function leaveGame() {
         // von ihm angemeldetes Veto lassen sich nicht sinnvoll fortführen.
         if (s.turn === seat) s.turn = naechster(s, seat);
         if (s.phase !== 'draw') { s.current = null; s.result = null; s.phase = 'draw'; }
-        s.pending = null; s.vetoBis = 0; s.vetoAngemeldet = null;
+        s.pending = null; s.vetoBis = 0; s.vetoAngemeldet = null; s.durch = {}; s.durchFuer = '';
       }
       s.audio = { playing:false, startedAt:0, seek:0 };
       return s;
@@ -2520,7 +2546,7 @@ async function startGame() {
       s.timelines[k] = [ s.deck.pop() ];
       s.vetos[k] = VETOS_START;
     }
-    s.pending = null; s.vetoBis = 0; s.vetoAngemeldet = null; s.hinweis = null;
+    s.pending = null; s.vetoBis = 0; s.vetoAngemeldet = null; s.durch = {}; s.durchFuer = ''; s.hinweis = null;
     s.turn = dabei[Math.floor(Math.random() * dabei.length)];
     s.phase = 'draw';
     return s;
@@ -2619,6 +2645,7 @@ function auswerten(s, vetoZug) {
   s.pending = null;
   s.vetoBis = 0;
   s.vetoAngemeldet = null;
+  s.durch = {}; s.durchFuer = '';
   s.audio = { playing:false, startedAt:0, seek:0 };
   s.phase = 'result';
 
@@ -2710,6 +2737,7 @@ async function einloggen(index) {
     s.phase = 'veto';
     s.vetoBis = serverNow() + VETO_MS;
     s.vetoAngemeldet = null;
+    s.durch = {}; s.durchFuer = '';
     return s;
   });
   if (ok) nachAuswertung(ok);
@@ -2745,12 +2773,48 @@ async function vetoSetzen(index) {
   if (ok) nachAuswertung(ok);
 }
 
-// Durchlassen: entweder der Gegner tippt es an, oder der Countdown läuft
-// ab. Beide Geräte dürfen das schreiben – wer zuerst kommt, gewinnt, der
-// zweite Versuch findet die Phase schon verändert vor und verpufft.
+// Durchlassen ist eine Stimme, keine Entscheidung. Bis zu drei Spieler dürfen
+// dieselbe Platzierung anfechten; ließe der erste durch und die Runde wäre
+// vorbei, hätten die anderen ihre Bedenkzeit verloren, ohne etwas falsch
+// gemacht zu haben. Deshalb wird nur der eigene Verzicht vermerkt – weiter
+// geht es, wenn alle Berechtigten verzichtet haben oder die Zeit abläuft.
+//
+// Bei zwei Spielern ist "alle" genau einer: dort löst der Klick die Runde
+// weiterhin sofort auf.
+//
+// Der Verzicht ist endgültig. Wer durchgelassen hat, bekommt den Vetoknopf
+// nicht zurück – sonst wäre die Stimme nichts wert und die Runde könnte
+// zwischen Meinungswechsel und Auflösung hängen.
 async function durchlassen() {
   const ok = await commit(s => {
     if (s.phase !== 'veto' || s.vetoAngemeldet) return null;
+    // Der Spieler am Zug stimmt nicht über seinen eigenen Tipp ab, und wer
+    // keine Vetos mehr hat, hat auch nichts zu verzichten.
+    if (s.turn === seat || (s.vetos?.[seat] || 0) <= 0) return null;
+    const stand = { ...durchStand(s) };                  // verwirft fremde Marken
+    if (stand[seat]) return null;                        // schon abgestimmt
+    stand[seat] = true;
+    s.durch = stand;
+    s.durchFuer = vetoMarke(s);
+    return alleDurch(s) ? auswerten(s, null) : s;
+  });
+  // Nur eine echte Auflösung schreibt Statistik. Eine Stimme, die die Runde
+  // noch nicht beendet, hat kein `result` – nachAuswertung hätte nichts zu tun.
+  if (ok?.result) nachAuswertung(ok);
+}
+
+// Ablauf der Bedenkzeit. Anders als durchlassen() löst das die Runde
+// unabhängig davon auf, wer noch nicht abgestimmt hat – auch auf dem Gerät des
+// Spielers am Zug, der selbst keine Stimme hat. Alle Geräte versuchen es; wer
+// zuerst kommt, gewinnt, der zweite Versuch findet die Phase schon verändert
+// vor und verpufft.
+async function vetoAblauf() {
+  const ok = await commit(s => {
+    if (s.phase !== 'veto' || s.vetoAngemeldet) return null;
+    // Gegen eine schief laufende Uhr: nur auflösen, wenn das Fenster auch im
+    // Zustand abgelaufen ist. serverNow() ist abgeglichen, die Reserve deckt
+    // den Rest ab.
+    if (s.vetoBis && serverNow() < s.vetoBis - 250) return null;
     return auswerten(s, null);
   });
   if (ok) nachAuswertung(ok);
@@ -2838,7 +2902,7 @@ async function playAgain() {
     s.timelines = {}; s.vetos = {};
     for (const k of SITZE) s.timelines[k] = [];
     for (const k of dabei) { s.timelines[k] = [s.deck.pop()]; s.vetos[k] = VETOS_START; }
-    s.pending   = null; s.vetoBis = 0; s.vetoAngemeldet = null; s.hinweis = null;
+    s.pending   = null; s.vetoBis = 0; s.vetoAngemeldet = null; s.durch = {}; s.durchFuer = ''; s.hinweis = null;
     // Im Deathmatch Ausgeschiedene sind in der Revanche wieder dabei. Wer das
     // Spiel verlassen hat (`raus`), bleibt draußen.
     s.aus = {};
@@ -3499,7 +3563,7 @@ function vetoTick() {
   const marke = (G.code || '') + ':' + G.state.vetoBis;
   if (rest <= 0 && vetoAblaufFuer !== marke) {
     vetoAblaufFuer = marke;
-    durchlassen();
+    vetoAblauf();
   }
 }
 
@@ -3925,16 +3989,24 @@ function renderActions(st, mine) {
     else add('Karte einloggen', 'prim', () => { const g = pendingGap; pendingGap = null; einloggen(g); });
   } else if (st.phase === 'veto') {
     const habeVetos = (st.vetos?.[seat] || 0) > 0;
+    // Kein esc() in Knopfbeschriftungen: add() schreibt in textContent, dort
+    // erschiene aus "Ann&Bea" ein "Ann&amp;Bea".
+    const wer = k => st.seats[k]?.name || 'Jemand';
     if (mine) {
       add(st.vetoAngemeldet
-            ? esc(st.seats[st.vetoAngemeldet]?.name || 'Jemand') + ' legt Veto ein…'
+            ? wer(st.vetoAngemeldet) + ' legt Veto ein…'
             : 'Kann angefochten werden…', '', null, true);
     } else if (st.vetoAngemeldet && st.vetoAngemeldet !== seat) {
-      add(esc(st.seats[st.vetoAngemeldet]?.name || 'Jemand') + ' war schneller', '', null, true);
+      add(wer(st.vetoAngemeldet) + ' war schneller', '', null, true);
     } else if (st.vetoAngemeldet === seat) {
       if (pendingGap === null) add('Tippe die richtige Lücke', '', null, true);
       else add('Veto hier setzen', 'prim', () => { const g = pendingGap; pendingGap = null; vetoSetzen(g); });
       add('Doch nicht', '', vetoZurueck);
+    } else if (durchStand(st)[seat]) {
+      // Schon durchgelassen: der Knopf sagt jetzt, worauf die Runde wartet.
+      const offen = vetoOffen(st).map(wer);
+      add(offen.length ? 'Durchgelassen · warte auf ' + offen.join(', ')
+                       : 'Durchgelassen', '', null, true);
     } else if (habeVetos) {
       add('Veto', 'prim', vetoAnmelden);
       add('Durchlassen', '', durchlassen);
@@ -4016,6 +4088,13 @@ function vetoHTML(st, mine) {
   const sek = st.vetoBis
     ? Math.max(0, Math.ceil((st.vetoBis - serverNow()) / 1000))
     : null;
+  // Abstimmungsstand nur ab zwei Berechtigten und erst, wenn jemand
+  // durchgelassen hat. Im Zweispieler-Duell löst der erste Verzicht die Runde
+  // sofort auf – dort gäbe es nichts anzuzeigen.
+  const dran = vetoBerechtigt(st), offen = vetoOffen(st);
+  const warte = dran.length > 1 && offen.length < dran.length
+    ? `<div class="vetoWarte">${dran.length - offen.length} von ${dran.length} durchgelassen</div>`
+    : '';
   return `<div class="vetobox">
     <div class="vetoRing">
       <svg viewBox="0 0 44 44" aria-hidden="true">
@@ -4040,6 +4119,7 @@ function vetoHTML(st, mine) {
     <div class="vetoText">${mine
       ? 'Wird dein Tipp angefochten?'
       : 'Liegt ' + esc(amZug) + ' mit dem Tipp richtig?'}</div>
+    ${warte}
   </div>`;
 }
 

@@ -1,8 +1,8 @@
 {
-  "name": "Eurovision Hitster",
-  "short_name": "ESC Hitster",
-  "description": "Das Eurovision Song Contest Kartenspiel",
-  "start_url": "./",
+  "name": "1408 Online Spiel",
+  "short_name": "1408 Duell",
+  "description": "Eurovision-Zeitleiste: Solo, Tagesduell und Mehrspieler bis zehn Personen",
+  "start_url": "duell.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#08080F",

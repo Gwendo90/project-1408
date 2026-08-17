@@ -393,10 +393,36 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 /* Kurze Sperre nach dem Senden: sichtbar, damit klar ist, warum nichts geht. */
 .reaktBtn:disabled { opacity:.45; cursor:default; }
 
+/* Der Spruchknopf sitzt genau über dem Katzenknopf: 46px Knopf plus 10px Luft.
+   Beide teilen .reaktBtn, hier wird nur die Höhe verschoben. */
+.spruchBtn { bottom:calc(max(env(safe-area-inset-bottom),16px) + 62px + 56px); }
+
 /* Auffangfläche, die das Schließen per Tippen daneben erlaubt. Deckt alles
    ab, liegt aber unter Knopf und Katzen. */
 .reaktHuelle { position:fixed; inset:0; z-index:55; display:none; }
 .reaktHuelle.da { display:block; }
+
+/* Sprüche als umbrechende Tafel, nicht als Kranz wie die Katzen: "Liebe den
+   Song!" ist zehnmal so breit wie ein Katzenknopf, im Kranz stünde die Hälfte
+   außerhalb des Bildschirms. Rechts unten verankert, wächst nach oben und
+   links. Die Kacheln stehen immer im DOM und werden nur eingeblendet – das
+   ergibt das gestaffelte Auftauchen (Verzögerung setzt das JS). */
+.spruchWahl { position:fixed; z-index:61;
+              right:calc(max(env(safe-area-inset-right),16px) + 56px);
+              bottom:calc(max(env(safe-area-inset-bottom),16px) + 62px + 56px);
+              width:min(62vw,244px);
+              display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end;
+              pointer-events:none; }
+.spruchWahl button { font-family:inherit; font-size:12.5px; font-weight:700;
+                     padding:7px 12px; border-radius:50px; cursor:pointer;
+                     border:1px solid var(--border); background:var(--surface);
+                     color:var(--text); -webkit-appearance:none; white-space:nowrap;
+                     box-shadow:0 4px 14px rgba(40,30,80,.13);
+                     opacity:0; transform:translateY(8px) scale(.9);
+                     transition:transform .24s cubic-bezier(.34,1.56,.64,1), opacity .16s; }
+.spruchWahl.da { pointer-events:auto; }
+.spruchWahl.da button { opacity:1; transform:translateY(0) scale(1); }
+.spruchWahl button:active { filter:brightness(.92); }
 
 /* Die acht Katzen liegen alle im selben Punkt wie der Knopf und werden per
    --x/--y an ihren Platz geschoben. Die Werte setzt das JS, weil sie aus
@@ -463,6 +489,17 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 /* Mehrere gleichzeitig sollen sich nicht deckungsgleich überlagern. */
 .reaktFlug.v1 { right:30%; bottom:52%; }
 .reaktFlug.v2 { right:52%; bottom:38%; }
+
+/* Ein einfliegender Spruch. Dieselbe Bahn und dieselbe Namenszeile wie bei den
+   Katzen, nur eine Sprechblase statt des Bildes. Schmaler als die Katze, damit
+   ein langer Spruch nicht über den halben Bildschirm reicht – der Text darf
+   umbrechen, deshalb kein nowrap. */
+.reaktFlug.spruch { width:min(52vw,200px); }
+.reaktFlug.spruch b { display:block; font-size:17px; font-weight:800; line-height:1.25;
+                      text-align:center; padding:11px 15px; border-radius:18px;
+                      color:#fff; background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
+                      box-shadow:0 8px 20px rgba(40,30,80,.22);
+                      overflow-wrap:break-word; }
 
 /* Verlassen-Knopf: klein, oben rechts, mit Rückfrage */
 .raus { position:absolute; z-index:5; top:max(env(safe-area-inset-top),10px); right:18px;
@@ -1119,8 +1156,15 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <!-- 🐈 als einzelnes Zeichen, nicht 🐈‍⬛: das ist eine ZWJ-Verbindung und
      zerfällt auf älteren Geräten in Katze plus schwarzes Viereck. -->
 <button class="reaktBtn" id="btnReakt" aria-label="Reaktion senden">🐈</button>
+<!-- Zweiter Knopf über dem ersten: feste Sprüche statt eines echten Chats.
+     Ein Chat bräuchte ein Eingabefeld, eine Verlaufsliste und Platz auf dem
+     Spielbildschirm – und würde beim Tippen vom Spiel ablenken. Die Sprüche
+     füllt fuelleSprueche() beim Start, aus derselben Liste, gegen die
+     spruchEmpfangen() prüft. -->
+<button class="reaktBtn spruchBtn" id="btnSpruch" aria-label="Spruch senden">💬</button>
 <div class="reaktHuelle" id="reaktHuelle"></div>
 <div class="reaktWahl" id="reaktWahl"></div>
+<div class="spruchWahl" id="spruchWahl"></div>
 
 <div class="cf" id="cf"></div>
 <audio id="aud" preload="auto" playsinline></audio>
@@ -1238,6 +1282,23 @@ function katzenRinge(n) {
 }
 const REAKT_SPERRE = 1200;              // Mindestabstand zweier Reaktionen
 const REAKT_MAX = 3;                    // so viele gleichzeitig im Bild
+
+// Feste Sprüche anstelle eines Chats. Bewusst kurz und in dieser Reihenfolge:
+// erst die Beifallsrufe, dann die Fragezeichen, zuletzt die Sticheleien – so
+// greift man im Spiel nach dem richtigen, ohne zu lesen.
+//
+// Die Liste ist gleichzeitig die Prüfliste: spruchEmpfangen() nimmt nur an, was
+// hier steht. Verschickt wird der Text selbst und nicht seine Nummer – sonst
+// zeigte ein Gerät mit älterer Liste beim Nachrücken eines Spruchs den falschen.
+//
+// Neue Sprüche gehören ans ENDE, damit sich die Reihenfolge der gewohnten nicht
+// verschiebt. Länger als etwa 16 Zeichen sollte keiner sein, sonst bricht die
+// Kachel in der Tafel um.
+const SPRUECHE = [
+  'Wow', 'HAHA', 'Easy', 'Knapp!',
+  'Was war das?', 'Nie gehört', 'Zwölf Punkte!',
+  'Liebe den Song!', 'Ohrwurm', 'Loser'
+];
 
 // ── Kartenauswahl (Filter) ───────────────────────────────────────
 // Gilt für Solo und Duell, nicht fürs Tagesduell – dessen Sinn ist ja, dass
@@ -1441,9 +1502,11 @@ const show = id => {
   // deshalb nicht von selbst mit. renderGame() schaltet sie wieder ein.
   if (id !== 'gameScreen') {
     $('btnReakt').classList.remove('da');
+    $('btnSpruch').classList.remove('da');
     katzenAuswahl(false);
-    // Auch fliegende Katzen abräumen – sonst schwebte eine über dem
-    // Endbildschirm weiter, die zur gerade beendeten Partie gehörte.
+    spruchAuswahl(false);
+    // Auch Fliegendes abräumen – sonst schwebte eine Katze oder ein Spruch über
+    // dem Endbildschirm weiter, die zur gerade beendeten Partie gehörten.
     document.querySelectorAll('.reaktFlug').forEach(e => e.remove());
   }
   // Die einzige Stelle, an der der Bildschirm wechselt – deshalb steht hier,
@@ -1581,9 +1644,14 @@ async function init() {
   // Katzen: Auswahl einmal bauen, Knopf schaltet sie um, Tippen daneben
   // schließt sie wieder.
   fuelleKatzen();
+  fuelleSprueche();
   $('btnReakt').addEventListener('click', () =>
     katzenAuswahl(!$('reaktWahl').classList.contains('da')));
-  $('reaktHuelle').addEventListener('click', () => katzenAuswahl(false));
+  $('btnSpruch').addEventListener('click', () =>
+    spruchAuswahl(!$('spruchWahl').classList.contains('da')));
+  $('reaktHuelle').addEventListener('click', () => {
+    katzenAuswahl(false); spruchAuswahl(false);
+  });
   ziehenEinrichten();
 
   const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
@@ -2490,6 +2558,7 @@ async function subscribe(code) {
     // kein Streit mit dem optimistischen Sperren beim Einloggen einer Karte.
     // Und nach einem Neuladen taucht keine alte Katze wieder auf.
     .on('broadcast', { event:'katze' }, p => reaktionEmpfangen(p.payload))
+    .on('broadcast', { event:'spruch' }, p => spruchEmpfangen(p.payload))
     .subscribe();
 
   // Fallback: Realtime kann bei Netzwechsel (WLAN → mobil) still abreißen.
@@ -2528,32 +2597,82 @@ function fuelleKatzen() {
   });
 }
 
+function fuelleSprueche() {
+  const wahl = $('spruchWahl');
+  SPRUECHE.forEach((text, i) => {
+    const b = document.createElement('button');
+    b.textContent = text;                  // textContent, nicht innerHTML
+    // Gestaffelt wie bei den Katzen, aber von hinten nach vorn: Die Tafel
+    // wächst nach oben, und das Auge folgt der Bewegung vom Knopf weg.
+    b.style.transitionDelay = ((SPRUECHE.length - 1 - i) * 18) + 'ms';
+    b.addEventListener('click', () => { spruchAuswahl(false); spruchSenden(text); });
+    wahl.appendChild(b);
+  });
+}
+
+// Die beiden Auswahlen schließen sich gegenseitig: übereinander geöffnet lägen
+// die Katzenringe hinter der Spruchtafel, und die Auffangfläche gehört ohnehin
+// nur einer von beiden.
 function katzenAuswahl(auf) {
+  if (auf) spruchAuswahl(false);
   $('reaktWahl').classList.toggle('da', auf);
-  $('reaktHuelle').classList.toggle('da', auf);
   $('btnReakt').classList.toggle('offen', auf);
+  huelleNachziehen();
+}
+
+function spruchAuswahl(auf) {
+  if (auf) katzenAuswahl(false);
+  $('spruchWahl').classList.toggle('da', auf);
+  $('btnSpruch').classList.toggle('offen', auf);
+  huelleNachziehen();
+}
+
+// Eine Fläche für beide: sie liegt, solange irgendeine Auswahl offen ist.
+function huelleNachziehen() {
+  $('reaktHuelle').classList.toggle('da',
+    $('reaktWahl').classList.contains('da') || $('spruchWahl').classList.contains('da'));
 }
 
 // Senden heißt: selbst sofort zeigen und hinausschicken. Der eigene
 // Broadcast kommt nicht zurück (self ist standardmäßig aus), deshalb die
 // örtliche Anzeige – sie ist ohnehin die schnellere Rückmeldung.
+// Eine Sperre für BEIDE Knöpfe, nicht je Knopf eine: sonst ließe sich durch
+// Abwechseln zwischen Katze und Spruch die doppelte Menge senden.
 let reaktZuletzt = 0;
-function reaktionSenden(katze) {
-  if (!G || G.state.solo || !channel) return;
+function reaktBereit() {
+  if (!G || G.state.solo || !channel) return false;
   const jetzt = Date.now();
-  if (jetzt - reaktZuletzt < REAKT_SPERRE) return;
+  if (jetzt - reaktZuletzt < REAKT_SPERRE) return false;
   reaktZuletzt = jetzt;
-  // Kurz sperren, damit der Knopf nicht zum Trommeln einlädt.
-  const b = $('btnReakt');
-  b.disabled = true;
-  setTimeout(() => { b.disabled = false; }, REAKT_SPERRE);
+  // Kurz sperren, damit die Knöpfe nicht zum Trommeln einladen. Sichtbar
+  // ausgegraut, damit klar ist, warum nichts passiert.
+  for (const id of ['btnReakt', 'btnSpruch']) {
+    const b = $(id);
+    b.disabled = true;
+    setTimeout(() => { b.disabled = false; }, REAKT_SPERRE);
+  }
+  return true;
+}
 
-  zeigeReaktion(katze, G.state.seats?.[seat]?.name || myName());
+const meinName = () => G?.state?.seats?.[seat]?.name || myName();
+
+function reaktionSenden(katze) {
+  if (!reaktBereit()) return;
+  zeigeReaktion(katze, meinName());
   // Ohne await und mit stiller Abfuhr: eine verlorene Katze ist kein Fehler,
   // der jemanden aufhalten darf.
   try {
     channel.send({ type:'broadcast', event:'katze',
-                   payload:{ katze, name: G.state.seats?.[seat]?.name || myName() } });
+                   payload:{ katze, name: meinName() } });
+  } catch (e) {}
+}
+
+function spruchSenden(text) {
+  if (!reaktBereit()) return;
+  zeigeSpruch(text, meinName());
+  try {
+    channel.send({ type:'broadcast', event:'spruch',
+                   payload:{ text, name: meinName() } });
   } catch (e) {}
 }
 
@@ -2565,35 +2684,65 @@ function reaktionEmpfangen(p) {
   zeigeReaktion(p.katze, String(p.name || '').slice(0, 14));
 }
 
-function zeigeReaktion(katze, name) {
-  // An den body und nicht in den Spielbildschirm, aus demselben Grund wie
-  // beim Knopf: dessen transform beim Ein- und Ausblenden würde die fliegende
-  // Katze mitziehen.
-  const buehne = document.body;
-  // Nicht mehr als REAKT_MAX gleichzeitig: bei zwei tippfreudigen Spielern
-  // wäre der Bildschirm sonst zugeklebt. Die älteste weicht.
-  const laufende = buehne.querySelectorAll('.reaktFlug');
-  if (laufende.length >= REAKT_MAX) laufende[0].remove();
+function spruchEmpfangen(p) {
+  // Nur was in SPRUECHE steht. Ein Broadcast lässt sich mit dem öffentlichen
+  // Schlüssel von jedem abschicken (siehe README, Grenzen des anon-Keys) –
+  // ohne diese Prüfung könnte man beliebigen Text auf fremde Bildschirme
+  // schreiben. Angezeigt wird ohnehin über textContent, Markup greift also
+  // nicht; es geht um den Inhalt.
+  if (!p || !SPRUECHE.includes(p.text)) return;
+  zeigeSpruch(p.text, String(p.name || '').slice(0, 14));
+}
 
+// Katze und Spruch fliegen auf derselben Bahn, mit derselben Namenszeile und
+// derselben Begrenzung. Nur die Füllung unterscheidet sich, deshalb steht der
+// Rahmen hier einmal.
+//
+// An den body und nicht in den Spielbildschirm, aus demselben Grund wie beim
+// Knopf: dessen transform beim Ein- und Ausblenden würde das Fliegende
+// mitziehen.
+function flugRahmen(klasse) {
+  // Nicht mehr als REAKT_MAX gleichzeitig: bei zehn tippfreudigen Spielern wäre
+  // der Bildschirm sonst zugeklebt. Die älteste weicht.
+  const laufende = document.body.querySelectorAll('.reaktFlug');
+  if (laufende.length >= REAKT_MAX) laufende[0].remove();
   const el = document.createElement('div');
-  el.className = 'reaktFlug v' + (buehne.querySelectorAll('.reaktFlug').length % 3);
-  const img = document.createElement('img');
-  img.src = `reactions/${katze}.png`;
-  img.width = img.height = 320;
-  img.alt = '';
-  el.appendChild(img);
+  el.className = 'reaktFlug v' + (document.body.querySelectorAll('.reaktFlug').length % 3)
+               + (klasse ? ' ' + klasse : '');
+  return el;
+}
+
+// Namenszeile dran, Aufräumen bestellen, einhängen. Der Rückfall per Timer ist
+// nötig, weil animationend bei einem Tabwechsel ausbleiben kann und das Element
+// dann für immer im DOM stünde.
+function flugAbschluss(el, name) {
   if (name) {
     const s = document.createElement('span');
     s.textContent = name;          // textContent, nicht innerHTML: fremder Name
     el.appendChild(s);
   }
-  // Aufräumen, wenn die zweite Animation durch ist. Der Rückfall per Timer
-  // ist nötig, weil animationend bei einem Tabwechsel ausbleiben kann und
-  // die Katze dann für immer im DOM stünde.
   const weg = () => el.remove();
   el.addEventListener('animationend', e => { if (e.animationName === 'reaktAus') weg(); });
   setTimeout(weg, 3000);
-  buehne.appendChild(el);
+  document.body.appendChild(el);
+}
+
+function zeigeReaktion(katze, name) {
+  const el = flugRahmen();
+  const img = document.createElement('img');
+  img.src = `reactions/${katze}.png`;
+  img.width = img.height = 320;
+  img.alt = '';
+  el.appendChild(img);
+  flugAbschluss(el, name);
+}
+
+function zeigeSpruch(text, name) {
+  const el = flugRahmen('spruch');
+  const b = document.createElement('b');
+  b.textContent = text;            // textContent: der Text kommt von außen
+  el.appendChild(b);
+  flugAbschluss(el, name);
 }
 
 function adopt(row) {
@@ -3764,7 +3913,8 @@ function renderGame(st) {
   // sonst bliebe sie über dem Endbildschirm offen stehen.
   const katzenAn = !st.solo && mitspieler(st, seat).length > 0;
   $('btnReakt').classList.toggle('da', katzenAn);
-  if (!katzenAn) katzenAuswahl(false);
+  $('btnSpruch').classList.toggle('da', katzenAn);
+  if (!katzenAn) { katzenAuswahl(false); spruchAuswahl(false); }
 
   // ── Punktestand ──
   // Die Klasse wird in jedem Zweig gesetzt und nicht nur im Duell: sonst

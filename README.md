@@ -665,9 +665,40 @@ Vier Sachen, die beim Bauen nicht auf Anhieb saßen:
   derselben Stelle, die auch den Statistik-Vermerk führt.
 
 Gebremst wird zweifach: `REAKT_SPERRE` (1,2 s) sperrt den Knopf nach dem Senden sichtbar, und
-`REAKT_MAX` (3) begrenzt, wie viele gleichzeitig im Bild sein können — bei zwei tippfreudigen
+`REAKT_MAX` (3) begrenzt, wie viele gleichzeitig im Bild sein können — bei zehn tippfreudigen
 Spielern wäre der Bildschirm sonst zugeklebt. Aufgeräumt wird per `animationend` **und** per
 Timer: Bei einem Tabwechsel bleibt das Ereignis aus, und die Katze stünde für immer im DOM.
+
+### Sprüche statt Chat
+
+Ein zweiter Knopf (💬) über dem Katzenknopf, dahinter zehn feste Sprüche aus `SPRUECHE`. Sie
+fliegen genauso ein wie die Katzen, nur als Sprechblase.
+
+**Warum kein echter Chat:** Er bräuchte ein Eingabefeld, eine Verlaufsliste und dauerhaft Platz
+auf dem Spielbildschirm — und würde beim Tippen genau von dem ablenken, worum es geht. Feste
+Sprüche sind ein Tipp statt eines Satzes und brauchen keinen Platz, solange sie zu sind.
+
+Was sich mit den Katzen **teilt**: die Auffangfläche zum Wegtippen (`huelleNachziehen()` hält sie,
+solange irgendeine Auswahl offen ist), die Sperre (`reaktBereit()` — **eine** für beide Knöpfe,
+sonst ließe sich durch Abwechseln die doppelte Menge senden), der Flugrahmen (`flugRahmen()` /
+`flugAbschluss()`) und die Begrenzung auf `REAKT_MAX`. Die beiden Auswahlen schließen sich
+gegenseitig; übereinander geöffnet lägen die Katzenringe hinter der Spruchtafel.
+
+Drei Entscheidungen:
+
+* **Tafel statt Kranz.** „Liebe den Song!" ist zehnmal so breit wie ein Katzenknopf — im
+  aufgefalteten Kranz stünde die Hälfte außerhalb des Bildschirms. Die Sprüche stehen deshalb als
+  umbrechende Kachelwolke rechts unten, verankert über dem Knopf, und wachsen nach oben und links.
+* **Verschickt wird der Text, nicht seine Nummer.** Über den Index wäre die Nutzlast kürzer, aber
+  ein Gerät mit älterer Liste zeigte beim Nachrücken eines Spruchs den falschen. Neue Sprüche
+  gehören trotzdem ans **Ende** — dann bleibt die Reihenfolge der gewohnten stabil.
+* **`spruchEmpfangen()` nimmt nur an, was in `SPRUECHE` steht.** Das ist keine Förmlichkeit: Einen
+  Broadcast kann mit dem öffentlichen Schlüssel jeder abschicken (siehe *Grenzen des anon-Keys*).
+  Ohne die Prüfung ließe sich beliebiger Text auf fremde Bildschirme schreiben. Markup greift
+  ohnehin nicht — der Text geht über `textContent` in den DOM, geprüft mit einem
+  `<img src=x onerror=…>` als Nutzlast —, es geht um den Inhalt.
+
+Länger als etwa 16 Zeichen sollte kein Spruch sein, sonst bricht die Kachel in der Tafel um.
 
 ### Audio-Synchronisation
 

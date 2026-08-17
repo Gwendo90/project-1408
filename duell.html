@@ -3801,7 +3801,9 @@ function renderGame(st) {
     const lauf = syncAudio(st);
     $('pbtn').classList.toggle('on', lauf === 'laeuft');
     setStat(
-      lauf === 'laeuft' ? (st.solo ? 'Läuft' : 'Ihr hört beide zu')
+      // Nicht "Ihr hört beide zu": ab drei Spielern stimmt das nicht mehr, und
+      // eine Fallunterscheidung nach Spielerzahl wäre für dieselbe Aussage.
+      lauf === 'laeuft' ? (st.solo ? 'Läuft' : 'Alle hören das Lied')
       : lauf === 'vorlauf' ? 'Gleich geht’s los…'
       : lauf === 'laedt' ? 'Lädt…'
       : lauf === 'fertig' ? (mine ? 'Durchgelaufen – nochmal anhören oder einsortieren' : 'Durchgelaufen')

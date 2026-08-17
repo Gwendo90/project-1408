@@ -1135,6 +1135,26 @@ const TAG_KARTEN  = 10;                 // Karten je Tagesduell, ohne die Startk
 // landeten sonst in derselben Bestenliste, obwohl sie andere Karten hatten.
 const TAG_RUNDEN = { '2026-08-14': 2 };
 const tagRunde = tag => TAG_RUNDEN[tag] || 1;
+// Nummernraum, über den das Tagesduell mischt – bewusst FEST und nicht aus
+// SONGS abgeleitet.
+//
+// Vorher lief das über `Object.keys(SONGS).sort()`. Das Mischen hängt an der
+// Länge der Liste, also verschob jede Änderung an der Songdatei das Deck
+// *jedes* Tages: Beim Entfernen von Song 626 am 17.08.2026 blieben von den elf
+// Karten des Tages null an ihrer Stelle, obwohl 626 im Deck gar nicht vorkam.
+// Wer an einem solchen Tag schon gespielt hatte, war mit den Nachfolgenden
+// nicht mehr vergleichbar.
+//
+// Mit festem Raum bleibt die gemischte Reihenfolge unberührt; fehlende IDs
+// werden hinterher übersprungen. Ein entfernter oder neu aufgenommener Song
+// trifft damit nur noch die Tage, an denen er wirklich unter den ersten Karten
+// lag – alle anderen behalten ihr Deck für immer.
+//
+// 2000 statt 1430 (heute größte ID): So sind auch die nächsten ~570 neuen Songs
+// bloß bisher übersprungene Plätze. Erst wer darüber hinaus erweitert, muss die
+// Grenze anheben und verschiebt dabei wieder alles.
+const TAG_MAX = 2000;
+const TAG_POOL = Array.from({ length: TAG_MAX }, (_, i) => String(i + 1).padStart(3, '0'));
 const VETOS_START = 3;                  // Vetos je Spieler zu Spielbeginn
 const VETO_MS = 15000;                  // Bedenkzeit fürs Veto
 // Fortschrittsring des Countdowns. Radius im 44er-Viewport, Umfang daraus –
@@ -1567,7 +1587,9 @@ async function init() {
     }
   }
   const soloSt = JSON.parse(localStorage.getItem(SOLO_KEY) || 'null');
-  if (soloSt && soloSt.phase !== 'over') { seat = 'p1'; G = { code:null, version:0, state:soloSt }; render(); }
+  if (soloSt && soloSt.phase !== 'over') {
+    seat = 'p1'; G = { code:null, version:0, state:zustandPutzen(soloSt) }; render();
+  }
   return statistikWieder();
 }
 
@@ -1609,7 +1631,7 @@ function fail(msg) {
   namePflicht();
 }
 
-// Eigene Songdatei fürs Onlinespiel: songs-online.json mit 1429 Titeln bis
+// Eigene Songdatei fürs Onlinespiel: songs-online.json mit 1428 Titeln bis
 // 2026, gegen die 336 gedruckten Karten in songs.json. Die bleibt unberührt,
 // weil index.html sie fürs Offlinespiel per QR-Code liest – dort darf sich
 // nichts verschieben.
@@ -1846,6 +1868,37 @@ function neuesDeck() {
   return deckBauen(pool.length >= FILT_MIN ? pool : Object.keys(SONGS).sort(), f.frisch);
 }
 
+// Karten aus einem übernommenen Zustand nehmen, die es nicht mehr gibt.
+//
+// Wird ein Song aus songs-online.json entfernt (Song 479 und 626, siehe README),
+// steckt seine ID weiter in Decks und Zeitleisten schon laufender Partien: die
+// liegen in der Datenbank bzw. im localStorage und wissen nichts von der
+// Änderung. Beim Ziehen liefe `song(id)` auf undefined und `yearOf` würde
+// werfen – die Partie wäre nicht mehr spielbar.
+//
+// Gemessen beim Entfernen von 626: alle 19 offenen Partien hatten die ID noch
+// im Deck. Neu gebaute Decks können sie nicht enthalten, die entstehen aus
+// `Object.keys(SONGS)`.
+//
+// Aus einer Zeitleiste verschwindet die Karte damit auch, der Spieler verliert
+// sie also. Das ist der Preis; eine Karte ohne Jahr lässt sich nicht
+// einsortieren, und ein Absturz wäre schlimmer. Die Statistik ist davon nicht
+// betroffen, die steht in `tipps` und wird nicht neu berechnet.
+//
+// Der nächste commit schreibt die bereinigte Fassung zurück – die Partie heilt
+// sich selbst, ohne dass jemand an der Datenbank arbeiten muss.
+function zustandPutzen(st) {
+  if (!st || !SONGS) return st;
+  const kennt = id => id != null && !!SONGS[id];
+  if (Array.isArray(st.deck)) st.deck = st.deck.filter(kennt);
+  if (st.timelines) {
+    for (const k of SITZE) {
+      if (Array.isArray(st.timelines[k])) st.timelines[k] = st.timelines[k].filter(kennt);
+    }
+  }
+  return st;
+}
+
 // Deck für einen Start vom Startbildschirm. Gibt null zurück, wenn die
 // Auswahl zu klein ist – dann steht der Grund im Statustext, statt dass
 // stillschweigend mit allen Karten gespielt wird.
@@ -2048,7 +2101,9 @@ function heuteTag() {
 function tagesDeck(tag) {
   const runde = tagRunde(tag);
   const rnd = mulberry32(seedAus('1408|' + tag + (runde > 1 ? '|' + runde : '')));
-  return shuffled(Object.keys(SONGS).sort(), rnd).slice(0, TAG_KARTEN + 1);
+  // Erst über den festen Raum mischen, dann die fehlenden IDs wegwerfen – nicht
+  // umgekehrt. In dieser Reihenfolge hängt die Folge nicht am Bestand (TAG_POOL).
+  return shuffled(TAG_POOL, rnd).filter(id => SONGS[id]).slice(0, TAG_KARTEN + 1);
 }
 
 // Bisher verbrauchte Zeit: die festgehaltene, sobald der Lauf zu Ende ist,
@@ -2487,7 +2542,7 @@ function zeigeReaktion(katze, name) {
 
 function adopt(row) {
   const vorher = G && G.state.phase;
-  G = { code: row.code, version: row.version, state: row.state };
+  G = { code: row.code, version: row.version, state: zustandPutzen(row.state) };
   // Bei jedem Phasenwechsel die vorgemerkte Lücke verwerfen: sonst würde
   // eine Auswahl aus dem eigenen Zug in die Veto-Auswahl hineinwirken.
   if (vorher !== row.state.phase) pendingGap = null;
@@ -2569,7 +2624,7 @@ async function drawCard() {
 }
 
 // Richtig einsortiert, wenn die Karte zwischen ihre beiden Nachbarn passt.
-// Gleiche Jahre zählen als passend – bei 1429 Songs auf 71 Jahrgänge ist
+// Gleiche Jahre zählen als passend – bei 1428 Songs auf 71 Jahrgänge ist
 // das der Normalfall, nicht die Ausnahme.
 function isCorrect(timeline, index, cardId, schwer) {
   const y = yearOf(cardId);
@@ -4038,7 +4093,7 @@ const VERLAEUFE = [
 
 // Der Verlauf muss aus der Song-ID folgen, nicht aus Zufall: dieselbe
 // Karte soll in der Zeitleiste, in der Auflösung und auf beiden Handys
-// gleich aussehen. FNV-1a streut die 1429 IDs gut über die 25 Paare.
+// gleich aussehen. FNV-1a streut die 1428 IDs gut über die 25 Paare.
 function verlauf(id) {
   let h = 2166136261;
   const s = String(id);

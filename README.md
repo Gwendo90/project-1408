@@ -37,7 +37,7 @@ duell.html              Online-Modus: das eigentliche Spiel (~90 KB, alles inlin
 duell-config.js         Supabase-URL und öffentlicher Key
 supabase.js             Supabase-Bibliothek, eigenständig (siehe Fallstricke!)
 songs.json              336 Songs mit Vorschau-URLs — nur fürs Offlinespiel, unangetastet
-songs-online.json       1429 Songs fürs Onlinespiel (enthält die 336)
+songs-online.json       1428 Songs fürs Onlinespiel (enthält die 336)
 flags/                  53 Herzflaggen als PNG, 128×128 — eine je Land der Online-Datei
 reactions/              14 Katzen als PNG, 320×320, mit gebackenem Aufkleberrand
 anleitung.html          Spielanleitung fürs gedruckte Kartenspiel
@@ -75,7 +75,7 @@ Nicht im Repo, nur lokal im Projektordner: `Set_1/`, `Set_2/` (Kartenbilder für
 | Datei | Songs | Wer liest sie |
 |---|---|---|
 | `songs.json` | 336 | `index.html` — das Offlinespiel. Entspricht genau den gedruckten Karten. |
-| `songs-online.json` | 1429 | `duell.html` — das Onlinespiel. Enthält die 336 und 1093 weitere. |
+| `songs-online.json` | 1428 | `duell.html` — das Onlinespiel. Enthält die 336 und 1092 weitere. |
 
 `songs.json` bleibt bewusst **unangetastet**: Ihre IDs sind die QR-Codes auf den gedruckten
 Karten, dort darf sich nichts verschieben. Wer Songs ergänzen will, ergänzt die Online-Datei.
@@ -89,7 +89,13 @@ Zeilen die falschen Songs. **Wer die Online-Datei erweitert, muss die bestehende
 unberührt lassen und nur hinten anhängen.**
 
 Beide sind ein **Objekt**, kein Array — die Schlüssel laufen von `"001"` bis `"336"` bzw.
-`"1430"` (ab 1000 vierstellig; `479` fehlt, siehe unten).
+`"1430"` (ab 1000 vierstellig; `479` und `626` fehlen, siehe unten — 1428 Einträge).
+
+**Auf die Reihenfolge von `Object.keys(SONGS)` ist kein Verlass.** JavaScript ordnet
+ganzzahlig aussehende Schlüssel numerisch *vor* alle übrigen, `"1000"` steht also vor `"001"`
+(dort bremst die führende Null die Sonderbehandlung). Der Code sortiert deshalb überall selbst
+(`Object.keys(SONGS).sort()`), und das ist die lexikografische Ordnung, nicht die numerische:
+`"099" < "100" < "1000" < "1430" < "200"`. Deterministisch ist beides, mehr braucht es nicht.
 
 ```json
 "001": {
@@ -168,7 +174,7 @@ Beide sind ein **Objekt**, kein Array — die Schlüssel laufen von `"001"` bis 
   eine Nähe-Heuristik im HTML der Albumseite auf („die `.ep`-URL, die am dichtesten hinter der
   Track-ID steht"), weil der strukturierte Weg über das eingebettete JSON nicht mehr greift. Bei
   einem Lauf über 258 Taylor-Swift-Titel lagen damit 6 daneben (2,3 %), hier mindestens 16 von
-  1429 (1,1 %). **Wer das Skript erneut laufen lässt, muss den Hörtest hinterherschicken.**
+  1428 (1,1 %). **Wer das Skript erneut laufen lässt, muss den Hörtest hinterherschicken.**
 
 * **Vier weitere Zeilen, bei denen iTunes eine andere Fassung nennt als die Datei.** Sie fielen
   beim Ordnervergleich auf. Das exakte Werkzeug zur Aufklärung ist nicht die Korrelation, sondern
@@ -181,16 +187,29 @@ Beide sind ein **Objekt**, kein Array — die Schlüssel laufen von `"001"` bis 
   | `1244` | Gjon's Tears – *Répondez-moi* (2020) | die **Originalfassung**, also richtig — nur `sid` und `u` zeigten auf den Sunlike-Brothers-Remix | **behoben**: `sid`/`u` auf den Track gesetzt, zu dem die Vorschau gehört. Der Ton blieb unverändert. |
   | `830` | Donna & Joseph McCaul – *Love?* (2005) | *Love (Remix)* von 2017 — richtiger Song, falsche Fassung | **nicht behebbar**: Das ESC-Original von 2005 ist in keinem der Stores DE/IE/GB/US vorhanden. |
   | `479` | Marie – *Un train qui part* (Monaco 1973) | ein Titel, der zu **keinem** Track der angegebenen Interpreten gehört | **entfernt** (siehe unten). In den Stores DE/FR/MC/GB/US/CH/BE und in 32 Eurovision-Sammelalben nicht auffindbar. |
+  | `626` | Thomas Forstner – *Nur ein Lied* (Österreich 1989) | **Mark Forster – *Ein Lied* (2026)**. Anderer Interpret, anderes Lied, 37 Jahre daneben — der Namensgleichklang hat den automatischen Abgleich getäuscht. | **entfernt** am 17.08.2026. In DE/AT/CH/GB/US existiert keine Fassung: Forstner ist dort nur mit späterem Material vertreten (*Hautnah* 2024, *Summer Dream* 2021), und von den 29 gefundenen *Nur ein Lied* ist keins seins. Auch *Venedig im Regen* (1991) fehlt. |
 
   Bei `830` ist immerhin die Melodie die richtige, die Karte bleibt also spielbar.
 
-  **`479` ist aus `songs-online.json` entfernt**, deshalb 1429 statt 1430 Einträge und eine Lücke
-  in der Nummerierung. Eine Karte mit fremdem Ton ist schlechter als eine fehlende: Sie bestraft
-  gerade die Spieler, die den Ton zum Schätzen nutzen. Die ID wird **nicht neu vergeben** — sonst
-  zeigte die Statistik zu einer alten `tipps`-Zeile den falschen Song (dieselbe Regel wie bei den
-  336 gemeinsamen IDs). Auf `479` verwies zum Zeitpunkt des Entfernens keine einzige Zeile.
-  Nichts im Code setzt eine lückenlose Nummerierung voraus: Das Tagesduell mischt über
-  `Object.keys(SONGS).sort()`, und `verlauf()` hasht die ID.
+  **`479` und `626` sind aus `songs-online.json` entfernt**, deshalb 1428 statt 1430 Einträge und
+  zwei Lücken in der Nummerierung. Eine Karte mit fremdem Ton ist schlechter als eine fehlende:
+  Sie bestraft gerade die Spieler, die den Ton zum Schätzen nutzen. Die IDs werden **nicht neu
+  vergeben** — sonst zeigte die Statistik zu einer alten `tipps`-Zeile den falschen Song
+  (dieselbe Regel wie bei den 336 gemeinsamen IDs). Auf beide verwies zum Zeitpunkt des
+  Entfernens keine einzige Zeile in `tipps`. Nichts im Code setzt eine lückenlose Nummerierung
+  voraus: `verlauf()` hasht die ID, und die Statistik zeigt bei fehlender ID „Song 626" statt zu
+  scheitern (`kartenZeile`, `zeigeRueckblick`).
+
+  **Zwei Dinge, die beim Entfernen erst am 17.08. auffielen** — beide sind seither erledigt, aber
+  beim nächsten Mal wieder zu bedenken:
+
+  1. **Laufende Partien tragen die ID weiter.** Deck und Zeitleisten stehen im Spielzustand in
+     der Datenbank bzw. im `localStorage`, nicht in der Songdatei. Beim Entfernen von `626`
+     hatten **alle 19 offenen Partien** die ID noch im Deck; beim Ziehen wäre `yearOf` auf
+     `undefined` gelaufen. Dagegen putzt jetzt `zustandPutzen()` jeden übernommenen Zustand
+     (in `adopt()` und beim Wiederaufnehmen eines Solo-Laufs). Der nächste `commit` schreibt die
+     bereinigte Fassung zurück, die Partie heilt sich selbst — an der Datenbank ist nichts zu tun.
+  2. **Das Tagesduell verschob sich früher komplett**, siehe `TAG_POOL` weiter unten.
 
 * **Die Quelldatei unter `Sonstiges/songs-online.json` im Desktop-Ordner kennt keine dieser
   Korrekturen** (`423`, `428`, `1244`). Ein Neubau daraus bringt sie alle zurück.
@@ -282,13 +301,13 @@ seinen Lauf nicht.
 
 ### Kartenauswahl (Filter)
 
-Bei 1429 Karten ist „alle" nicht immer die beste Runde. Über **Kartenauswahl** auf dem
+Bei 1428 Karten ist „alle" nicht immer die beste Runde. Über **Kartenauswahl** auf dem
 Startbildschirm lässt sich der Kartenstapel eingrenzen — **für Solo und Duell, nicht fürs
 Tagesduell**, dessen ganzer Sinn ja das gemeinsame Deck ist.
 
 | Filter | Stufen | Karten |
 |---|---|---|
-| Platzierung | Alle · Finalisten · Top 10 · Top 5 · Top 3 · Sieger | 1429 · 1140 · 578 · 305 · 192 · 71 |
+| Platzierung | Alle · Finalisten · Top 10 · Top 5 · Top 3 · Sieger | 1428 · 1139 · 577 · 304 · 192 · 71 |
 | Jahrzehnte | 1950er … 2020er, mehrfach wählbar | 44 … 342 je Jahrzehnt |
 | Länder | 13 Gruppen, mehrfach wählbar | 29 (Verschwundene) … 365 (Mittelmeer) |
 | Frische Karten zuerst | Schalter | — |
@@ -371,7 +390,7 @@ Zwei Entscheidungen zum Deathmatch, die man ihm nicht ansieht:
 * **Nur der eigene Zug scheidet aus, kein misslungenes Veto.** Sonst wäre Vetogeben Selbstmord
   und niemand würde es je wagen — ein Fehlveto kostet weiterhin nur das Veto.
 * **Das Kartenziel bleibt** (10 bzw. die eingestellte Zahl). Ohne eines liefe eine Partie zweier
-  vorsichtiger Spieler durch den ganzen Stapel von 1429 Karten.
+  vorsichtiger Spieler durch den ganzen Stapel von 1428 Karten.
 
 **Das Tagesduell ist ausdrücklich einfach**, unabhängig von der Einstellung — `schwer: false`
 steht dort fest im Zustand. Alle sollen dieselbe Aufgabe haben, sonst wäre die Tagesbestenliste
@@ -392,23 +411,38 @@ Alle zehn Karten werden gespielt, ein Fehler beendet nichts.
 mit der `shuffled()` mischt — dieselbe Funktion wie sonst, sie nimmt den Zufallsgeber jetzt als
 Parameter. Zwei Dinge sind daran nicht offensichtlich:
 
-* **`Object.keys(SONGS)` wird sortiert, bevor gemischt wird.** Die Reihenfolge aus `songs.json`
-  ist nichts, worauf man sich verlassen kann, und eine andere Ausgangsfolge ergäbe beim selben
-  Seed ein anderes Deck.
+* **Gemischt wird über `TAG_POOL`, einen festen Nummernraum `"001"`…`"2000"`, nicht über die
+  vorhandenen Schlüssel.** Fehlende IDs fallen erst *danach* heraus (`.filter(id => SONGS[id])`),
+  dann wird auf elf gekürzt. Die Reihenfolge hängt so nicht am Bestand.
+
+  Vorher lief das über `Object.keys(SONGS).sort()`, und das war eine stille Falle: Fisher-Yates
+  hängt an der Länge der Liste, also verschob **jede** Änderung an der Songdatei das Deck
+  **jedes** Tages — auch rückwirkend. Beim Entfernen von Song `626` am 17.08.2026 blieb von den
+  elf Karten des Tages keine einzige an ihrer Stelle, obwohl `626` in diesem Deck gar nicht
+  vorkam. Wer an dem Tag schon gespielt hatte, war mit den Nachfolgenden nicht mehr vergleichbar.
+
+  Mit festem Raum trifft eine Änderung nur noch die Tage, an denen der Song wirklich unter den
+  ersten elf lag. Gemessen über 60 Tage: Song `100` entfernen ändert 0 Tage (er kam in keinem
+  dieser Decks vor), die Lücke `479` füllen ändert genau den einen Tag, an dem sie auftaucht.
+
+  `2000` als Grenze und nicht `1430` (heute größte ID): So sind die nächsten rund 570 neuen Songs
+  bloß bisher übersprungene Plätze. Erst wer darüber hinaus erweitert, muss die Grenze anheben —
+  und verschiebt dabei wieder alles.
 * **Durchweg `Math.imul` und `| 0` / `>>> 0`.** Damit wird in 32-Bit-Ganzzahlen gerechnet und
   nicht in Fließkomma, wo die oberen Bits verloren gingen und zwei Geräte auseinanderlaufen
   könnten.
 
 Nachgemessen: zwei unabhängige Browserstarts mit demselben Datum liefern identische Startkarte
-und identisches Deck (`start=180`, `072,078,267,107,256,163,033,262,020,155`), zwei
-verschiedene Daten völlig verschiedene.
+und identisches Deck, zwei verschiedene Daten völlig verschiedene. (Die früher hier notierte
+Beispielfolge `start=180, 072,078,…` galt für das alte Mischen über `Object.keys` und stimmt
+seit der Umstellung auf `TAG_POOL` nicht mehr.)
 
 Läuft technisch auf der **Solo-Mechanik** — kein Netz, kein Warten, ein Sitz. Kennzeichen ist
 allein `tag` im Spielzustand; ohne ihn ist es eine gewöhnliche Solo-Partie. Was daran hängt:
 
 | | Solo | Tagesduell |
 |---|---|---|
-| Deck | `shuffled()` über alle 1429 | zehn Karten aus dem Tages-Seed |
+| Deck | `shuffled()` über alle 1428 | zehn Karten aus dem Tages-Seed |
 | Ende | nach drei Fehlern (`SOLO_FEHLER`) | wenn das Deck leer ist |
 | `maxFehler` | `3` | `null` — keine Leben |
 | Anzeige | Karten + Herzen | Fortschritt + Fehler + Uhr |

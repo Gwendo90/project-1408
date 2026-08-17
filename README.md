@@ -498,6 +498,28 @@ lobby → draw → turn → [veto] → result → draw → …  → over
 * `result` — Karte aufgedeckt, Auswertung sichtbar
 * `over` — Sieg, leeres Deck oder Abbruch
 
+**Der Übergang nach `over` ist immer ein Tastendruck, nie automatisch.** Zwei Kennzeichen
+halten die Auflösung stehen, obwohl die Partie schon entschieden ist:
+
+| | gesetzt in | bedeutet |
+|---|---|---|
+| `soloAus` | `auswerten` (Solo, letztes Leben) | Solo entschieden |
+| `partieAus` | `auswerten` (Mehrspieler, Siegkarte oder letztes Ausscheiden) | Duell entschieden |
+
+Vorher sprang der Mehrspieler-Modus bei der Siegkarte direkt auf den Endbildschirm — genau bei
+der Karte, die die Partie entscheidet, sah man also nie das Jahr. Der Knopf heißt dann
+„Ergebnis ansehen" statt „Nächste Karte", und `naechsteKarte()` schaltet auf `over`.
+
+Drei Stellen hängen daran und müssen beide Kennzeichen kennen:
+
+* **`nachAuswertung`** wertet sofort (`partieMerken`), nicht erst beim Tastendruck: Wer den Tab
+  auf der Auflösung zumacht, soll seine Partie nicht verlieren. Dass `naechsteKarte` beim
+  Wechsel auf `over` ein zweites Mal `partieMerken` ruft, ist harmlos — `partieProtokolliert`
+  fängt es ab (nachgemessen: zwei Zeilen für zwei Spieler, kein doppelter Satz).
+* **`leaveGame`** rührt eine entschiedene Partie nicht mehr an. Ohne diese Sperre hätte ein
+  Aussteigen zwischen Siegkarte und Tastendruck den Sieg in einen Abbruch verwandelt.
+* **`renderActions`** beschriftet den Knopf.
+
 ### Der Spielzustand
 
 **Eine Zeile in `games` je Partie**, der komplette Zustand als JSONB. Für vier Spieler ist das
@@ -511,6 +533,9 @@ deutlich einfacher zu handhaben als normalisierte Tabellen, und Realtime schickt
   raus:      { p3:true },             // ausgestiegene Spieler
   timelines: { p1:[songId,…], … },    // immer nach Jahr sortiert
   vetos:     { p1:3, … },
+  getroffen: { p1:7, … },             // selbst richtig einsortierte Karten
+  geklaut:   { p1:2, … },             // per Veto geholte Karten
+  partieAus: true,                    // Duell entschieden, Auflösung noch sichtbar
   deck:      [songId,…],              // gemischt, es wird vom Ende gezogen
   current:   songId,                  // gezogene Karte
   pending:   { seat, index },         // eingeloggt, noch nicht ausgewertet
@@ -886,13 +911,42 @@ Songtitel kommen **aus `songs.json`**, nicht aus der Datenbank — die RPCs gebe
 zurück, damit die Statistik gültig bleibt, wenn Songdaten später korrigiert werden. Fehlt eine
 ID dort, wird sie selbst angezeigt (`Song 999`), es stürzt nichts ab.
 
-Der **Rückblick auf dem Endbildschirm** wird nachgeladen und eingeblendet; der Bildschirm selbst
-erscheint sofort wie bisher. Ohne Verbindung, bei einem Fehler oder für eine Partie von vor der
-Umstellung fällt der Kasten ersatzlos weg — auf dem Siegesbildschirm hat keine Fehlermeldung
-etwas verloren. Seine `partie_id` kommt aus dem Spielzustand, nicht aus einer Modulvariablen,
-damit er auch nach einem Neuladen noch funktioniert. Und weil die Tipp-Zeilen nebenher
-geschrieben werden und bei Spielende noch unterwegs sein können, fragt er bei leerem Ergebnis
-**ein zweites Mal** nach, statt „0/0" hinzuschreiben.
+Der **Kasten auf dem Endbildschirm** hat zwei Quellen, und das ist wichtig für das Timing:
+
+| Zelle | kommt aus | wann |
+|---|---|---|
+| selbst geraten · geklaut · mit Startkarte | Spielzustand (`zeigeEndBilanz`) | sofort |
+| in Folge · härteste Karte der Partie | RPC `partie_rueckblick` | nachgeladen |
+
+Die Datenbankzellen stehen bis dahin auf „–". Kommt nichts, bleibt es dabei — auf dem
+Siegesbildschirm hat keine Fehlermeldung etwas verloren. Die `partie_id` kommt aus dem
+Spielzustand, nicht aus einer Modulvariablen, damit es auch nach einem Neuladen funktioniert.
+Und weil die Tipp-Zeilen nebenher geschrieben werden und bei Spielende noch unterwegs sein
+können, fragt der Rückblick bei leerem Ergebnis **ein zweites Mal** nach.
+
+**Warum die Startkarte ausdrücklich dasteht.** Vorher zeigte der Kasten „9/12 getroffen" neben
+einem Stand von „10 Karten" — zwei Zahlen, die nicht zusammenpassen wollten, weil jeder Spieler
+mit einer aufgedeckten Karte anfängt und diese in keiner Trefferzahl steckt. Jetzt steht die
+Zerlegung da, und sie geht auf:
+
+```
+timelines[k].length === 1 + getroffen[k] + geklaut[k]
+```
+
+Das gilt ausnahmslos: Eine Karte kommt nur über einen eigenen Treffer oder ein gelungenes Veto in
+eine Leiste, und sie verlässt sie nie wieder (ein misslungenes Veto kostet das Veto, nicht die
+Karte). `endBilanz()` **prüft die Gleichung** und gibt bei Abweichung `null` zurück — dann stehen
+Striche statt Zahlen. Das greift bei Partien, die vor dem 17.08.2026 begonnen haben und die
+Zähler nicht kennen, und bei Leisten, aus denen `zustandPutzen()` eine entfernte Karte geworfen
+hat. Eine erfundene Aufschlüsselung wäre schlimmer als keine.
+
+Die Zähler stehen bewusst **im Spielzustand** und nicht in einer RPC: So sind sie ohne Netz da,
+sofort statt nach einer halben Sekunde, und alle Geräte zeigen dasselbe.
+
+`partie_rueckblick` liefert weiter `quote_richtig` und `quote_gesamt` — angezeigt werden sie nicht
+mehr. Die Trefferquote steht auf der Statistikseite, dort ist sie richtig aufgehoben. Im Client
+dient `quote_gesamt` nur noch als Prüfung, ob die Tipp-Zeilen schon angekommen sind; die Felder
+bleiben in der Funktion, ein `DROP` wäre eine Migration ohne Gegenwert.
 
 **Das Protokollieren hängt am Spielzustand, nicht am Gerät.** Bei einem Veto schreibt der
 Gegner die Auswertung, protokolliert dabei aber den Tipp des Spielers am Zug. Läuft es über

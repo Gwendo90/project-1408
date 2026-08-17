@@ -906,11 +906,18 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <div style="font-size:46px">🏆</div>
     <div class="h1" id="overTitle">—</div>
     <div class="sub" id="overSub">—</div>
-    <!-- Wird nachgeladen und eingeblendet. Kommt nichts, bleibt der Kasten
-         weg – auf dem Siegesbildschirm hat keine Fehlermeldung etwas zu
-         suchen. -->
+    <!-- Die ersten drei Zahlen stehen sofort, sie kommen aus dem Spielzustand
+         (zeigeEndBilanz). "In Folge" und die härteste Karte werden nachgeladen
+         und bleiben bis dahin auf "–". Kommt nichts, bleibt es dabei – auf dem
+         Siegesbildschirm hat keine Fehlermeldung etwas zu suchen.
+
+         Woraus sich die Leiste zusammensetzt, steht ausdrücklich da: Ohne die
+         Startkarte geht die Rechnung für den Leser nicht auf, und sie war der
+         Grund, die Zahl für falsch zu halten. -->
     <div class="rueck weg" id="rueckblick">
-      <div><b id="rbQuote">–</b><span>getroffen</span></div>
+      <div><b id="rbGeraten">–</b><span>selbst geraten</span></div>
+      <div id="rbGeklautZelle"><b id="rbGeklaut">–</b><span>geklaut</span></div>
+      <div><b id="rbKarten">–</b><span>mit Startkarte</span></div>
       <div><b id="rbSerie">–</b><span>in Folge</span></div>
       <div class="breit"><b id="rbKarte">–</b><span>härteste Karte der Partie</span></div>
     </div>
@@ -2237,6 +2244,11 @@ function startSolo() {
     seats: { p1: { name: myName() }, p2: null },
     turn: 'p1',
     timelines: { p1: [deck.pop()], p2: [] },
+    // Wie die Karten in die Leiste kamen: selbst geraten oder per Veto geholt.
+    // Die Startkarte steckt in keinem der beiden, deshalb gilt immer
+    // timelines[k].length === 1 + getroffen[k] + geklaut[k] (siehe endBilanz).
+    getroffen: { p1: 0 },
+    geklaut: { p1: 0 },
     deck,
     current: null,
     audio: { playing:false, startedAt:0, seek:0 },
@@ -2282,6 +2294,11 @@ function startTagesduell() {
     seats: { p1: { name: myName() }, p2: null },
     turn: 'p1',
     timelines: { p1: [deck.pop()], p2: [] },
+    // Wie die Karten in die Leiste kamen: selbst geraten oder per Veto geholt.
+    // Die Startkarte steckt in keinem der beiden, deshalb gilt immer
+    // timelines[k].length === 1 + getroffen[k] + geklaut[k] (siehe endBilanz).
+    getroffen: { p1: 0 },
+    geklaut: { p1: 0 },
     deck,
     current: null,
     audio: { playing:false, startedAt:0, seek:0 },
@@ -2382,10 +2399,13 @@ function rausZuruecksetzen() {
 async function leaveGame() {
   // Aussteigen im laufenden Spiel eintragen, sonst warten die anderen
   // endlos auf einen Zug, der nie kommt.
-  if (G && !G.state.solo && G.state.phase !== 'over' && sb) {
+  // Eine entschiedene Partie (`partieAus`) zählt wie beendet: Die Wertung steht
+  // schon, und ein Ausstieg vor dem Tastendruck dürfte den Sieg nicht in einen
+  // Abbruch verwandeln.
+  if (G && !G.state.solo && G.state.phase !== 'over' && !G.state.partieAus && sb) {
     const meinName = G.state.seats?.[seat]?.name || 'Ein Mitspieler';
     await commit(s => {
-      if (s.phase === 'over' || !s.seats?.[seat]) return null;
+      if (s.phase === 'over' || s.partieAus || !s.seats?.[seat]) return null;
       s.raus = s.raus || {};
       s.raus[seat] = true;
       s.timelines[seat] = [];
@@ -2596,11 +2616,13 @@ async function startGame() {
     s.partieId = partieId;
     s.begonnen = begonnen;
     // Jeder startet mit einer aufgedeckten Karte.
-    s.vetos = {};
+    s.vetos = {}; s.getroffen = {}; s.geklaut = {};
     for (const k of dabei) {
       s.timelines[k] = [ s.deck.pop() ];
       s.vetos[k] = VETOS_START;
+      s.getroffen[k] = 0; s.geklaut[k] = 0;
     }
+    s.partieAus = false;
     s.pending = null; s.vetoBis = 0; s.vetoAngemeldet = null; s.durch = {}; s.durchFuer = ''; s.hinweis = null;
     s.turn = dabei[Math.floor(Math.random() * dabei.length)];
     s.phase = 'draw';
@@ -2690,11 +2712,18 @@ function auswerten(s, vetoZug) {
       ziel = einsortierIndex(s.timelines[g], id, s.schwer);
       s.timelines[g].splice(ziel, 0, id);
       s.vetos[g]++;                       // korrektes Veto bleibt erhalten
+      // Direkt neben dem splice, damit Leiste und Zähler nicht auseinanderlaufen.
+      s.geklaut = s.geklaut || {};
+      s.geklaut[g] = (s.geklaut[g] || 0) + 1;
     }
     klau = { seat: g, index: vetoZug.index, zielIndex: ziel, gelungen: gOk };
   }
 
-  if (aktivOk) tlAktiv.splice(idx, 0, id);
+  if (aktivOk) {
+    tlAktiv.splice(idx, 0, id);
+    s.getroffen = s.getroffen || {};
+    s.getroffen[aktiv] = (s.getroffen[aktiv] || 0) + 1;
+  }
 
   s.result = { seat: aktiv, id, index: idx, correct: aktivOk, klau, leiste: leisteVorher };
   s.pending = null;
@@ -2745,15 +2774,22 @@ function auswerten(s, vetoZug) {
       s.aus[aktiv] = true;
       s.hinweis = (s.seats[aktiv]?.name || 'Ein Mitspieler') + ' ist ausgeschieden';
     }
+    // `partieAus` statt phase='over': Die Auflösung der letzten Karte bleibt
+    // stehen, zum Endbildschirm geht es erst auf Tastendruck – genau wie im
+    // Solo nach dem letzten Leben (`soloAus`). Sonst sah man bei der Karte, die
+    // die Partie entscheidet, nie das Jahr; gerade dort will man es wissen.
+    //
+    // Gewertet wird trotzdem sofort (siehe nachAuswertung): Wer den Tab jetzt
+    // zumacht, soll seine Partie nicht verlieren.
     for (const k of aktive(s)) {
-      if (s.timelines[k].length >= s.ziel) { s.phase = 'over'; s.winner = k; }
+      if (s.timelines[k].length >= s.ziel) { s.partieAus = true; s.winner = k; }
     }
     // Nur noch einer übrig? Dann ist die Partie entschieden. `dabei` wird nach
     // dem Ausscheiden neu bestimmt, nicht vorher.
-    if (s.phase !== 'over') {
+    if (!s.partieAus) {
       const dabei = aktive(s);
-      if (dabei.length === 1) { s.phase = 'over'; s.winner = dabei[0]; }
-      else if (!dabei.length) { s.phase = 'over'; s.winner = null; }
+      if (dabei.length === 1) { s.partieAus = true; s.winner = dabei[0]; }
+      else if (!dabei.length) { s.partieAus = true; s.winner = null; }
     }
   }
   return s;
@@ -2894,9 +2930,9 @@ function nachAuswertung(st) {
     if (r.klau && !r.correct) tippMerken(st, r.klau.seat, r.id, r.klau.gelungen,
                { art:'veto', pos:r.klau.index, leiste:r.leiste, geklaut });
   }
-  // soloAus zählt wie 'over': die Partie ist entschieden, nur der
+  // soloAus und partieAus zählen wie 'over': die Partie ist entschieden, nur der
   // Endbildschirm wartet noch auf den Spieler.
-  if (st.phase === 'over' || st.soloAus) partieMerken(st);
+  if (st.phase === 'over' || st.soloAus || st.partieAus) partieMerken(st);
 }
 
 // Bestwert ist die Länge der Zeitleiste, wenn der dritte Fehler fällt.
@@ -2917,9 +2953,10 @@ function merkeBestwert(n, name) {
 async function naechsteKarte() {
   const ok = await commit(s => {
     if (s.phase !== 'result') return null;
-    // Solo nach dem letzten Leben: die Karte wurde gezeigt, jetzt zum
-    // Ergebnis. Gewertet ist die Partie längst (siehe auswerten).
-    if (s.soloAus) { s.phase = 'over'; s.result = null; return s; }
+    // Entschiedene Partie: die Karte wurde gezeigt, jetzt zum Ergebnis.
+    // Gewertet ist sie längst (siehe auswerten). Solo nach dem letzten Leben,
+    // Mehrspieler nach der Siegkarte oder dem letzten Ausscheiden.
+    if (s.soloAus || s.partieAus) { s.phase = 'over'; s.result = null; return s; }
     if (!s.solo) s.turn = naechster(s, s.turn);
     s.result = null;
     s.hinweis = null;
@@ -2954,9 +2991,13 @@ async function playAgain() {
     s.begonnen = begonnen;
     s.deck = neuesDeck();
     const dabei = aktive(s);
-    s.timelines = {}; s.vetos = {};
+    s.timelines = {}; s.vetos = {}; s.getroffen = {}; s.geklaut = {};
     for (const k of SITZE) s.timelines[k] = [];
-    for (const k of dabei) { s.timelines[k] = [s.deck.pop()]; s.vetos[k] = VETOS_START; }
+    for (const k of dabei) {
+      s.timelines[k] = [s.deck.pop()]; s.vetos[k] = VETOS_START;
+      s.getroffen[k] = 0; s.geklaut[k] = 0;
+    }
+    s.partieAus = false;
     s.pending   = null; s.vetoBis = 0; s.vetoAngemeldet = null; s.durch = {}; s.durchFuer = ''; s.hinweis = null;
     // Im Deathmatch Ausgeschiedene sind in der Revanche wieder dabei. Wer das
     // Spiel verlassen hat (`raus`), bleibt draußen.
@@ -4071,7 +4112,7 @@ function renderActions(st, mine) {
   } else if (st.phase === 'result') {
     // Nach dem letzten Leben kommt keine Karte mehr – der Knopf führt zum
     // Ergebnis, und das soll er auch sagen.
-    add(st.soloAus ? 'Ergebnis ansehen' : 'Nächste Karte', 'prim', naechsteKarte);
+    add(st.soloAus || st.partieAus ? 'Ergebnis ansehen' : 'Nächste Karte', 'prim', naechsteKarte);
   }
 
 }
@@ -4238,9 +4279,11 @@ async function tagPlatzLaden(st) {
 }
 
 async function rueckblickLaden(st) {
-  const kasten = $('rueckblick');
   const neue = rueckblickFuer !== st.partieId;
-  if (neue) { kasten.classList.add('weg'); kasten.classList.remove('da'); }
+  // Nur die nachgeladenen Zellen zurücksetzen, nicht den ganzen Kasten
+  // ausblenden: die Zahlen aus dem Spielzustand stehen schon und sollen nicht
+  // für den Bruchteil einer Sekunde verschwinden.
+  if (neue) { $('rbSerie').textContent = '–'; $('rbKarte').textContent = '–'; }
   // Ohne Verbindung oder für eine Partie von vor der Umstellung: kein
   // Kasten, keine Meldung. Auf dem Siegesbildschirm hat beides nichts
   // verloren.
@@ -4272,7 +4315,6 @@ async function rueckblickLaden(st) {
 // vornherein Text und kein Markup, esc() erübrigt sich.
 function zeigeRueckblick(d) {
   const s = song(d.haerteste_song_id);
-  $('rbQuote').textContent = `${Number(d.quote_richtig)}/${Number(d.quote_gesamt)}`;
   $('rbSerie').textContent = String(d.beste_serie ?? 0);
   $('rbKarte').textContent = d.haerteste_song_id
     ? (s ? `${s.artist} – ${s.title}` : 'Song ' + d.haerteste_song_id)
@@ -4284,11 +4326,44 @@ function zeigeRueckblick(d) {
   requestAnimationFrame(() => k.classList.add('da'));
 }
 
+// Woraus die Zeitleiste eines Spielers besteht: eine Startkarte, dazu selbst
+// getroffene und per Veto geholte. Andere Wege gibt es nicht, und eine Karte
+// verlässt eine Leiste nie wieder – deshalb muss
+//
+//     timelines[k].length === 1 + getroffen[k] + geklaut[k]
+//
+// immer aufgehen. Geht sie nicht auf, wird nichts behauptet: Partien, die vor
+// dem 17.08.2026 begonnen haben, kennen die Zähler nicht, und eine erfundene
+// Aufschlüsselung wäre schlimmer als keine.
+function endBilanz(st, k) {
+  const n = st.timelines?.[k]?.length ?? 0;
+  const g = st.getroffen?.[k], kl = st.geklaut?.[k];
+  if (typeof g !== 'number' || typeof kl !== 'number') return null;
+  if (1 + g + kl !== n) return null;
+  return { karten: n, geraten: g, geklaut: kl };
+}
+
+function zeigeEndBilanz(st) {
+  const b = endBilanz(st, st.solo ? 'p1' : seat);
+  $('rbGeraten').textContent = b ? String(b.geraten) : '–';
+  $('rbGeklaut').textContent = b ? String(b.geklaut) : '–';
+  $('rbKarten').textContent  = b ? String(b.karten)  : '–';
+  // Im Solo und im Tagesduell gibt es keine Vetos, da wäre "0 geklaut" nur
+  // eine leere Zelle.
+  $('rbGeklautZelle').style.display = st.solo ? 'none' : '';
+  if (b) {
+    const kasten = $('rueckblick');
+    kasten.classList.remove('weg');
+    kasten.classList.add('da');
+  }
+}
+
 function renderOver(st) {
   show('overScreen');
   stopAudio();
   localStorage.removeItem(SOLO_KEY);
   rueckblickLaden(st).catch(() => {});
+  zeigeEndBilanz(st);
   // Zurücksetzen, weil der Tagesduell-Zweig ihn umbenennt: nach einem
   // Tagesduell stünde sonst auch über einer Solo-Partie "Tagesbestenliste".
   $('btnStatsOver').textContent = 'Bestenliste ansehen';

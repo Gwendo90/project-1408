@@ -554,6 +554,47 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .hilfe svg { width:14px; height:14px; flex-shrink:0; display:block; }
 .hilfe:active { opacity:.6; }
 
+/* Versionszahl gegenüber von „So geht's", im selben Band und in derselben
+   Schrift – sie soll nicht auffallen, nur auffindbar sein. Wie .hilfe
+   absolut im Bildschirm und nicht fixed: dann macht das transform von
+   .screen.hidden keinen Ärger. */
+.vers { position:absolute; z-index:5; top:max(env(safe-area-inset-top),10px); right:18px;
+        padding:4px 2px; border:none; background:none; font-family:inherit;
+        font-size:12px; font-weight:600; line-height:1.2; color:var(--muted);
+        cursor:pointer; -webkit-appearance:none; }
+.vers:active { opacity:.6; }
+
+/* Was-neu-Blatt. Verborgen wird über display:none, NICHT über ein transform:
+   Beim Versionshinweis war das Blatt aus dem Bild geschoben, sein Schatten
+   fiel aber weiter herein und stand als grauer Streifen am oberen Rand.
+   Ein verschobenes Element ist nicht verborgen, nur woanders.
+
+   Außerhalb der Bildschirme im Markup, weil position:fixed sonst am
+   transform von .screen.hidden hängt (siehe Reaktionsknopf). */
+.wasneu { position:fixed; inset:0; z-index:80; display:none;
+          align-items:center; justify-content:center; padding:20px;
+          background:rgba(20,14,32,.42); -webkit-backdrop-filter:blur(2px);
+          backdrop-filter:blur(2px); }
+.wasneu.da { display:flex; }
+.wasneuBox { width:100%; max-width:400px; max-height:82vh; overflow-y:auto;
+             background:var(--surface); border:1px solid var(--border);
+             border-radius:20px; padding:20px 22px 18px; text-align:left;
+             box-shadow:0 18px 50px rgba(20,14,32,.28);
+             animation:pop .3s cubic-bezier(.34,1.56,.64,1) both; }
+.wasneuBox h3 { font-size:17px; font-weight:800; }
+.wasneuBox .wnDatum { margin-top:2px; font-size:11px; font-weight:600; color:var(--muted); }
+.wasneuBox h4 { margin-top:16px; font-size:10px; font-weight:700; letter-spacing:1.6px;
+                text-transform:uppercase; color:var(--muted); }
+.wasneuBox ul { margin:7px 0 0; padding:0; list-style:none; }
+.wasneuBox li { position:relative; padding-left:15px; margin-top:7px;
+                font-size:13px; line-height:1.45; }
+/* Punkt als ::before statt list-style: so bleibt der Umbruch zweiter Zeilen
+   am Text ausgerichtet und nicht am Aufzählungszeichen. */
+.wasneuBox li::before { content:''; position:absolute; left:2px; top:7px;
+                        width:5px; height:5px; border-radius:50%;
+                        background:var(--grad-mid); }
+.wnZu { margin-top:18px; width:100%; }
+
 /* ── Veto-Phase ────────────────────────────────────────────────── */
 .vetobox { position:absolute; inset:0; display:flex; flex-direction:column;
            align-items:center; justify-content:center; gap:10px; text-align:center;
@@ -876,6 +917,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     </svg>
     So geht's
   </a>
+  <!-- Beschriftung setzt baueWasNeu() aus VERSION, damit die Zahl nur an einer
+       Stelle steht. -->
+  <button class="vers" id="btnVers" aria-label="Was ist neu?">v–</button>
   <div class="logo"><img src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408"></div>
   <!-- Kartenauswahl und Statistik: beides betrifft nicht einen Spielmodus,
        sondern alle – deshalb über der Namenseingabe und nicht zwischen den
@@ -1198,6 +1242,11 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
      füllt fuelleSprueche() beim Start, aus derselben Liste, gegen die
      spruchEmpfangen() prüft. -->
 <button class="reaktBtn spruchBtn" id="btnSpruch" aria-label="Spruch senden">💬</button>
+<!-- Was ist neu: Inhalt kommt aus NEUERUNGEN, gebaut in baueWasNeu(). -->
+<div class="wasneu" id="wasneu">
+  <div class="wasneuBox" id="wasneuBox"></div>
+</div>
+
 <div class="reaktHuelle" id="reaktHuelle"></div>
 <div class="reaktWahl" id="reaktWahl"></div>
 <div class="spruchWahl" id="spruchWahl"></div>
@@ -1316,6 +1365,37 @@ function katzenRinge(n) {
   }
   return 4;
 }
+// ── Version und Änderungen ───────────────────────────────────────
+// Steht an einer Stelle: Die Beschriftung des Knopfes auf dem Startbildschirm
+// und die Überschrift im Blatt kommen beide von hier.
+//
+// Aus SPIELERSICHT geschrieben, nicht aus Entwicklersicht: Was hier steht, soll
+// jemand verstehen, der gestern gespielt hat und wissen will, was sich geändert
+// hat. Innere Umbauten (Marken gegen Doppelauslösung, Manifest, Zähler im
+// Spielzustand) gehören in den README, nicht hierher.
+//
+// Bei der nächsten Fassung: VERSION und STAND hochsetzen und NEUERUNGEN
+// ersetzen – die Liste zeigt bewusst nur den jüngsten Stand, keine Historie.
+// Ein wachsendes Änderungsprotokoll läse hier niemand.
+const VERSION = '1.1';
+const STAND = '17.08.2026';
+const NEUERUNGEN = [
+  { titel: 'Neu', punkte: [
+    'Bis zu zehn Mitspieler statt vier.',
+    'Sprüche als Reaktion: der Knopf über den Katzen, zehn feste Zurufe von „Wow" bis „Zwölf Punkte!".',
+    'Zur Veto-Auflösung fliegt eine Katze ein – mit Fisch im Maul, wenn der Klau geglückt ist, sonst vor dem Fischglas.',
+    'Der Endstand zeigt, woraus deine Karten bestehen: selbst geraten, geklaut, dazu die Startkarte.'
+  ]},
+  { titel: 'Behoben', punkte: [
+    'Veto: „Durchlassen" beendet die Runde nicht mehr für alle. Ab drei Spielern hat jeder seine fünfzehn Sekunden – weiter geht es, wenn alle verzichtet haben oder die Zeit abläuft.',
+    'Die Karte, die eine Partie entscheidet, wird jetzt erst aufgedeckt. Zum Ergebnis geht es auf Tastendruck, vorher sah man das Jahr dieser Karte nie.',
+    'Der Kartenzähler bei den Spielweisen erscheint nur noch bei „Individuell". Bei „Klassisch" und „Deathmatch" stand er da, ohne etwas zu bewirken.',
+    'Während des Anspielens steht „Alle hören das Lied" – vorher „Ihr hört beide zu", was ab drei Spielern nicht stimmte.',
+    'Ein Song mit falscher Aufnahme ist entfernt (Thomas Forstner, Österreich 1989). Hinter dem Titel lag ein fremdes Lied.',
+    'Tagesduell: Änderungen an der Songliste verschieben nicht mehr die Karten aller Tage.'
+  ]}
+];
+
 const REAKT_SPERRE = 1200;              // Mindestabstand zweier Reaktionen
 const REAKT_MAX = 3;                    // so viele gleichzeitig im Bild
 
@@ -1680,6 +1760,12 @@ async function init() {
   aud.addEventListener('ended', onAudioEnded);
   // Katzen: Auswahl einmal bauen, Knopf schaltet sie um, Tippen daneben
   // schließt sie wieder.
+  baueWasNeu();
+  $('btnVers').addEventListener('click', () => wasNeu(true));
+  // Tippen auf den Hintergrund schließt, ein Tipp INS Blatt nicht – sonst ginge
+  // es beim Lesen und Scrollen ständig zu.
+  $('wasneu').addEventListener('click', e => { if (e.target === $('wasneu')) wasNeu(false); });
+
   fuelleKatzen();
   fuelleSprueche();
   $('btnReakt').addEventListener('click', () =>
@@ -2606,6 +2692,50 @@ async function subscribe(code) {
     const { data } = await sb.from('games').select().eq('code', G.code).maybeSingle();
     if (data && data.version > G.version) adopt(data);
   }, 4000);
+}
+
+// ══ Was ist neu ══════════════════════════════════════════════════
+// Einmal beim Start gebaut. Über textContent und createElement statt innerHTML,
+// obwohl der Text aus dem eigenen Quelltext kommt: So können Anführungszeichen
+// und & in einem Punkt stehen, ohne dass jemand daran denken muss.
+function baueWasNeu() {
+  $('btnVers').textContent = 'v' + VERSION;
+  const box = $('wasneuBox');
+  box.innerHTML = '';
+
+  const h = document.createElement('h3');
+  h.textContent = 'Version ' + VERSION;
+  box.appendChild(h);
+  const d = document.createElement('div');
+  d.className = 'wnDatum';
+  d.textContent = 'Stand ' + STAND;
+  box.appendChild(d);
+
+  for (const gruppe of NEUERUNGEN) {
+    const t = document.createElement('h4');
+    t.textContent = gruppe.titel;
+    box.appendChild(t);
+    const ul = document.createElement('ul');
+    for (const p of gruppe.punkte) {
+      const li = document.createElement('li');
+      li.textContent = p;
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+  }
+
+  const zu = document.createElement('button');
+  zu.className = 'btn wnZu';
+  zu.textContent = 'Schließen';
+  zu.addEventListener('click', () => wasNeu(false));
+  box.appendChild(zu);
+}
+
+function wasNeu(auf) {
+  $('wasneu').classList.toggle('da', auf);
+  // Beim Öffnen an den Anfang: Beim zweiten Aufruf stünde die Liste sonst dort,
+  // wo man sie verlassen hat.
+  if (auf) $('wasneuBox').scrollTop = 0;
 }
 
 // ══ Katzen-Reaktionen ════════════════════════════════════════════

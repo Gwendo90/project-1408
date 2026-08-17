@@ -401,21 +401,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
    Beide teilen .reaktBtn, hier wird nur die Höhe verschoben. */
 .spruchBtn { bottom:calc(max(env(safe-area-inset-bottom),16px) + 62px + 56px); }
 
-/* Hinweis auf eine neue Fassung. Oben, schmal, über allem – aber nur ein
-   Angebot: Mitten in einer Partie soll sich nichts von selbst neu laden.
-   Außerhalb der Bildschirme, aus demselben Grund wie der Reaktionsknopf
-   (.screen.hidden trägt ein transform und wäre Bezugsrahmen für fixed). */
-.neueVersion { position:fixed; z-index:70; left:50%; top:max(env(safe-area-inset-top),10px);
-               transform:translate(-50%,-150%); font-family:inherit;
-               max-width:calc(100vw - 24px); padding:9px 16px; border-radius:50px; border:none;
-               font-size:12.5px; font-weight:700; color:#fff; cursor:pointer;
-               background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
-               box-shadow:0 8px 24px rgba(40,30,80,.28); -webkit-appearance:none;
-               white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-               transition:transform .4s cubic-bezier(.34,1.4,.64,1); }
-.neueVersion.da { transform:translate(-50%,0); }
-.neueVersion:active { filter:brightness(.93); }
-
 /* Auffangfläche, die das Schließen per Tippen daneben erlaubt. Deckt alles
    ab, liegt aber unter Knopf und Katzen. */
 .reaktHuelle { position:fixed; inset:0; z-index:55; display:none; }
@@ -1217,8 +1202,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <div class="reaktWahl" id="reaktWahl"></div>
 <div class="spruchWahl" id="spruchWahl"></div>
 
-<button class="neueVersion" id="neueVersion">Neue Fassung – tippen zum Laden</button>
-
 <div class="cf" id="cf"></div>
 <audio id="aud" preload="auto" playsinline></audio>
 
@@ -1706,17 +1689,6 @@ async function init() {
   $('reaktHuelle').addEventListener('click', () => {
     katzenAuswahl(false); spruchAuswahl(false);
   });
-
-  // Nach neuer Fassung sehen: einmal jetzt und immer beim Zurückkommen zur App.
-  // `visibilitychange` ist der Fall, der zählt – vom Startbildschirm wird die
-  // App aus dem Speicher geholt, ohne dass Skripte neu starten. `pageshow`
-  // deckt zusätzlich den Vor-/Zurück-Speicher des Browsers ab.
-  $('neueVersion').addEventListener('click', versionNeuLaden);
-  versionPruefen();
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) versionPruefen();
-  });
-  window.addEventListener('pageshow', () => versionPruefen());
   ziehenEinrichten();
 
   const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
@@ -2634,63 +2606,6 @@ async function subscribe(code) {
     const { data } = await sb.from('games').select().eq('code', G.code).maybeSingle();
     if (data && data.version > G.version) adopt(data);
   }, 4000);
-}
-
-// ══ Neue Fassung erkennen ════════════════════════════════════════
-// Vom Startbildschirm läuft die App als eigenes Fenster, und beim Wiederöffnen
-// holt das Betriebssystem sie aus dem Speicher zurück statt neu zu laden – die
-// Seite kann dann Tage alt sein. GitHub Pages liefert HTML mit `max-age=600`,
-// das greift frühestens nach zehn Minuten und beim Wiederaufnehmen gar nicht.
-// Eigene Header lassen sich dort nicht setzen, also fragt die App selbst nach.
-//
-// Verglichen werden ZWEI Zeitpunkte, und das ist der Kniff:
-//
-//   document.lastModified   wann die Datei entstand, die HIER LÄUFT – auch wenn
-//                           sie aus dem Cache kam
-//   Last-Modified (HEAD)    wann die Datei entstand, die JETZT AUSGELIEFERT wird
-//
-// Ist die ausgelieferte neuer, ist die laufende veraltet. Nachgemessen: beide
-// Werte ergeben über Date.parse denselben Zeitstempel, auf die Millisekunde.
-//
-// Kein `VERSION`-Zähler und keine version.json: beides müsste man bei jeder
-// Auslieferung von Hand hochsetzen und würde es irgendwann vergessen.
-//
-// Fehlt der Header, fällt document.lastModified auf „jetzt" zurück – dann ist
-// die ausgelieferte Zeit nie neuer und es erscheint nichts. Auch offline und bei
-// jedem Fehler bleibt es still: ein Hinweis, der sich nicht einlösen lässt, ist
-// schlimmer als keiner.
-const VERS_PRUEF_MS = 60000;      // höchstens einmal je Minute fragen
-const VERS_LUFT_MS  = 2000;       // Reserve gegen Sekundenrundung der Header
-let versGeladen = Date.parse(document.lastModified) || 0;
-let versZuletzt = 0;
-
-async function versionPruefen() {
-  const jetzt = Date.now();
-  if (!versGeladen || jetzt - versZuletzt < VERS_PRUEF_MS) return;
-  versZuletzt = jetzt;
-  // HEAD statt GET: es geht nur um den Header, die 230 KB braucht niemand.
-  // `no-store`, sonst antwortet der Cache mit genau dem Stand, den wir prüfen
-  // wollen – die Frage wäre sinnlos.
-  try {
-    const r = await fetch(location.pathname, { method:'HEAD', cache:'no-store' });
-    const draussen = Date.parse(r.headers.get('last-modified') || '');
-    if (draussen && draussen > versGeladen + VERS_LUFT_MS) {
-      $('neueVersion').classList.add('da');
-    }
-  } catch (e) {}
-}
-
-// Mit Parameter neu laden: Ein gewöhnliches Neuladen darf die Datei aus dem
-// Cache nehmen, eine noch nie benutzte Adresse muss der Browser holen.
-// Vorhandene Parameter bleiben stehen. Beim nächsten Kaltstart vom
-// Startbildschirm ist die Adresse wieder die gespeicherte, ohne Anhang.
-//
-// Eine laufende Partie übersteht das: Der Zustand liegt in Supabase bzw. im
-// localStorage, nicht auf der Seite.
-function versionNeuLaden() {
-  const u = new URL(location.href);
-  u.searchParams.set('v', Date.now());
-  location.replace(u.toString());
 }
 
 // ══ Katzen-Reaktionen ════════════════════════════════════════════

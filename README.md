@@ -669,6 +669,51 @@ Gebremst wird zweifach: `REAKT_SPERRE` (1,2 s) sperrt den Knopf nach dem Senden 
 Spielern wäre der Bildschirm sonst zugeklebt. Aufgeräumt wird per `animationend` **und** per
 Timer: Bei einem Tabwechsel bleibt das Ereignis aus, und die Katze stünde für immer im DOM.
 
+### Vetokatze zur Auflösung
+
+Wurde ein Veto eingelegt, fliegt bei der Auflösung eine Katze ein: `veto-erfolg.png`
+(rennt mit dem Fisch im Maul weg) oder `veto-fehl.png` (starrt einen Fisch im Glas an), dazu
+die Unterschrift „X hat die Karte geklaut!" bzw. „X konnte die Karte nicht schnappen" — in der
+zweiten Person, wenn es einen selbst betrifft, wie im Auflösungstext daneben.
+
+**Zwei Bilder für drei Ausgänge.** Ob das Veto am eigenen Fehlgriff scheiterte oder daran, dass
+der Spieler am Zug richtig lag (dann wird die Lücke des Vetogebers nie angesehen), macht für ihn
+keinen Unterschied: die Karte hat er nicht.
+
+**Nicht verschickt, sondern abgeleitet.** Anders als die getippten Reaktionen läuft das nicht über
+Broadcast, sondern aus `st.result.klau` in `render()`. Damit erscheint es auf jedem Gerät von
+selbst und kann nicht verloren gehen. Gegen Mehrfachauslösung dient `vetoKatzeFuer` mit der Marke
+`partieId:songId:index` — `render()` läuft bei jeder Zustandsänderung erneut, und die
+Partiekennung muss mit hinein, weil `playAgain` das Deck neu mischt und dieselbe Karte
+wiederkommen kann. Die Marke des Konfettis taugt dafür nicht: die wird nur gesetzt, wenn überhaupt
+jemand die Karte bekam.
+
+**Die Lage musste zweimal wandern**, beide Male aus einem gemessenen Grund:
+
+* Auf der Standardhöhe der Reaktionen (42 %) lag die Katze **quer über der Jahreszahl**. Die
+  getippten Reaktionen fliegen während des Zugs, da steht auf der Bühne der Player — die
+  Vetokatze fliegt in der Auflösung, und dort steht die aufgedeckte Karte.
+* Rechts unten sitzen die beiden Reaktionsknöpfe mit `z-index:60`, also **über** dem Flug (58).
+  Der 💬-Knopf schnitt ein Loch in die Unterschrift, und deren rechter Rand lief aus dem Bild.
+  Sie hängt deshalb links (`left:4%; right:auto` — beides zusammen presste sonst die Breite).
+
+Der Rahmen ist breiter als das Bild (`img { width:66% }`), damit die Unterschrift umbrechen kann,
+ohne die Katze aufzublasen. Sie bleibt länger stehen als eine getippte Reaktion (2,6 s bis zum
+Abflug statt 1,5 s) — man muss sie lesen. Die Haltedauer steht doppelt, im CSS und als Argument
+von `flugAbschluss`; beides muss zusammenpassen, sonst räumt der Timer weg, was noch fliegt.
+
+### Aufkleberrand bauen: `build-sticker.py`
+
+Die erprobten Werte stehen jetzt im Repo statt nur im Text: `python3 build-sticker.py QUELLE ZIEL`
+beschneidet auf den Inhalt, passt ihn mit 26 px Polster in den 320er-Rahmen ein und backt die
+Kontur (σ 16, Schwelle 18, nachglätten 4, 1,2 px Antialiasing). `--pruefen` misst bei vorhandenen
+Bildern den Abstand der Kontur zum Bildrand; 0 heißt abgeschnitten, das Skript bricht dann ab.
+
+Beschnitten wird auf den **Inhalt**, nicht auf den festen Einheitsrahmen der ersten vierzehn
+Bilder: `veto erfolg.png` beginnt bei x = 33, der alte Schnitt bei x = 47 — die Vorderpfoten wären
+weg gewesen. Randabstand der beiden neuen: 12 px und 3 px, die vorhandenen liegen zwischen 1 und
+15 px.
+
 ### Sprüche statt Chat
 
 Ein zweiter Knopf (💬) über dem Katzenknopf, dahinter zehn feste Sprüche aus `SPRUECHE`. Sie

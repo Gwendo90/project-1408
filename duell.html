@@ -509,6 +509,38 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .reaktFlug.v1 { right:30%; bottom:52%; }
 .reaktFlug.v2 { right:52%; bottom:38%; }
 
+/* Die Vetokatze zur Auflösung. Anders als eine getippte Reaktion muss man sie
+   LESEN – die Unterschrift sagt, was gerade passiert ist. Deshalb bleibt sie
+   länger stehen (2,6 s statt 1,5 s bis zum Abflug) und die Unterschrift darf
+   umbrechen statt abgeschnitten zu werden. Die Haltedauer steht auch im JS
+   (flugAbschluss), beides muss zusammenpassen. */
+/* Die Vetokatze liegt anders als eine getippte Reaktion, und zwar aus zwei
+   gemessenen Gründen:
+
+   Tiefer, weil sie in der AUFLÖSUNG fliegt. Die getippten fliegen während des
+   Zugs, da steht auf der Bühne der Player – hier steht die aufgedeckte Karte,
+   und auf 42 % Höhe lag die Katze quer über der Jahreszahl, also über dem
+   Einzigen, was man dort lesen will.
+
+   Links, weil rechts unten die beiden Reaktionsknöpfe sitzen. Die haben
+   z-index 60 und liegen damit ÜBER dem Flug (58): der 💬-Knopf schnitt ein Loch
+   in die Unterschrift, und deren rechter Rand lief aus dem Bild.
+
+   `right:auto` ist Pflicht – .reaktFlug setzt right, und beides zusammen legte
+   die Breite fest und presste die Unterschrift zusammen.
+
+   Die Regel steht nach .reaktFlug.v1/.v2 im Stilblatt; bei gleicher Spezifität
+   gewinnt die spätere, die Lage setzt sich also durch. */
+.reaktFlug.veto { left:4%; right:auto; bottom:16%; width:min(62vw,232px);
+                  animation:reaktEin .55s cubic-bezier(.2,1.5,.4,1) forwards,
+                            reaktAus .7s ease-in 2.6s forwards; }
+/* Der Rahmen ist breiter als das Bild, damit die Unterschrift Platz hat, ohne
+   die Katze aufzublasen. */
+.reaktFlug.veto img { width:66%; margin:0 auto; }
+.reaktFlug.veto span { white-space:normal; text-overflow:clip; overflow:visible;
+                       line-height:1.35; padding:5px 11px; font-size:11.5px;
+                       color:var(--text); }
+
 /* Ein einfliegender Spruch. Dieselbe Bahn und dieselbe Namenszeile wie bei den
    Katzen, nur eine Sprechblase statt des Bildes. Schmaler als die Katze, damit
    ein langer Spruch nicht über den halben Bildschirm reicht – der Text darf
@@ -1443,6 +1475,7 @@ let audioUnlocked = false;
 let lastRenderedCard = null;   // um Audio nur bei Kartenwechsel neu zu laden
 let gezaehlteKarte = null;     // welche Karte schon in den Benutzungszähler ging
 let confettiShownFor = null;
+let vetoKatzeFuer = null;      // für welche Auflösung die Vetokatze schon flog
 let soloRekord = false;        // war die letzte Solo-Partie ein Bestwert?
 let vorlaufTimer = null;       // wartet den Autostart-Vorlauf ab
 let audioAnweisung = null;     // welche Audio-Anweisung ist schon umgesetzt?
@@ -2569,6 +2602,7 @@ async function leaveGame() {
   clearInterval(pollTimer);
   stopAudio();
   G = null; seat = null; lastRenderedCard = null; confettiShownFor = null;
+  vetoKatzeFuer = null;
   pendingGap = null; soloRekord = false;
   setHomeStat('','');
   zeigeBestwert();
@@ -2801,10 +2835,11 @@ function flugRahmen(klasse) {
   return el;
 }
 
-// Namenszeile dran, Aufräumen bestellen, einhängen. Der Rückfall per Timer ist
+// Unterschrift dran, Aufräumen bestellen, einhängen. Der Rückfall per Timer ist
 // nötig, weil animationend bei einem Tabwechsel ausbleiben kann und das Element
-// dann für immer im DOM stünde.
-function flugAbschluss(el, name) {
+// dann für immer im DOM stünde. `halten` muss über der Summe der CSS-Animation
+// liegen, sonst räumt der Timer weg, was noch fliegt.
+function flugAbschluss(el, name, halten = 3000) {
   if (name) {
     const s = document.createElement('span');
     s.textContent = name;          // textContent, nicht innerHTML: fremder Name
@@ -2812,7 +2847,7 @@ function flugAbschluss(el, name) {
   }
   const weg = () => el.remove();
   el.addEventListener('animationend', e => { if (e.animationName === 'reaktAus') weg(); });
-  setTimeout(weg, 3000);
+  setTimeout(weg, halten);
   document.body.appendChild(el);
 }
 
@@ -2832,6 +2867,32 @@ function zeigeSpruch(text, name) {
   b.textContent = text;            // textContent: der Text kommt von außen
   el.appendChild(b);
   flugAbschluss(el, name);
+}
+
+// Die Vetokatze zur Auflösung – anders als die getippten Reaktionen nicht
+// verschickt, sondern aus dem Spielzustand abgeleitet. Damit erscheint sie auf
+// jedem Gerät von selbst und braucht keinen Broadcast, der verloren gehen könnte.
+//
+// Zwei Bilder für drei Ergebnisse: Ob das Veto am eigenen Fehlgriff scheiterte
+// oder daran, dass der Spieler am Zug richtig lag, macht für den Vetogeber
+// keinen Unterschied – die Karte hat er nicht.
+function zeigeVetoKatze(gelungen, name, ichSelbst) {
+  const el = flugRahmen('veto');
+  const img = document.createElement('img');
+  img.src = gelungen ? 'reactions/veto-erfolg.png' : 'reactions/veto-fehl.png';
+  img.width = img.height = 320;
+  img.alt = '';
+  el.appendChild(img);
+  // Zweite Person für den eigenen Zug, wie im Auflösungstext ("Du klaust die
+  // Karte") – in der dritten klänge es, als wäre jemand anderes gemeint.
+  const wer = ichSelbst ? 'Du' : (name || 'Jemand');
+  const satz = gelungen
+    ? (ichSelbst ? 'Du hast die Karte geklaut!' : wer + ' hat die Karte geklaut!')
+    : (ichSelbst ? 'Du konntest die Karte nicht schnappen'
+                 : wer + ' konnte die Karte nicht schnappen');
+  // 3800 statt 3000: die CSS-Animation der Vetokatze hält länger, damit man die
+  // Unterschrift lesen kann.
+  flugAbschluss(el, satz, 3800);
 }
 
 function adopt(row) {
@@ -4145,6 +4206,19 @@ function renderGame(st) {
     if (gewinner && confettiShownFor !== marke) {
       confettiShownFor = marke;
       if (gewinner === seat) confetti();
+    }
+    // Wurde ein Veto eingelegt, fliegt die passende Katze ein. Aus dem Zustand
+    // abgeleitet, also auf jedem Gerät gleich – und genau einmal je Runde, denn
+    // render() läuft bei jeder Zustandsänderung erneut.
+    //
+    // Eigene Marke und nicht die des Konfettis: die wird nur gesetzt, wenn
+    // überhaupt jemand die Karte bekam. Mit der Partiekennung davor, weil eine
+    // Revanche das Deck neu mischt und dieselbe Karte wiederkommen kann.
+    const klau = st.result.klau;
+    const vMarke = st.partieId + ':' + st.result.id + ':' + st.result.index;
+    if (klau && vetoKatzeFuer !== vMarke) {
+      vetoKatzeFuer = vMarke;
+      zeigeVetoKatze(!!klau.gelungen, st.seats?.[klau.seat]?.name, klau.seat === seat);
     }
   }
 }

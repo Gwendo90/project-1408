@@ -21,7 +21,7 @@ Es gibt zwei getrennte Anwendungen im Repo:
 | | Datei | Zweck |
 |---|---|---|
 | **Offline-Modus** | `index.html` | Ergänzt das gedruckte Spiel. QR-Code auf der Karte scannen → Song wird abgespielt → auflösen. Kein Backend, keine Spiellogik. |
-| **Online-Modus** | `duell.html` | Vollständiges Spiel im Browser, 1–4 Spieler auf getrennten Geräten. Backend: Supabase. |
+| **Online-Modus** | `duell.html` | Vollständiges Spiel im Browser, 1–10 Spieler auf getrennten Geräten. Backend: Supabase. |
 
 Beide teilen sich `songs.json` und die Bildmarken. Dazu je eine Anleitung als Webseite:
 `anleitung.html` für das gedruckte Spiel, `anleitung-online.html` für den Online-Modus —
@@ -522,14 +522,14 @@ Drei Stellen hängen daran und müssen beide Kennzeichen kennen:
 
 ### Der Spielzustand
 
-**Eine Zeile in `games` je Partie**, der komplette Zustand als JSONB. Für vier Spieler ist das
+**Eine Zeile in `games` je Partie**, der komplette Zustand als JSONB. Für zehn Spieler ist das
 deutlich einfacher zu handhaben als normalisierte Tabellen, und Realtime schickt bei jeder
 Änderung ohnehin die ganze Zeile.
 
 ```js
 {
-  phase, ziel, turn,                  // 'p1'…'p4'
-  seats:     { p1:{name}, p2:…, p3:null, p4:null },
+  phase, ziel, turn,                  // 'p1'…'p10'
+  seats:     { p1:{name}, p2:…, p3:null, … },   // MAX_SPIELER Schlüssel
   raus:      { p3:true },             // ausgestiegene Spieler
   timelines: { p1:[songId,…], … },    // immer nach Jahr sortiert
   vetos:     { p1:3, … },
@@ -550,9 +550,24 @@ deutlich einfacher zu handhaben als normalisierte Tabellen, und Realtime schickt
 }
 ```
 
-**Sitzplätze:** Feste Liste `SITZE = ['p1','p2','p3','p4']`. Nie `p1`/`p2` fest verdrahten —
-dafür gibt es `aktive(st)`, `mitspieler(st, ausser)`, `naechster(st, von)`, `freierSitz(st)`,
-`vetoBerechtigt(st)`, `alleDurch(st)`, `vetoOffen(st)`.
+**Sitzplätze:** Feste Liste `SITZE`, erzeugt aus `MAX_SPIELER` (10) als `p1`…`p10` — wie im
+gedruckten Original. Nie `p1`/`p2` fest verdrahten — dafür gibt es `aktive(st)`,
+`mitspieler(st, ausser)`, `naechster(st, von)`, `freierSitz(st)`, `vetoBerechtigt(st)`,
+`alleDurch(st)`, `vetoOffen(st)`.
+
+Die Erhöhung von vier auf zehn (17.08.2026) kostete drei Zeilen Logik, weil sich alles über
+`SITZE` bewegt. Nur zwei Stellen waren getippt statt erzeugt: der Anfangszustand in `newGame`
+(`seats`, `timelines`) und der Lobby-Satz „Alle vier Plätze belegt". Beide bauen jetzt auf
+`SITZE` bzw. `MAX_SPIELER` auf.
+
+**Alte Spielzustände kennen nur `p1`…`p4`** und stören nicht: `aktive()` prüft auf `seats[k]`,
+fehlende Schlüssel gelten als frei. Eine Lobby von vorher füllt sich also einfach weiter auf.
+
+**Nicht mitskaliert: die Mindestgröße des Decks** (`FILT_MIN` = 20). Zehn Spieler brauchen
+zehn Startkarten und bis zu 90 weitere; ein knapp gefiltertes Deck ist vorher leer, dann
+gewinnt nach `naechsteKarte` die längste Leiste. Kein Absturz — `FILT_MIN` liegt über
+`MAX_SPIELER`, es reicht immer für die Startkarten —, aber eine kurze Partie. Die Auswahl steht
+fest, bevor bekannt ist, wie viele mitspielen, deshalb lässt sich das nicht automatisch prüfen.
 
 **`durch` gehört zu `vetoBis` und `vetoAngemeldet`** und wird an fünf Stellen mit zurückgesetzt:
 `einloggen` (Fenster öffnet), `auswerten` (Fenster schließt), `leaveGame`, `startGame`,

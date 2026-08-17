@@ -345,12 +345,26 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .score.drei .seat { padding:6px 10px; }
 .score.drei .seat .nm { font-size:11px; }
 .score.drei .seat .ct { font-size:17px; }
-.score.viele { display:grid; grid-template-columns:repeat(2,1fr); gap:7px; }
+/* Ab drei Spielern ein Gitter. Die SPALTENZAHL setzt render() als inline-Stil,
+   weil sie von der Spielerzahl abhängt und nicht von der Breite: zehn Kacheln
+   in zwei Spalten wären fünf Reihen und nähmen die halbe Bühne. */
+.score.viele { display:grid; gap:7px; }
 .score.viele .seat { padding:6px 10px; }
 .score.viele .seat .nm { font-size:11px; }
 .score.viele .seat .ct { font-size:17px; }
 .score.viele .vlabel { display:none; }
 .score.viele .vpunkt { width:6px; height:6px; }
+/* Ab sieben Spielern wird es eng: drei oder vier Spalten auf 400px lassen je
+   Kachel unter 100px. Kleinere Schrift, weniger Polster – die Vetopunkte
+   bleiben, sie sind im Spiel wichtiger als der volle Name. */
+.score.knapp { gap:5px; }
+.score.knapp .seat { padding:4px 7px; border-radius:11px; }
+.score.knapp .seat .nm { font-size:9.5px; }
+.score.knapp .seat .ct { font-size:14px; }
+.score.knapp .seat .ct small { font-size:9px; }
+.score.knapp .vzeile { gap:5px; }
+.score.knapp .vpunkt { width:5px; height:5px; }
+.score.knapp .vpunkte { gap:2px; }
 
 .hinweis { width:100%; max-width:400px; flex-shrink:0; font-size:12px; font-weight:600;
            color:var(--muted); text-align:center; min-height:0; }
@@ -1361,7 +1375,15 @@ let vetoAblaufFuer = null;     // gegen doppeltes Durchlassen beim Ablauf
 let rausFrage = null;          // Rückfrage-Timer des Verlassen-Knopfs
 
 const $  = id => document.getElementById(id);
-const SITZE = ['p1','p2','p3','p4'];
+// Bis zu zehn Mitspieler wie im gedruckten Original. Die Reihenfolge ist
+// verbindlich: freierSitz() nimmt den ersten freien, naechster() reiht der
+// Liste nach. Erzeugt statt getippt, damit die Zahl an einer Stelle steht.
+//
+// Alte Spielzustände kennen nur p1…p4. Das stört nicht: aktive() prüft auf
+// `seats[k]`, und die fehlenden Schlüssel gelten damit als frei – eine Lobby
+// von vorher füllt sich einfach weiter auf.
+const MAX_SPIELER = 10;
+const SITZE = Array.from({ length: MAX_SPIELER }, (_, i) => 'p' + (i + 1));
 // Besetzte und nicht ausgestiegene Plätze, in fester Reihenfolge.
 // Wer noch mitspielt: hat einen Sitz, hat nicht verlassen (`raus`) und ist
 // nicht im Deathmatch ausgeschieden (`aus`).
@@ -2203,11 +2225,13 @@ async function createGame() {
     ziel: zielAus(einst),
     schwer: einst.schwer,
     tod: einst.modus === 'tod',
-    seats: { p1: { name: myName() }, p2: null, p3: null, p4: null },
+    // Aus SITZE gebaut, nicht getippt: sonst müsste man beim Ändern der
+    // Spielerzahl an zwei Stellen denken.
+    seats: Object.fromEntries(SITZE.map(k => [k, k === 'p1' ? { name: myName() } : null])),
     raus: {},
     turn: 'p1',
     deck,
-    timelines: { p1: [], p2: [], p3: [], p4: [] },
+    timelines: Object.fromEntries(SITZE.map(k => [k, []])),
     current: null,
     audio: { playing:false, startedAt:0, seek:0 },
     result: null,
@@ -3713,7 +3737,7 @@ function renderLobby(st) {
   // Information, die sie sonst nirgends bekämen – ihre eigene Einstellung
   // gilt in dieser Partie nicht.
   $('lobbyHint').textContent = seat === 'p1'
-    ? (voll ? 'Alle vier Plätze belegt' : 'Gib den Code an deine Mitspieler weiter')
+    ? (voll ? `Alle ${MAX_SPIELER} Plätze belegt` : 'Gib den Code an deine Mitspieler weiter')
     : 'Warte, bis gestartet wird';
   $('lobbyFilter').textContent = st.filter
     ? (seat === 'p1' ? 'Kartenauswahl: ' + st.filter
@@ -3745,7 +3769,9 @@ function renderGame(st) {
   // ── Punktestand ──
   // Die Klasse wird in jedem Zweig gesetzt und nicht nur im Duell: sonst
   // bliebe ein `viele` aus einer Partie mit mehreren Mitspielern über den
-  // Moduswechsel hinweg stehen.
+  // Moduswechsel hinweg stehen. Aus demselben Grund fällt hier der inline
+  // gesetzte Spaltenstil weg – die Klasse allein würde ihn nicht ablösen.
+  $('score').style.gridTemplateColumns = '';
   if (st.tag) {
     // Statt Leben: wie weit, wie viele Fehler, wie lange. Der Fortschritt
     // rechnet über das Deck, nicht über die Zeitleiste – die wächst nur bei
@@ -3769,7 +3795,12 @@ function renderGame(st) {
         <div class="ct leben">${leben}</div></div>`;
   } else {
     const dabei = aktive(st);
-    $('score').className = 'score' + (dabei.length > 2 ? ' viele' : '');
+    // Spalten so, dass die Zeile flach bleibt: bis vier zwei Spalten, bis sechs
+    // drei, darüber vier. Zehn Spieler ergeben damit drei Reihen statt fünf.
+    const spalten = dabei.length <= 4 ? 2 : dabei.length <= 6 ? 3 : 4;
+    $('score').className = 'score' + (dabei.length > 2 ? ' viele' : '')
+                                   + (dabei.length > 6 ? ' knapp' : '');
+    $('score').style.gridTemplateColumns = dabei.length > 2 ? `repeat(${spalten},1fr)` : '';
     $('score').innerHTML = dabei.map(k => {
       const v = st.vetos ? (st.vetos[k] || 0) : 0;
       const punkte = Array.from({ length: VETOS_START },
@@ -4412,7 +4443,12 @@ function renderOver(st) {
   // verfälscht – die bleiben weg. Im Deathmatch Ausgeschiedene gehören dagegen
   // in den Endstand: Ihre Leiste ist intakt, und ohne sie stünde bei zwei
   // Spielern nur der Sieger da.
+  // Nach Karten absteigend, nicht in Sitzreihenfolge: bei zehn Spielern ist die
+  // Zeile sonst eine Zahlenwolke, in der man den eigenen Platz sucht. Bei
+  // Gleichstand bleibt die Sitzreihenfolge (Array.sort ist stabil).
   const stand = gewertet(st)
+    .slice()
+    .sort((a, b) => st.timelines[b].length - st.timelines[a].length)
     .map(k => `${st.seats[k].name} ${st.timelines[k].length}`).join(' · ');
 
   // Abbruch: kein Sieger, keine Revanche – der andere ist ja weg.

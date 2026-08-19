@@ -94,6 +94,23 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
            -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
 .waiting { display:flex; align-items:center; gap:9px; font-size:13px; color:var(--muted); }
 .dot { width:8px; height:8px; border-radius:50%; background:var(--grad-mid); animation:blink 1.4s ease-in-out infinite; }
+/* "Noch eine Runde?" – Ja und Nein nebeneinander statt untereinander: Es ist
+   eine Entscheidung mit zwei Seiten, keine Liste von Möglichkeiten. */
+.wieder { display:flex; flex-direction:column; gap:7px; }
+.wiederWahl { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+/* Die eigene Antwort bleibt markiert. Nicht über .prim, denn dann wären nach
+   einem "Nein" beide Knöpfe eingefärbt und keiner sagte mehr etwas aus – der
+   Ring in der Ampelfarbe zeigt die Wahl, ohne die Farbe des Knopfes selbst zu
+   beanspruchen. */
+#btnJa.gewaehlt   { box-shadow:0 0 0 2px var(--green); }
+#btnNein.gewaehlt { box-shadow:0 0 0 2px var(--red); }
+/* Ampel in der Lobby: grün hat zugesagt, rot abgesagt, grau noch nichts
+   gesagt. Grau blinkt nicht wie .dot – auf einen freien Platz wartet man,
+   auf eine Antwort wartet man auch, aber der Platz ist ja schon belegt. */
+.ampel { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.ampel.ja   { background:var(--green); }
+.ampel.nein { background:var(--red); }
+.ampel.grau { background:var(--track); }
 @keyframes blink { 0%,100%{opacity:.25} 50%{opacity:1} }
 
 /* ── Punktestand ──────────────────────────────────────────────── */
@@ -1079,6 +1096,18 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     </div>
   </div>
   <div class="actions">
+    <!-- Nach einer Mehrspielerpartie wird gefragt statt einfach neu gestartet:
+         Wer weiter will, sammelt sich in der Lobby, und dort sieht man auch,
+         auf wen man noch wartet. Solo und Tagesduell behalten den einen Knopf –
+         dort gibt es niemanden, mit dem man sich abstimmen müsste. -->
+    <div class="wieder" id="againBlock">
+      <div class="sub" id="againFrage">Noch eine Runde?</div>
+      <div class="wiederWahl">
+        <button class="btn prim" id="btnJa">Ja</button>
+        <button class="btn" id="btnNein">Nein</button>
+      </div>
+      <div class="sub" id="againStand"></div>
+    </div>
     <button class="btn prim" id="btnAgain">Nochmal spielen</button>
     <button class="btn" id="btnStatsOver">Bestenliste ansehen</button>
     <button class="btn ghost" id="btnHome">Zurück zum Start</button>
@@ -1565,6 +1594,10 @@ let vorlaufTimer = null;       // wartet den Autostart-Vorlauf ab
 let audioAnweisung = null;     // welche Audio-Anweisung ist schon umgesetzt?
 let netzKaputt = false;        // Supabase nicht erreichbar (siehe fail)
 let schreibMeldung = '';       // steht da, wenn ein Zug nicht ankam (siehe commit)
+// "Noch eine Runde?" mit Ja beantwortet: Dann zeigt dieses Gerät die Lobby
+// statt des Endbildschirms. Bewusst nur lokal – wer noch auf die Auswertung
+// schaut, soll nicht herausgerissen werden, bloß weil jemand anders zusagt.
+let lobbySicht = false;
 let filt = { ...FILT_STANDARD };  // laufende Kartenauswahl im Filterbildschirm
 let statSicht = 'ich';         // 'ich' oder 'alle' auf der Statistikseite
 let statZeit = 'alles';        // 'alles' oder 'monat' – Zeitfilter der Seite
@@ -1587,14 +1620,28 @@ const SITZE = Array.from({ length: MAX_SPIELER }, (_, i) => 'p' + (i + 1));
 // Besetzte und nicht ausgestiegene Plätze, in fester Reihenfolge.
 // Wer noch mitspielt: hat einen Sitz, hat nicht verlassen (`raus`) und ist
 // nicht im Deathmatch ausgeschieden (`aus`).
-const aktive = st => SITZE.filter(k => st.seats?.[k] && !st.raus?.[k] && !st.aus?.[k]);
+// Zuschauer zählen nicht mit: Wer mitten in der Runde beigetreten ist oder
+// eine Runde aussetzt, sitzt am Tisch, ist aber nicht im Zug, nicht im
+// Punktestand und nicht vetoberechtigt.
+const aktive = st => SITZE.filter(k =>
+  st.seats?.[k] && !st.raus?.[k] && !st.aus?.[k] && !st.zuschauer?.[k]);
+// Alle am Tisch, auch die auf der Zuschauerbank – die Lobby-Ampel zeigt sie.
+const amTisch = st => SITZE.filter(k => st.seats?.[k] && !st.raus?.[k]);
+// Wer auf "Noch eine Runde?" mit Ja geantwortet hat. Ohne Antwort ist man grau
+// und damit nicht dabei – schweigen heißt hier nicht zustimmen, sonst wartete
+// die Runde auf jemanden, der das Handy längst weggelegt hat.
+const mitspielen = st => amTisch(st).filter(k => st.bereit?.[k] === true);
+// Wer starten darf. In der ersten Lobby der Gastgeber auf Platz 1, danach der
+// erste, der zugesagt hat: Sagt ausgerechnet der Gastgeber ab, soll die Runde
+// deshalb nicht stillstehen.
+const spielleiter = st => st.phase === 'over' ? (mitspielen(st)[0] || null) : 'p1';
 // Wer in die Statistik gehört: alle mit Sitz, die nicht ausgestiegen sind.
 // Anders als aktive() zählen im Deathmatch Ausgeschiedene mit – ihre Zeitleiste
 // ist intakt, sie haben einfach verloren, und ohne ihre Zeile fehlt der
 // Gewinnbilanz und dem Kopf-an-Kopf die zweite Seite der Paarung.
 // Ausgestiegene bleiben draußen: leaveGame() räumt deren Leiste ab, sie stünden
 // mit 0 Karten da und verfälschten ihren Stand vor dem Ausstieg.
-const gewertet = st => SITZE.filter(k => st.seats?.[k] && !st.raus?.[k]);
+const gewertet = st => SITZE.filter(k => st.seats?.[k] && !st.raus?.[k] && !st.zuschauer?.[k]);
 const mitspieler = (st, ausser) => aktive(st).filter(k => k !== ausser);
 // Wer die laufende Platzierung noch anfechten könnte: alle Aktiven außer dem
 // Spieler am Zug, sofern Vetos übrig sind. Ohne Vetos gibt es keinen Knopf –
@@ -1761,10 +1808,18 @@ async function init() {
   // gleich neu lädt, unterbietet sonst die 200 ms und landete wieder oben.
   // pagehide statt unload – nur das feuert auf dem iPhone verlässlich.
   addEventListener('pagehide', statistikMerken);
-  $('btnLeaveLobby').addEventListener('click', leaveGame);
+  // In der Sammel-Lobby führt er zurück zur Auswertung, nicht aus dem Spiel:
+  // Dort steht die Rundenstatistik, und dort kann man auch noch absagen.
+  $('btnLeaveLobby').addEventListener('click',
+    () => { if (G?.state.phase === 'over') { lobbySicht = false; return render(); } leaveGame(); });
   $('btnHome').addEventListener('click', leaveGame);
-  $('btnStart').addEventListener('click', startGame);
+  // Derselbe Knopf, zwei Lagen: In der ersten Lobby beginnt er die Partie, in
+  // der Sammel-Lobby nach einer Partie die nächste Runde (neues Deck).
+  $('btnStart').addEventListener('click',
+    () => G?.state.phase === 'over' ? playAgain() : startGame());
   $('btnAgain').addEventListener('click', playAgain);
+  $('btnJa').addEventListener('click', rundeJa);
+  $('btnNein').addEventListener('click', rundeNein);
   $('pbtn').addEventListener('click', togglePlay);
   // Der Bestwert hängt am Namen, also muss er mitgehen, während getippt wird.
   $('nameInput').addEventListener('input', () => { zeigeBestwert(); namePflicht(); nameMerken(); });
@@ -2619,8 +2674,6 @@ async function joinGame() {
   if (saved?.code === code && saved?.seat && data.state.seats[saved.seat]) {
     seat = saved.seat; adopt(data); return subscribe(code);
   }
-  if (data.state.phase !== 'lobby')
-    return setHomeStat('Das Spiel läuft schon.','err');
   const platz = freierSitz(data.state);
   if (!platz) return setHomeStat('Das Spiel ist schon voll.','err');
 
@@ -2634,6 +2687,14 @@ async function joinGame() {
     if (!frei) return null;
     seat = frei;
     s.seats[frei] = { name: myName() };
+    // Läuft die Partie schon, kommt man als Beobachter herein statt abgewiesen
+    // zu werden. Am Rundenende wird gefragt, ob man mitspielen will – dafür
+    // muss niemand mehr ein neues Spiel mit neuem Code aufmachen.
+    if (s.phase !== 'lobby') {
+      s.zuschauer = s.zuschauer || {};
+      s.zuschauer[frei] = true;
+      s.hinweis = myName() + ' schaut zu';
+    }
     return s;
   });
   if (!ok) { setHomeStat('Das Spiel ist schon voll.','err'); return leaveGame(); }
@@ -2683,7 +2744,7 @@ async function leaveGame() {
   stopAudio();
   G = null; seat = null; lastRenderedCard = null; confettiShownFor = null;
   vetoKatzeFuer = null; katzeWeg();
-  pendingGap = null; soloRekord = false;
+  pendingGap = null; soloRekord = false; lobbySicht = false;
   setHomeStat('','');
   zeigeBestwert();
   // Auch der Tageshinweis, sonst stünde nach einem gerade beendeten Lauf
@@ -3060,6 +3121,7 @@ async function startGame() {
       s.getroffen[k] = 0; s.geklaut[k] = 0;
     }
     s.partieAus = false;
+    s.bereit = {};
     s.pending = null; s.vetoBis = 0; s.vetoAngemeldet = null; s.durch = {}; s.durchFuer = ''; s.hinweis = null;
     s.turn = dabei[Math.floor(Math.random() * dabei.length)];
     s.phase = 'draw';
@@ -3392,6 +3454,26 @@ function nachAuswertung(st) {
   if (st.phase === 'over' || st.soloAus || st.partieAus) partieMerken(st);
 }
 
+// Stand der Frage "Noch eine Runde?" auf dem Endbildschirm. Der eigene Knopf
+// wird hervorgehoben, sobald man geantwortet hat – sonst tippt man in der
+// Runde darauf zweimal und weiß nie, ob es angekommen ist.
+function zeigeRundenFrage(st) {
+  const antwort = st.bereit?.[seat];
+  const ja = mitspielen(st);
+  $('btnJa').classList.toggle('gewaehlt', antwort === true);
+  $('btnNein').classList.toggle('gewaehlt', antwort === false);
+  $('againFrage').textContent = antwort === undefined ? 'Noch eine Runde?'
+    : antwort ? 'Du bist dabei.'
+    : 'Du spielst nicht weiter.';
+  // Wer selbst noch nicht zugesagt hat, sieht die Namen – das ist der Anstoß,
+  // es auch zu tun. Wer zugesagt hat, ist ohnehin in der Lobby und sieht sie
+  // dort mit Ampel; hier reicht dann die Zahl.
+  $('againStand').textContent = !ja.length
+    ? 'Noch niemand hat zugesagt'
+    : ja.length + (ja.length === 1 ? ' Spieler wartet' : ' Spieler warten') +
+      ' in der Lobby: ' + ja.map(k => st.seats[k].name).join(', ');
+}
+
 // Bestwert ist die Länge der Zeitleiste, wenn der dritte Fehler fällt.
 // Erst vergleichen, dann speichern – sonst wäre der alte Wert schon weg.
 function merkeBestwert(n, name) {
@@ -3438,6 +3520,25 @@ async function naechsteKarte() {
   if (ok && ok.phase === 'over') partieMerken(ok);
 }
 
+// Antwort auf "Noch eine Runde?". Ja führt gleich in die Sammel-Lobby, Nein
+// bleibt beim Endbildschirm stehen – die Statistik ist dort, und wer sich
+// vertippt hat, kann bis zum Start noch umschwenken.
+async function rundeAntwort(ja) {
+  await commit(s => {
+    if (s.phase !== 'over' || !s.seats?.[seat] || s.raus?.[seat]) return null;
+    if (s.bereit?.[seat] === ja) return null;         // schon so beantwortet
+    s.bereit = { ...(s.bereit || {}) };
+    s.bereit[seat] = ja;
+    return s;
+  });
+}
+async function rundeJa() {
+  lobbySicht = true;                                  // auch ohne Zustandsänderung
+  await rundeAntwort(true);
+  render();
+}
+const rundeNein = () => rundeAntwort(false);
+
 async function playAgain() {
   if (solo()) return startSolo();
   // Eine neue Runde ist eine neue Partie – sonst zählte die Datenbank sie
@@ -3447,7 +3548,19 @@ async function playAgain() {
     s.partieId = partieId;
     s.begonnen = begonnen;
     s.deck = neuesDeck();
-    const dabei = aktive(s);
+    // Dabei ist, wer zugesagt hat. Rot und Grau werden nicht hinausgeworfen,
+    // sondern rutschen auf die Zuschauerbank: Wer nur kurz nicht hingesehen
+    // hat, verpasst die Runde, sitzt aber weiter am Tisch und wird am Ende
+    // wieder gefragt. Genau der Weg, über den auch die Dazugekommenen
+    // hereinkamen – zwei Wege für dieselbe Sache wären einer zu viel.
+    //
+    // Aus dem Zustand und nicht aus aktive(): aktive() blendet die
+    // Zuschauerbank ja gerade aus, und die wird hier erst neu besetzt.
+    const dabei = mitspielen(s);
+    if (dabei.length < 2) return null;
+    s.zuschauer = {};
+    for (const k of amTisch(s)) if (!dabei.includes(k)) s.zuschauer[k] = true;
+    s.bereit = {};
     s.timelines = {}; s.vetos = {}; s.getroffen = {}; s.geklaut = {};
     for (const k of SITZE) s.timelines[k] = [];
     for (const k of dabei) {
@@ -3459,6 +3572,7 @@ async function playAgain() {
     // Im Deathmatch Ausgeschiedene sind in der Revanche wieder dabei. Wer das
     // Spiel verlassen hat (`raus`), bleibt draußen.
     s.aus = {};
+    s.verlassen = null;
     s.turn      = dabei[Math.floor(Math.random() * dabei.length)];
     s.current   = null;
     s.result    = null;
@@ -4145,7 +4259,9 @@ function render() {
   // renderOver() käme sonst gar nicht erst hier vorbei.
   if (st.phase !== 'result') katzeWeg();
   if (st.phase === 'lobby')      return renderLobby(st);
-  if (st.phase === 'over')       return renderOver(st);
+  if (st.phase === 'over')       return lobbySicht ? renderLobby(st) : renderOver(st);
+  // Läuft wieder eine Partie, ist die Sammel-Lobby erledigt.
+  lobbySicht = false;
   renderGame(st);
 }
 
@@ -4154,33 +4270,60 @@ function renderLobby(st) {
   $('lobbyCode').textContent = G.code;
   const seats = $('lobbySeats');
   seats.innerHTML = '';
-  const dabei = aktive(st);
-  SITZE.forEach((k, i) => {
-    // Freie Plätze nur zeigen, solange noch jemand dazukommen kann.
-    if (!st.seats[k] && i > dabei.length) return;
+  // Zwei Lagen: die erste Lobby vor der ersten Partie, und die Sammel-Lobby
+  // nach einer Partie. Dort ist ein belegter Platz keine Zusage mehr, sondern
+  // erst mal nur jemand, der am Tisch sitzt – deshalb die Ampel.
+  const sammeln = st.phase === 'over';
+  const dabei = sammeln ? mitspielen(st) : aktive(st);
+  const zeigen = sammeln ? amTisch(st) : aktive(st);
+  const chef = spielleiter(st);
+  // Über die Teilnehmerliste und nicht über den Sitzindex: In der Sammel-Lobby
+  // können zwischen den Plätzen Lücken stehen (wer ausgestiegen ist, behält
+  // seinen Platz, zählt aber nicht mehr mit). Über den Index gelesen wären das
+  // freie Plätze gewesen, und die Lobby hätte auf jemanden gewartet, der
+  // gerade gegangen ist.
+  const zeile = () => {
     const d = document.createElement('div');
     d.style.cssText = 'display:flex;align-items:center;gap:10px;width:100%;font-size:14px;font-weight:600';
-    if (st.seats[k]) {
-      d.innerHTML = `<span style="color:var(--green)">●</span> ${esc(st.seats[k].name)}` +
-                    (k === seat ? ' <span style="color:var(--muted);font-weight:500">(du)</span>' : '');
-    } else {
-      d.innerHTML = `<span class="dot"></span> <span style="color:var(--muted);font-weight:500">warte auf Mitspieler…</span>`;
-    }
     seats.appendChild(d);
+    return d;
+  };
+  zeigen.forEach(k => {
+    // Ohne Sammel-Lobby ist jeder Platz grün: Wer in der ersten Lobby sitzt,
+    // will offensichtlich mitspielen, dort wird gar nicht gefragt.
+    const ampel = !sammeln ? 'ja'
+      : st.bereit?.[k] === true ? 'ja'
+      : st.bereit?.[k] === false ? 'nein' : 'grau';
+    const zusatz = k === seat ? 'du' : k === chef ? 'startet' : '';
+    zeile().innerHTML = `<span class="ampel ${ampel}"></span> ${esc(st.seats[k].name)}` +
+      (zusatz ? ` <span style="color:var(--muted);font-weight:500">(${zusatz})</span>` : '');
   });
+  // Genau ein Wartehinweis, solange überhaupt noch jemand dazukommen kann.
+  if (zeigen.length < SITZE.length)
+    zeile().innerHTML = `<span class="dot"></span> <span style="color:var(--muted);font-weight:500">warte auf Mitspieler…</span>`;
   const ready = dabei.length >= 2;
-  const voll  = dabei.length >= SITZE.length;
-  $('btnStart').disabled = !(ready && seat === 'p1');
-  $('btnStart').textContent = seat === 'p1'
-    ? (ready ? `Spiel starten (${dabei.length})` : 'Warte auf Mitspieler')
+  const voll  = zeigen.length >= SITZE.length;
+  const meins = seat === chef;
+  $('btnStart').disabled = !(ready && meins);
+  $('btnStart').textContent = meins
+    ? (ready ? (sammeln ? `Neue Runde starten (${dabei.length})` : `Spiel starten (${dabei.length})`)
+             : 'Warte auf Mitspieler')
     : (ready ? 'Warte auf Start…' : 'Warte auf Mitspieler');
+  $('btnLeaveLobby').textContent = sammeln ? 'Zurück zur Auswertung' : 'Abbrechen';
   // Die Kartenauswahl kommt vom Gastgeber. Für alle anderen ist das eine
   // Information, die sie sonst nirgends bekämen – ihre eigene Einstellung
   // gilt in dieser Partie nicht.
   // Auch hier, sonst bliebe ein gescheitertes "Spiel starten" stumm.
-  $('lobbyHint').textContent = schreibMeldung || (seat === 'p1'
-    ? (voll ? `Alle ${MAX_SPIELER} Plätze belegt` : 'Gib den Code an deine Mitspieler weiter')
-    : 'Warte, bis gestartet wird');
+  // In der Sammel-Lobby zählt der Hinweis auf, worauf noch gewartet wird –
+  // sonst starrt man auf einen grauen Punkt und weiß nicht, ob der Spieler
+  // gleich zusagt oder das Handy weggelegt hat.
+  const offen = sammeln ? amTisch(st).filter(k => st.bereit?.[k] === undefined) : [];
+  $('lobbyHint').textContent = schreibMeldung || (sammeln
+    ? (offen.length ? 'Noch keine Antwort von ' + offen.map(k => st.seats[k].name).join(', ')
+       : ready ? 'Alle haben geantwortet' : 'Zu wenige für eine Runde')
+    : seat === 'p1'
+      ? (voll ? `Alle ${MAX_SPIELER} Plätze belegt` : 'Gib den Code an deine Mitspieler weiter')
+      : 'Warte, bis gestartet wird');
   $('lobbyFilter').textContent = st.filter
     ? (seat === 'p1' ? 'Kartenauswahl: ' + st.filter
                      : 'Kartenauswahl des Gastgebers: ' + st.filter)
@@ -4344,7 +4487,9 @@ function renderGame(st) {
                  suchtVeto && st.pending ? st.pending.index : -1);
 
   // ── Gegner kompakt (im Solo gibt es keinen) ──
-  if (st.solo || tlSeat === seat) {
+  // Beobachter haben keine eigene Leiste, die man daruntersetzen könnte –
+  // "Deine Karten: noch leer" wäre für sie eine Auskunft über nichts.
+  if (st.solo || tlSeat === seat || st.zuschauer?.[seat]) {
     $('oppo').innerHTML = '';
   } else {
     // Fremde Leiste im Hauptbereich – dann hier die eigenen Karten zeigen.
@@ -4591,6 +4736,13 @@ function renderActions(st, mine) {
     if (fn) b.addEventListener('click', fn);
     a.appendChild(b);
   };
+
+  // Beobachter greifen in nichts ein – weder ziehen noch einloggen noch Veto,
+  // und auch die nächste Karte holt jemand anders. Ein einziger Satz statt
+  // eines Knopfes, der für sie ohnehin nie ginge.
+  if (st.zuschauer?.[seat]) {
+    return add('Du schaust zu – am Rundenende kannst du einsteigen', '', null, true);
+  }
 
   if (st.phase === 'draw') {
     mine ? add('Karte ziehen', 'prim', drawCard)
@@ -4891,6 +5043,14 @@ function renderOver(st) {
   // Tagesduell stünde sonst auch über einer Solo-Partie "Tagesbestenliste".
   $('btnStatsOver').textContent = 'Bestenliste ansehen';
 
+  // Im Mehrspieler wird gefragt statt neu gestartet; der eine Knopf bleibt
+  // Solo und Tagesduell. Steht vor den Zweigen, damit auch der Abbruch durch
+  // einen Aussteiger die Frage bekommt: Mit Zuschauern am Tisch kann daraus
+  // sehr wohl noch eine Runde werden.
+  const frage = !st.solo && !st.tag;
+  $('againBlock').style.display = frage ? '' : 'none';
+  if (frage) { $('btnAgain').style.display = 'none'; zeigeRundenFrage(st); }
+
   if (st.tag) {
     const f = st.fehler;
     $('overTitle').textContent = uhrText(st.dauerMs);
@@ -4935,13 +5095,10 @@ function renderOver(st) {
     $('overTitle').textContent = ichWars ? 'Spiel verlassen'
       : esc(st.seats[st.verlassen]?.name || 'Dein Mitspieler') + ' ist ausgestiegen';
     $('overSub').textContent = 'Die Partie wurde abgebrochen. Stand war ' + stand + '.';
-    $('btnAgain').style.display = 'none';
     return;
   }
-  $('btnAgain').style.display = '';
 
   const w = st.winner;
-  $('btnAgain').textContent = 'Nochmal spielen';
   $('overTitle').textContent = !w ? 'Unentschieden'
     : (w === seat ? 'Du gewinnst!' : (st.seats[w]?.name || 'Jemand') + ' gewinnt');
   $('overSub').textContent = stand;

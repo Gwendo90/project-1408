@@ -1496,14 +1496,15 @@ const KATZEN = ['cat-playful', 'cat-superhero', 'cat-startled', 'cat-angel',
 //
 // Winkel im gewöhnlichen Sinn, aber y zeigt auf dem Bildschirm nach unten,
 // deshalb rechnet fuelleKatzen() mit -sin. Damit heißt 180° links, 90° oben,
-// und der Bogen läuft von 178° *abwärts* auf 86°. Mit 178→268 fiel er
+// und der Bogen läuft von 178° *abwärts* auf 90°. Mit 178→268 fiel er
 // stattdessen nach unten aus dem Bild (gemessen: fünf von acht Katzen
 // außerhalb).
 //
 // Die Spanne lässt sich nicht wesentlich erweitern: unter 178° käme eine Katze
-// über die Aktionsknöpfe, über 86° hinaus rechts aus dem Bild – bei 82° ragte
-// die oberste Katze auf einem 320px-Schirm genau 1px hinaus (gemessen). Bei mehr Katzen
-// müssen deshalb Ringe dazukommen, nicht Grad – siehe katzenRinge().
+// über die Aktionsknöpfe, über 90° hinaus rechts aus dem Bild – bei 86° stand
+// die oberste Katze auf dem äußersten Ring noch 5px vom Rand, bei 82° ragte sie
+// auf einem 320px-Schirm hinaus (beides gemessen). Bei mehr Katzen müssen
+// deshalb Ringe dazukommen, nicht Grad – siehe katzenRinge().
 // Für 25 Katzen neu gerechnet (vorher 14: dr 54, bis 86, knopf 36). Fünf Ringe
 // statt drei, dafür enger gestaffelt und mit kleineren Knöpfen – sonst reichte
 // der äußerste Ring über den linken Bildrand hinaus.
@@ -1546,22 +1547,24 @@ function katzenRinge(n) {
 // Bei der nächsten Fassung: VERSION und STAND hochsetzen und NEUERUNGEN
 // ersetzen – die Liste zeigt bewusst nur den jüngsten Stand, keine Historie.
 // Ein wachsendes Änderungsprotokoll läse hier niemand.
-const VERSION = '1.1';
-const STAND = '17.08.2026';
+const VERSION = '1.2';
+const STAND = '19.08.2026';
 const NEUERUNGEN = [
   { titel: 'Neu', punkte: [
-    'Bis zu zehn Mitspieler statt vier.',
-    'Sprüche als Reaktion: der Knopf über den Katzen, zehn feste Zurufe von „Wow" bis „Zwölf Punkte!".',
-    'Zur Veto-Auflösung fliegt eine Katze ein – mit Fisch im Maul, wenn der Klau geglückt ist, sonst vor dem Fischglas.',
-    'Der Endstand zeigt, woraus deine Karten bestehen: selbst geraten, geklaut, dazu die Startkarte.'
+    'Wer zu spät kommt, muss nicht mehr draußen bleiben: Code weitergeben, zuschauen, am Rundenende einsteigen. Kein neues Spiel, kein neuer Code, kein Beleidigtsein.',
+    'Nach der Partie fragt das Spiel „Noch eine Runde?", und die Lobby wird zur Ampel: grün will, rot will nicht, grau ist gerade am Kühlschrank. Gestartet wird mit den Grünen – der Rest schaut zu und darf es sich überlegen.',
+    'Der Spielcode lässt sich antippen und liegt dann in der Zwischenablage. Damit endet die Ära des Buchstabierens.',
+    'Wenn du an die Reihe kommst, blitzt der Bildschirmrand zweimal auf, und wo das Handy es kann, rüttelt es dazu. „Ich war doch gar nicht dran" gilt ab sofort nicht mehr.',
+    'Elf neue Katzen, macht fünfundzwanzig. Neu im Fächer: Donut, Eis, Kaffeebecher, Weinglas, Sonnenbrille, Skateboard, winkende Pfote – und eine, die nur mit den Ohren über den Rand lugt. Aufgefaltet sind es dafür jetzt fünf Ringe statt drei.',
+    'Vier neue Sprüche für die Lagen, in denen „Wow" nicht mehr trägt: „Schade, 0 Punkte", „Mist", „WTF" und „Freaky".',
+    'Die Katze zur Veto-Auflösung ist größer geworden und bleibt stehen, bis es weitergeht. Bisher war sie nach drei Sekunden wieder weg – wer kurz auf die Zeitleiste sah, hat den ganzen Auftritt verpasst.'
   ]},
   { titel: 'Behoben', punkte: [
-    'Veto: „Durchlassen" beendet die Runde nicht mehr für alle. Ab drei Spielern hat jeder seine fünfzehn Sekunden – weiter geht es, wenn alle verzichtet haben oder die Zeit abläuft.',
-    'Die Karte, die eine Partie entscheidet, wird jetzt erst aufgedeckt. Zum Ergebnis geht es auf Tastendruck, vorher sah man das Jahr dieser Karte nie.',
-    'Der Kartenzähler bei den Spielweisen erscheint nur noch bei „Individuell". Bei „Klassisch" und „Deathmatch" stand er da, ohne etwas zu bewirken.',
-    'Während des Anspielens steht „Alle hören das Lied" – vorher „Ihr hört beide zu", was ab drei Spielern nicht stimmte.',
-    'Ein Song mit falscher Aufnahme ist entfernt (Thomas Forstner, Österreich 1989). Hinter dem Titel lag ein fremdes Lied.',
-    'Tagesduell: Änderungen an der Songliste verschieben nicht mehr die Karten aller Tage.'
+    'Ein eingelegtes Veto legt nicht mehr den ganzen Tisch lahm. Wer die Lücke nicht aussucht, dessen Veto verfällt nach fünfundvierzig Sekunden – gratis, versteht sich –, und für alle geht es weiter. Die letzten zehn Sekunden laufen sichtbar herunter. Bisher konnte eine einzige unentschlossene Person die Partie zum Stillstand bringen, und auch die fünfzehn Sekunden retteten dann niemanden mehr. Eine Runde ist dem bereits zum Opfer gefallen.',
+    'Verbrauchte Vetopunkte waren nicht zu sehen. Nicht blass – unsichtbar. Wer keine mehr hatte, bei dem stand schlicht nichts, was taktisch reizvoll, aber wenig auskunftsfreudig war. Jetzt zeigen alle drei Plätze, was noch übrig ist.',
+    'Der Punktestand ist ab drei Spielern auf die halbe Höhe geschrumpft. Der Knopf ganz unten musste vorher um seinen Platz am Bildrand kämpfen. Wer am Zug ist, hebt sich außerdem deutlicher ab.',
+    'Die Auflösung bleibt jetzt bei der Zeitleiste des Spielers am Zug. Nach einem geglückten Klau sprang sie bisher zum Dieb, und man suchte erst einmal, wo man eigentlich hinschaut. Die geklaute Karte kommt trotzdem an der richtigen Stelle an, ganz ohne Publikum.',
+    'Ein Zug, der nicht gespeichert werden konnte, sagt jetzt Bescheid. Vorher war ein Netzproblem von einem Knopf, der einfach nichts tun soll, nicht zu unterscheiden – man tippt dann dreimal fester, was bekanntlich hilft.'
   ]}
 ];
 

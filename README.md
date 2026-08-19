@@ -39,7 +39,7 @@ supabase.js             Supabase-Bibliothek, eigenständig (siehe Fallstricke!)
 songs.json              336 Songs mit Vorschau-URLs — nur fürs Offlinespiel, unangetastet
 songs-online.json       1428 Songs fürs Onlinespiel (enthält die 336)
 flags/                  53 Herzflaggen als PNG, 128×128 — eine je Land der Online-Datei
-reactions/              14 Katzen als PNG, 320×320, mit gebackenem Aufkleberrand
+reactions/              25 Katzen als PNG, 320×320, mit gebackenem Aufkleberrand
 anleitung.html          Spielanleitung fürs gedruckte Kartenspiel
 anleitung-online.html   Spielanleitung für den Online-Modus (Prinzip, Solo vs. Mehrspieler, Veto)
 Logo.png / Logo.svg     Bildmarke (Logo.svg NICHT verwenden, siehe Fallstricke)
@@ -604,7 +604,7 @@ Rückfall** — Realtime reißt bei Netzwechsel (WLAN → mobil) still ab.
 
 ### Katzen-Reaktionen
 
-Ein Knopf unten rechts, aufgefaltet erscheinen vierzehn Katzen (`reactions/`), eine Auswahl fliegt
+Ein Knopf unten rechts, aufgefaltet erscheinen fünfundzwanzig Katzen (`reactions/`), eine Auswahl fliegt
 bei allen Mitspielern ein. Nur im Duell — im Solo und Tagesduell wäre niemand da, der sie sieht,
 deshalb schaltet `renderGame()` den Knopf nur bei `!st.solo && mitspieler(...).length > 0`.
 
@@ -628,16 +628,21 @@ Vier Sachen, die beim Bauen nicht auf Anhieb saßen:
   Mit 178→268 fiel er nach unten aus dem Bild (gemessen: fünf von acht Katzen außerhalb).
 * **Die Ringzahl wird gerechnet, nicht festgelegt.** `katzenRinge(n)` sucht das kleinste k, bei
   dem die Sehne zwischen Nachbarn desselben Rings — 2·r₀·sin(k·Schritt/2) — den
-  Knopfdurchmesser samt Luft übertrifft. Mit acht Katzen reichten zwei Ringe, mit vierzehn sind
-  es drei. Fest verdrahtet hätten die sechs neuen Katzen die alten überlappt: Die Sehne wäre von
-  50 auf 27px gefallen.
+  Knopfdurchmesser samt Luft übertrifft. Mit acht Katzen reichten zwei Ringe, mit vierzehn drei,
+  mit fünfundzwanzig sind es fünf. Fest verdrahtet hätten die neuen die alten überlappt: Die
+  Sehne wäre von 50 auf 27px gefallen, bei 32px Bedarf.
+
+  Die Obergrenze der Schleife lag ursprünglich bei vier Ringen — und gab bei 25 Katzen
+  **trotzdem vier zurück**, obwohl vier nicht reichten. Die Kacheln überlappten sich dann um
+  10px, ohne dass irgendwo etwas gemeldet hätte. Sie steht jetzt bei sechs.
 
   Die **Spanne** lässt sich dabei nicht ausweichen: unter 178° käme eine Katze über die
-  Aktionsknöpfe, über 86° hinaus rechts aus dem Bild — bei 82° ragte die oberste auf einem
-  320px-Schirm genau 1px hinaus (gemessen). Mehr Katzen heißt also: mehr Ringe, nicht mehr Grad.
-  Die Knöpfe sind deshalb von 42 auf **36px** geschrumpft, sonst reichte der dritte Ring über
-  den rechten Rand. Nachgemessen auf 320×568, 390×844 und 430×932: keine Überlappung, keine
-  Katze außerhalb.
+  Aktionsknöpfe, über 90° hinaus rechts aus dem Bild — bei 86° stand die oberste auf dem
+  äußersten Ring noch 5px vom Rand, bei 82° ragte sie auf einem 320px-Schirm hinaus (beides
+  gemessen). Mehr Katzen heißt also: mehr Ringe, nicht mehr Grad. Die Knöpfe sind von 42 über 36
+  auf **30px** geschrumpft und der Ringabstand von 54 auf 40, sonst reichte der fünfte Ring über
+  den linken Rand. Nachgemessen auf 320×568, 375×667, 390×844 und 430×932: keine Überlappung,
+  keine Katze außerhalb.
 * **Der weiße Aufkleberrand steckt in den PNG, nicht in einem Filter.** Die Katzen sind schwarze
   Silhouetten, und die einfliegende zieht über die dunkle Karte — dort war sie kaum zu erkennen.
   Der erste Versuch über verkettete `drop-shadow` scheiterte an der Bildsprache: Die verfolgen
@@ -716,7 +721,7 @@ weg gewesen. Randabstand der beiden neuen: 12 px und 3 px, die vorhandenen liege
 
 ### Sprüche statt Chat
 
-Ein zweiter Knopf (💬) über dem Katzenknopf, dahinter zehn feste Sprüche aus `SPRUECHE`. Sie
+Ein zweiter Knopf (💬) über dem Katzenknopf, dahinter vierzehn feste Sprüche aus `SPRUECHE`. Sie
 fliegen genauso ein wie die Katzen, nur als Sprechblase.
 
 **Warum kein echter Chat:** Er bräuchte ein Eingabefeld, eine Verlaufsliste und dauerhaft Platz

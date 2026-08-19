@@ -551,6 +551,45 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .reaktFlug.v1 { right:30%; bottom:52%; }
 .reaktFlug.v2 { right:52%; bottom:38%; }
 
+/* Signal "du bist dran" – siehe zeigeDran(). Am RAND und nicht als Kasten in
+   der Mitte: Ein "Du bist dran"-Schild verdeckte genau das, worauf man danach
+   schauen soll, und müsste weggetippt oder abgewartet werden. Der Rand liegt
+   im Augenwinkel und lässt das Spielfeld frei – gedacht für das Handy, das
+   schräg auf dem Tisch liegt, während man mit den anderen redet.
+
+   Zwei Pulse, dieselbe Zweierfolge wie beim Rütteln: Ein einmaliges Aufleuchten
+   geht als Zeichenfehler durch, zwei sind erkennbar gemeint.
+
+   z-index unter den Katzen (58) und den Reaktionsknöpfen (60) – das Signal
+   soll den Blick holen, nicht die Auflösung überdecken. Tippen fängt es
+   ohnehin nicht ab. */
+/* Streuung und Deckkraft sind ausgemessen, nicht geraten: Bei 42px/9px und
+   0,8 lag der Schleier bis über die Punktestand-Kacheln und die Zeitleiste,
+   man las sie während des Signals schlechter. Enger am Rand und schwächer ist
+   genauso auffällig – die Aufmerksamkeit holt die Bewegung, nicht die Deckung. */
+.dranPuls { position:fixed; inset:0; z-index:57; pointer-events:none;
+            box-shadow:inset 0 0 30px 3px var(--grad-mid);
+            opacity:0; animation:dranPuls 1.7s ease-in-out forwards; }
+@keyframes dranPuls {
+  0%   { opacity:0 }
+  8%   { opacity:.65 }
+  30%  { opacity:0 }
+  42%  { opacity:.65 }
+  100% { opacity:0 }
+}
+/* Wer Bewegung reduziert haben will, bekommt trotzdem ein Signal – nur einmal
+   und langsam statt zweimal und schnell. Ganz weglassen wäre hier falsch: Das
+   ist keine Verzierung, sondern die einzige Auskunft, dass man dran ist, wenn
+   man nicht hinsieht. */
+@media (prefers-reduced-motion: reduce) {
+  .dranPuls { animation-name:dranSanft; animation-duration:2.6s; }
+}
+@keyframes dranSanft {
+  0%       { opacity:0 }
+  22%, 55% { opacity:.5 }
+  100%     { opacity:0 }
+}
+
 /* Die Vetokatze zur Auflösung. Anders als eine getippte Reaktion muss man sie
    LESEN – die Unterschrift sagt, was gerade passiert ist. Sie fliegt deshalb
    nur noch ein und gar nicht mehr heraus: Sie steht die ganze Auflösung über
@@ -1419,6 +1458,10 @@ const tagRunde = tag => TAG_RUNDEN[tag] || 1;
 // Grenze anheben und verschiebt dabei wieder alles.
 const TAG_MAX = 2000;
 const TAG_POOL = Array.from({ length: TAG_MAX }, (_, i) => String(i + 1).padStart(3, '0'));
+// Rütteln, wenn man an die Reihe kommt. Zwei kurze Stösse mit Pause dazwischen
+// statt eines langen: Ein einzelner Stoss geht als zufälliges Zucken des
+// Telefons durch, ein Doppelschlag ist erkennbar gemeint.
+const ZUG_VIBRATION = [90, 70, 90];
 const VETOS_START = 3;                  // Vetos je Spieler zu Spielbeginn
 const VETO_MS = 15000;                  // Bedenkzeit fürs Veto
 // Zeit zum Aussuchen der Lücke, nachdem das Veto angemeldet ist. Großzügiger
@@ -1660,6 +1703,7 @@ let schreibMeldung = '';       // steht da, wenn ein Zug nicht ankam (siehe comm
 let lobbySicht = false;
 let kopierMeldung = '';        // kurze Rückmeldung nach dem Kopieren des Codes
 let kopierTimer = null;
+let warDran = false;           // war es beim letzten Zeichnen schon mein Zug?
 let filt = { ...FILT_STANDARD };  // laufende Kartenauswahl im Filterbildschirm
 let statSicht = 'ich';         // 'ich' oder 'alle' auf der Statistikseite
 let statZeit = 'alles';        // 'alles' oder 'monat' – Zeitfilter der Seite
@@ -2847,7 +2891,8 @@ async function leaveGame() {
   stopAudio();
   G = null; seat = null; lastRenderedCard = null; confettiShownFor = null;
   vetoKatzeFuer = null; katzeWeg();
-  pendingGap = null; soloRekord = false; lobbySicht = false;
+  document.body.querySelectorAll('.dranPuls').forEach(el => el.remove());
+  pendingGap = null; soloRekord = false; lobbySicht = false; warDran = false;
   setHomeStat('','');
   zeigeBestwert();
   // Auch der Tageshinweis, sonst stünde nach einem gerade beendeten Lauf
@@ -4355,12 +4400,59 @@ function vetoTick() {
 }
 
 // ══ Rendering ════════════════════════════════════════════════════
+// Kurzes Rütteln, sobald man an die Reihe kommt. Zwischen zwei eigenen Zügen
+// schaut niemand ununterbrochen auf den Schirm – zu dritt liegt das Handy die
+// meiste Zeit auf dem Tisch, und der Zug fällt erst auf, wenn jemand ruft.
+//
+// Ausgelöst wird auf dem ÜBERGANG, nicht am Zustand: render() läuft mehrmals
+// je Zug (Ton, Vorlauf, fremde Änderungen), und bei jedem Durchlauf zu rütteln
+// wäre ein Dauerbrummen statt eines Signals.
+// Der sichtbare Teil des Signals. Wird gebraucht, weil das Rütteln auf dem
+// iPhone nichts tut: Safari kennt die Vibration API nicht, und dort spielen
+// die meisten. Läuft zusätzlich zum Rütteln, nicht statt seiner – auf Android
+// verstärken sich beide, und eine Fallunterscheidung nach Gerät wäre geraten
+// statt gemessen.
+//
+// Wer den Puls verpasst, ist nicht verloren: Die hervorgehobene Kachel und der
+// Knopf darunter sagen es weiterhin. Der Puls ist der Anstoss hinzusehen,
+// nicht die Auskunft selbst.
+function zeigeDran() {
+  // Einen noch laufenden Puls zuerst wegräumen, sonst liegen bei schnellen
+  // Zügen zwei übereinander und das Leuchten addiert sich.
+  document.body.querySelectorAll('.dranPuls').forEach(el => el.remove());
+  const el = document.createElement('div');
+  el.className = 'dranPuls';
+  el.addEventListener('animationend', () => el.remove());
+  document.body.appendChild(el);
+}
+
+function zugSignal(st) {
+  // Nur im Mehrspieler. Im Solo und im Tagesduell sitzt man ohnehin davor, da
+  // wäre das Rütteln eine Meldung über den eigenen Fingerdruck. Beobachter
+  // kommen gar nicht an die Reihe, aber der Zustand sagt es hier ausdrücklich.
+  const dran = !st.solo && !st.zuschauer?.[seat] && st.turn === seat
+            && (st.phase === 'draw' || st.phase === 'turn');
+  if (dran && !warDran) {
+    zeigeDran();
+    // Optionale Verkettung und try: navigator.vibrate fehlt auf iOS komplett
+    // und wirft anderswo, wenn das Muster nicht passt. Ein Signal, das nicht
+    // geht, darf auf keinen Fall das Zeichnen des Spielfelds mitreissen.
+    try { navigator.vibrate?.(ZUG_VIBRATION); } catch (e) {}
+  }
+  warDran = dran;
+}
+
 function render() {
   if (!G || !SONGS) return;
   const st = G.state;
   // Vor der Fallunterscheidung, damit auch der Endbildschirm sie los ist:
   // renderOver() käme sonst gar nicht erst hier vorbei.
   if (st.phase !== 'result') katzeWeg();
+  // Ebenfalls vor der Fallunterscheidung: Lobby und Endbildschirm setzen den
+  // Merker zurück. Stünde der Aufruf in renderGame(), bliebe er über eine
+  // Partie hinweg auf true stehen, wenn die Partie im eigenen Zug endet – und
+  // die erste Runde danach käme ohne Signal.
+  zugSignal(st);
   if (st.phase === 'lobby')      return renderLobby(st);
   if (st.phase === 'over')       return lobbySicht ? renderLobby(st) : renderOver(st);
   // Läuft wieder eine Partie, ist die Sammel-Lobby erledigt.

@@ -373,6 +373,9 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .hinweis { width:100%; max-width:400px; flex-shrink:0; font-size:12px; font-weight:600;
            color:var(--muted); text-align:center; min-height:0; }
 .hinweis:not(:empty) { padding:2px 0; }
+/* Nicht gespeichert: dieselbe Zeile, aber in der Farbe, in der auch die
+   verbrauchten Vetos und die scharfe Veto-Box stehen. */
+.hinweis.fehler { color:var(--red); }
 
 /* ── Katzen-Reaktionen (nur im Duell) ──────────────────────────────
    Der Knopf klebt unten rechts über dem Spielfeld. position:fixed und
@@ -608,6 +611,12 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
    steht darüber, das hier ist nur die Auskunft, worauf noch gewartet wird. */
 .vetoWarte { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase;
              color:var(--muted); opacity:.75; }
+/* Frist des angemeldeten Vetos. Anders als der Ring der Bedenkzeit steht sie
+   nicht von Anfang an da, sondern schaltet sich erst zum Schluss zu – siehe
+   VETO_WARNUNG_MS. Rot wie die Umrandung der scharfen Box: es eilt jetzt. */
+.vetoFrist { display:none; font-size:11px; font-weight:700; color:var(--red);
+             font-variant-numeric:tabular-nums; }
+.vetoFrist.da { display:block; animation:pop .3s cubic-bezier(.34,1.56,.64,1) both; }
 /* Countdown als Ring: der Verlauf füllt sich im Uhrzeigersinn, die Sekunden
    stehen in der Mitte. Der Fortschritt läuft über stroke-dashoffset – eine
    Alternative über conic-gradient könnte den Verlauf nicht gleichzeitig
@@ -1323,6 +1332,10 @@ const VETO_MS = 15000;                  // Bedenkzeit fürs Veto
 // als die Bedenkzeit – gesucht wird in einer fremden Leiste, das dauert –,
 // aber eben nicht unendlich: siehe vetoAnmelden().
 const VETO_WAHL_MS = 45000;
+// Ab wann die Wahlzeit als Countdown erscheint. Wer eine Lücke sucht, soll
+// nicht die ganze Zeit auf eine Uhr starren – aber auch nicht davon überrascht
+// werden, dass sein Veto verfällt.
+const VETO_WARNUNG_MS = 10000;
 // Fortschrittsring des Countdowns. Radius im 44er-Viewport, Umfang daraus –
 // so steht die Zahl an einer Stelle und nicht als Konstante im CSS daneben.
 const VETO_R = 19;
@@ -1547,6 +1560,7 @@ let soloRekord = false;        // war die letzte Solo-Partie ein Bestwert?
 let vorlaufTimer = null;       // wartet den Autostart-Vorlauf ab
 let audioAnweisung = null;     // welche Audio-Anweisung ist schon umgesetzt?
 let netzKaputt = false;        // Supabase nicht erreichbar (siehe fail)
+let schreibMeldung = '';       // steht da, wenn ein Zug nicht ankam (siehe commit)
 let filt = { ...FILT_STANDARD };  // laufende Kartenauswahl im Filterbildschirm
 let statSicht = 'ich';         // 'ich' oder 'alle' auf der Statistikseite
 let statZeit = 'alles';        // 'alles' oder 'monat' – Zeitfilter der Seite
@@ -2945,6 +2959,7 @@ function zeigeVetoKatze(gelungen, name, ichSelbst) {
 }
 
 function adopt(row) {
+  schreibMeldung = '';         // es geht wieder etwas durch
   const vorher = G && G.state.phase;
   G = { code: row.code, version: row.version, state: zustandPutzen(row.state) };
   // Bei jedem Phasenwechsel die vorgemerkte Lücke verwerfen: sonst würde
@@ -2977,15 +2992,37 @@ async function commit(mutate) {
   for (let i = 0; i < 5; i++) {
     const next = mutate(structuredClone(G.state));
     if (!next) return false;
-    const { data } = await sb.from('games')
+    const { data, error } = await sb.from('games')
       .update({ state: next, version: G.version + 1 })
       .eq('code', G.code).eq('version', G.version)
       .select().maybeSingle();
+    // Überholt und fehlgeschlagen sehen hier gleich aus – beide liefern kein
+    // `data` –, sind aber das Gegenteil voneinander: Ohne `error` war jemand
+    // anders schneller, das ist der Normalfall und wird unten aufgelöst. Mit
+    // `error` kam die Fahrt gar nicht erst an, und vier weitere Versuche
+    // liefen in denselben Fehler. Vorher wurde `error` nicht einmal
+    // ausgepackt: Ein Zug, der am Netz scheiterte, sah für den Spieler exakt
+    // aus wie ein Knopf, der nichts tun soll.
+    if (error) return schreibFehler();
     if (data) { adopt(data); return data.state; }
     const fresh = await sb.from('games').select().eq('code', G.code).maybeSingle();
+    if (fresh.error) return schreibFehler();
     if (!fresh.data) return false;
     adopt(fresh.data);
   }
+  // Fünfmal überholt worden. Kein Fehler, aber auch nichts passiert – und
+  // stillschweigend nichts zu tun ist genau das, was hier niemand mehr sehen
+  // will.
+  return schreibFehler();
+}
+
+// Ein Zug, der nicht gespeichert wurde, darf nicht aussehen wie ein Zug, der
+// nichts bewirken sollte. Die Zeile steht über der Bühne und bleibt stehen,
+// bis wieder etwas durchgeht – das räumt adopt() weg, egal ob der eigene
+// Schreibversuch oder eine fremde Änderung sie einholt.
+function schreibFehler() {
+  schreibMeldung = 'Nicht gespeichert – Verbindung prüfen und noch einmal tippen.';
+  render();
   return false;
 }
 
@@ -4029,6 +4066,14 @@ function uhrTick() {
   if (el) el.textContent = uhrText(tagLaufzeit(G.state));
 }
 
+// Restzeit des laufenden Fensters in Sekunden. Ohne Uhr im Zustand: 0.
+// Steht über dem Intervall und nicht bei vetoAnteil: Der Tick unten greift
+// darauf zu, und `const` vor seiner Auswertung anzufassen wirft – in dieser
+// Datei schon viermal passiert, siehe die Anmerkung bei init().
+const vetoRest = st => st.vetoBis ? Math.max(0, (st.vetoBis - serverNow()) / 1000) : 0;
+// Läuft die Wahlzeit des angemeldeten Vetos auf ihr Ende zu?
+const fristNah = st => !!st.vetoBis && vetoRest(st) <= VETO_WARNUNG_MS / 1000;
+
 // Fortschrittsbalken und Veto-Countdown lokal, ohne Netzwerk
 tickTimer = setInterval(() => {
   vetoTick();
@@ -4044,8 +4089,7 @@ tickTimer = setInterval(() => {
 // Der Ring füllt sich entlang dieses Werts.
 function vetoAnteil(st) {
   if (!st.vetoBis) return 0;
-  const rest = Math.max(0, (st.vetoBis - serverNow()) / 1000);
-  return Math.min(1, Math.max(0, 1 - rest / (VETO_MS / 1000)));
+  return Math.min(1, Math.max(0, 1 - vetoRest(st) / (VETO_MS / 1000)));
 }
 
 function vetoTick() {
@@ -4056,6 +4100,16 @@ function vetoTick() {
   const ring = $('vetoRing');
   if (ring) ring.setAttribute('stroke-dashoffset',
                               (VETO_U * (1 - vetoAnteil(G.state))).toFixed(2));
+  // Die Frist des angemeldeten Vetos steht nur in den letzten Sekunden da.
+  // Über eine Klasse statt über ein neues render(): viermal je Sekunde die
+  // ganze Zeitleiste neu zu bauen, während jemand darin eine Lücke sucht,
+  // würde ihm die Auswahl unter den Fingern wegziehen.
+  const frist = $('vetoFrist');
+  if (frist) {
+    frist.classList.toggle('da', fristNah(G.state));
+    const fz = $('vetoFristZeit');
+    if (fz) fz.textContent = Math.ceil(rest);
+  }
   const marke = (G.code || '') + ':' + G.state.vetoBis;
   if (rest <= 0 && vetoAblaufFuer !== marke) {
     vetoAblaufFuer = marke;
@@ -4100,9 +4154,10 @@ function renderLobby(st) {
   // Die Kartenauswahl kommt vom Gastgeber. Für alle anderen ist das eine
   // Information, die sie sonst nirgends bekämen – ihre eigene Einstellung
   // gilt in dieser Partie nicht.
-  $('lobbyHint').textContent = seat === 'p1'
+  // Auch hier, sonst bliebe ein gescheitertes "Spiel starten" stumm.
+  $('lobbyHint').textContent = schreibMeldung || (seat === 'p1'
     ? (voll ? `Alle ${MAX_SPIELER} Plätze belegt` : 'Gib den Code an deine Mitspieler weiter')
-    : 'Warte, bis gestartet wird';
+    : 'Warte, bis gestartet wird');
   $('lobbyFilter').textContent = st.filter
     ? (seat === 'p1' ? 'Kartenauswahl: ' + st.filter
                      : 'Kartenauswahl des Gastgebers: ' + st.filter)
@@ -4178,7 +4233,11 @@ function renderGame(st) {
     }).join('');
   }
 
-  $('hinweis').textContent = (!st.solo && st.hinweis) ? st.hinweis : '';
+  // Die Schreibmeldung geht vor: Sie betrifft den eigenen letzten Tipp,
+  // der Hinweis aus dem Zustand nur, was sonst am Tisch passiert ist.
+  const hinw = $('hinweis');
+  hinw.textContent = schreibMeldung || ((!st.solo && st.hinweis) ? st.hinweis : '');
+  hinw.classList.toggle('fehler', !!schreibMeldung);
 
   // ── Bühne ──
   // Beim Ziehen und Anspielen leer: der Player allein sagt genug. In der
@@ -4596,11 +4655,18 @@ function vetoHTML(st, mine) {
   if (st.vetoAngemeldet) {
     const wer = st.vetoAngemeldet === seat;
     const name = st.seats[st.vetoAngemeldet]?.name || 'Jemand';
+    // Schon im Markup und nicht erst nach dem ersten Tick: Wer die Seite
+    // mitten in den letzten Sekunden aufbaut – neu geladen, Bildschirm
+    // entsperrt –, sähe sonst bis zu einer Viertelsekunde gar nichts.
+    // Für alle sichtbar, nicht nur für den Vetogeber: Die anderen wissen
+    // damit, dass es gleich weitergeht, statt auf eine stumme Box zu sehen.
+    const rest = vetoRest(st);
     return `<div class="vetobox scharf">
       <div class="vetoTitel">${wer ? 'Dein Veto läuft' : esc(name) + ' legt Veto ein!'}</div>
       <div class="vetoText">${wer
         ? 'Tippe unten in ' + esc(amZug) + 's Zeitleiste die Lücke, in die die Karte gehört. Liegst du richtig und ' + esc(amZug) + ' falsch, wandert sie zu dir.'
         : esc(name) + ' behauptet, die Platzierung sei falsch – und zeigt jetzt, wo die Karte hingehört.'}</div>
+      <div class="vetoFrist${fristNah(st) ? ' da' : ''}" id="vetoFrist">Noch <span id="vetoFristZeit">${Math.ceil(rest)}</span> Sek.</div>
     </div>`;
   }
   // Weder Symbol noch Überschrift: der Ring sagt schon, dass die Zeit läuft,

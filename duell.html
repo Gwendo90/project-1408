@@ -494,11 +494,12 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
              right:calc(max(env(safe-area-inset-right),16px) + 23px);
              bottom:calc(max(env(safe-area-inset-bottom),16px) + 62px + 23px);
              width:0; height:0; pointer-events:none; }
-/* 36px statt 42: mit vierzehn Katzen braucht die Auffaltung drei Ringe, und
-   der äußere reicht sonst über den rechten Bildrand hinaus. Die Größe steht
-   auch in KATZ_BOGEN.knopf – katzenRinge() rechnet damit. */
-.reaktWahl button { position:absolute; left:-18px; top:-18px;
-                    width:36px; height:36px; border-radius:50%; padding:0;
+/* 30px: mit fünfundzwanzig Katzen braucht die Auffaltung fünf Ringe, und der
+   äußere reicht bei größeren Kacheln über den linken Bildrand hinaus. Die
+   Größe steht auch in KATZ_BOGEN.knopf – katzenRinge() rechnet damit, und
+   left/top sind die halbe Größe. Wer hier dreht, muss dort mitdrehen. */
+.reaktWahl button { position:absolute; left:-15px; top:-15px;
+                    width:30px; height:30px; border-radius:50%; padding:0;
                     border:1px solid var(--border); background:var(--surface);
                     box-shadow:0 4px 14px rgba(40,30,80,.13);
                     cursor:pointer; -webkit-appearance:none;
@@ -1486,7 +1487,10 @@ const PLAY_U = 2 * Math.PI * PLAY_R;
 const KATZEN = ['cat-playful', 'cat-superhero', 'cat-startled', 'cat-angel',
                 'cat-curious', 'cat-spooked-fur', 'cat-grumpy', 'cat-sneaking',
                 'cat-sailing', 'cat-stuck-in-cup', 'cat-pool-float', 'cat-candy-cane',
-                'cat-sleeping', 'cat-hanging-head'];
+                'cat-sleeping', 'cat-hanging-head',
+                'cat-wave-paw', 'cat-paws-up', 'cat-heart-wink', 'cat-dab-stretch',
+                'cat-peek-ears', 'cat-glasses-sit', 'cat-skateboard-rock',
+                'cat-coffee-mug', 'cat-donut', 'cat-ice-cream', 'cat-wine-glass'];
 // Versetzte Ringe um den Knopf, der unten rechts sitzt – aufgefaltet wird
 // also nach links und oben.
 //
@@ -1500,7 +1504,14 @@ const KATZEN = ['cat-playful', 'cat-superhero', 'cat-startled', 'cat-angel',
 // über die Aktionsknöpfe, über 86° hinaus rechts aus dem Bild – bei 82° ragte
 // die oberste Katze auf einem 320px-Schirm genau 1px hinaus (gemessen). Bei mehr Katzen
 // müssen deshalb Ringe dazukommen, nicht Grad – siehe katzenRinge().
-const KATZ_BOGEN = { r0: 104, dr: 54, von: 178, bis: 86, knopf: 36, luft: 2 };
+// Für 25 Katzen neu gerechnet (vorher 14: dr 54, bis 86, knopf 36). Fünf Ringe
+// statt drei, dafür enger gestaffelt und mit kleineren Knöpfen – sonst reichte
+// der äußerste Ring über den linken Bildrand hinaus.
+//
+// `bis` endet jetzt genau senkrecht statt vier Grad dahinter: Auf der Höhe des
+// äußersten Rings lag der letzte Knopf sonst 5px vom rechten Rand entfernt, und
+// das ist die Kante, an der auch die Reaktionsknöpfe kleben.
+const KATZ_BOGEN = { r0: 104, dr: 40, von: 178, bis: 90, knopf: 30, luft: 2 };
 
 // Wie viele Ringe braucht die Auffaltung? Nachbarn desselben Rings liegen
 // k·Schritt auseinander, ihre Sehne ist 2·r·sin(k·Schritt/2) – gerechnet am
@@ -1508,15 +1519,20 @@ const KATZ_BOGEN = { r0: 104, dr: 54, von: 178, bis: 86, knopf: 36, luft: 2 };
 // dem die Sehne den Knopfdurchmesser samt Luft übertrifft.
 //
 // Gerechnet statt festgelegt, weil die Zahl der Katzen wächst: Mit acht
-// reichten zwei Ringe, mit vierzehn sind es drei. Fest verdrahtet hätten die
-// sechs neuen die alten überlappt – die Sehne wäre auf 27px gefallen.
+// reichten zwei Ringe, mit vierzehn drei, mit fünfundzwanzig fünf. Fest
+// verdrahtet hätten die neuen die alten überlappt – die Sehne wäre auf 27px
+// gefallen, bei 32px Bedarf.
+//
+// Obergrenze 6 und nicht mehr 4: Bei 25 Katzen war 4 zu wenig, die Schleife
+// lief durch und gab trotzdem 4 zurück. Die Kacheln überlappten sich dann um
+// 10px, ohne dass irgendwo etwas gemeldet hätte.
 function katzenRinge(n) {
   const spanne = Math.abs(KATZ_BOGEN.bis - KATZ_BOGEN.von);
-  for (let k = 1; k <= 4; k++) {
+  for (let k = 1; k <= 6; k++) {
     const winkel = (spanne / (n - 1)) * k * Math.PI / 180;
     if (2 * KATZ_BOGEN.r0 * Math.sin(winkel / 2) >= KATZ_BOGEN.knopf + KATZ_BOGEN.luft) return k;
   }
-  return 4;
+  return 6;
 }
 // ── Version und Änderungen ───────────────────────────────────────
 // Steht an einer Stelle: Die Beschriftung des Knopfes auf dem Startbildschirm
@@ -1566,7 +1582,8 @@ const REAKT_MAX = 3;                    // so viele gleichzeitig im Bild
 const SPRUECHE = [
   'Wow', 'HAHA', 'Easy', 'Knapp!',
   'Was war das?', 'Nie gehört', 'Zwölf Punkte!',
-  'Liebe den Song!', 'Ohrwurm', 'Loser'
+  'Liebe den Song!', 'Ohrwurm', 'Loser',
+  'Schade, 0 Punkte', 'Mist', 'WTF', 'Freaky'
 ];
 
 // ── Kartenauswahl (Filter) ───────────────────────────────────────

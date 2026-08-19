@@ -498,10 +498,13 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .reaktFlug.v2 { right:52%; bottom:38%; }
 
 /* Die Vetokatze zur Auflösung. Anders als eine getippte Reaktion muss man sie
-   LESEN – die Unterschrift sagt, was gerade passiert ist. Deshalb bleibt sie
-   länger stehen (2,6 s statt 1,5 s bis zum Abflug) und die Unterschrift darf
-   umbrechen statt abgeschnitten zu werden. Die Haltedauer steht auch im JS
-   (flugAbschluss), beides muss zusammenpassen. */
+   LESEN – die Unterschrift sagt, was gerade passiert ist. Sie fliegt deshalb
+   nur noch ein und gar nicht mehr heraus: Sie steht die ganze Auflösung über
+   da und geht erst, wenn es zur nächsten Karte weitergeht (siehe katzeWeg).
+   Knapp drei Sekunden waren zu wenig – wer in dem Moment auf die Zeitleiste
+   geschaut hat, hat den Ausgang des Vetos schlicht verpasst.
+   Entsprechend größer als eine getippte Katze, und die Unterschrift darf
+   umbrechen statt abgeschnitten zu werden. */
 /* Die Vetokatze liegt anders als eine getippte Reaktion, und zwar aus zwei
    gemessenen Gründen:
 
@@ -519,14 +522,15 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 
    Die Regel steht nach .reaktFlug.v1/.v2 im Stilblatt; bei gleicher Spezifität
    gewinnt die spätere, die Lage setzt sich also durch. */
-.reaktFlug.veto { left:4%; right:auto; bottom:16%; width:min(62vw,232px);
-                  animation:reaktEin .55s cubic-bezier(.2,1.5,.4,1) forwards,
-                            reaktAus .7s ease-in 2.6s forwards; }
+.reaktFlug.veto { left:4%; right:auto; bottom:16%; width:min(70vw,268px);
+                  animation:reaktEin .55s cubic-bezier(.2,1.5,.4,1) forwards; }
 /* Der Rahmen ist breiter als das Bild, damit die Unterschrift Platz hat, ohne
-   die Katze aufzublasen. */
-.reaktFlug.veto img { width:66%; margin:0 auto; }
+   die Katze aufzublasen. Die Breite ist so gewählt, dass der rechte Rand auch
+   auf einem 320er-Schirm vor den Reaktionsknöpfen endet – die liegen über dem
+   Flug und schnitten sonst in die Unterschrift. */
+.reaktFlug.veto img { width:74%; margin:0 auto; }
 .reaktFlug.veto span { white-space:normal; text-overflow:clip; overflow:visible;
-                       line-height:1.35; padding:5px 11px; font-size:11.5px;
+                       line-height:1.35; padding:6px 12px; font-size:12.5px;
                        color:var(--text); }
 
 /* Ein einfliegender Spruch. Dieselbe Bahn und dieselbe Namenszeile wie bei den
@@ -2678,7 +2682,7 @@ async function leaveGame() {
   clearInterval(pollTimer);
   stopAudio();
   G = null; seat = null; lastRenderedCard = null; confettiShownFor = null;
-  vetoKatzeFuer = null;
+  vetoKatzeFuer = null; katzeWeg();
   pendingGap = null; soloRekord = false;
   setHomeStat('','');
   zeigeBestwert();
@@ -2890,8 +2894,11 @@ function spruchEmpfangen(p) {
 function flugRahmen(klasse) {
   // Nicht mehr als REAKT_MAX gleichzeitig: bei zehn tippfreudigen Spielern wäre
   // der Bildschirm sonst zugeklebt. Die älteste weicht.
-  const laufende = document.body.querySelectorAll('.reaktFlug');
-  if (laufende.length >= REAKT_MAX) laufende[0].remove();
+  const laufende = [...document.body.querySelectorAll('.reaktFlug')];
+  // Die älteste weicht – nur die Vetokatze nicht: Sie gehört zur Auflösung und
+  // soll stehen bleiben, auch wenn nebenher jemand Katzen tippt.
+  if (laufende.length >= REAKT_MAX)
+    (laufende.find(e => !e.classList.contains('veto')) || laufende[0]).remove();
   const el = document.createElement('div');
   el.className = 'reaktFlug v' + (document.body.querySelectorAll('.reaktFlug').length % 3)
                + (klasse ? ' ' + klasse : '');
@@ -2902,6 +2909,8 @@ function flugRahmen(klasse) {
 // nötig, weil animationend bei einem Tabwechsel ausbleiben kann und das Element
 // dann für immer im DOM stünde. `halten` muss über der Summe der CSS-Animation
 // liegen, sonst räumt der Timer weg, was noch fliegt.
+// `halten = 0` heißt: von selbst geht sie nicht. Die Vetokatze wird so
+// eingehängt und erst von katzeWeg() abgeräumt, wenn die Auflösung vorbei ist.
 function flugAbschluss(el, name, halten = 3000) {
   if (name) {
     const s = document.createElement('span');
@@ -2910,8 +2919,16 @@ function flugAbschluss(el, name, halten = 3000) {
   }
   const weg = () => el.remove();
   el.addEventListener('animationend', e => { if (e.animationName === 'reaktAus') weg(); });
-  setTimeout(weg, halten);
+  if (halten) setTimeout(weg, halten);
   document.body.appendChild(el);
+}
+
+// Die Vetokatze wegräumen. Läuft aus render(), sobald etwas anderes als die
+// Auflösung gezeichnet wird – also beim Druck auf "Nächste Karte", aber auch
+// beim Endbildschirm und beim Verlassen. Getippte Katzen bleiben unberührt,
+// die räumt ihr eigener Zeitgeber ab.
+function katzeWeg() {
+  document.body.querySelectorAll('.reaktFlug.veto').forEach(el => el.remove());
 }
 
 function zeigeReaktion(katze, name) {
@@ -2953,9 +2970,8 @@ function zeigeVetoKatze(gelungen, name, ichSelbst) {
     ? (ichSelbst ? 'Du hast die Karte geklaut!' : wer + ' hat die Karte geklaut!')
     : (ichSelbst ? 'Du konntest die Karte nicht schnappen'
                  : wer + ' konnte die Karte nicht schnappen');
-  // 3800 statt 3000: die CSS-Animation der Vetokatze hält länger, damit man die
-  // Unterschrift lesen kann.
-  flugAbschluss(el, satz, 3800);
+  // Ohne Haltedauer: Sie steht, bis die Auflösung vorbei ist (siehe katzeWeg).
+  flugAbschluss(el, satz, 0);
 }
 
 function adopt(row) {
@@ -3137,6 +3153,10 @@ function auswerten(s, vetoZug) {
       s.geklaut = s.geklaut || {};
       s.geklaut[g] = (s.geklaut[g] || 0) + 1;
     }
+    // `zielIndex` zeigt niemand mehr an – die Auflösung bleibt bei der Leiste
+    // des Spielers am Zug (siehe renderGame). Der Wert bleibt trotzdem im
+    // Ergebnis stehen: Er sagt, wo die Karte gelandet ist, und das ist die Art
+    // Angabe, die man später für eine Auswertung sucht und dann nicht hat.
     klau = { seat: g, index: vetoZug.index, zielIndex: ziel, gelungen: gOk };
   }
 
@@ -4121,6 +4141,9 @@ function vetoTick() {
 function render() {
   if (!G || !SONGS) return;
   const st = G.state;
+  // Vor der Fallunterscheidung, damit auch der Endbildschirm sie los ist:
+  // renderOver() käme sonst gar nicht erst hier vorbei.
+  if (st.phase !== 'result') katzeWeg();
   if (st.phase === 'lobby')      return renderLobby(st);
   if (st.phase === 'over')       return renderOver(st);
   renderGame(st);
@@ -4287,16 +4310,21 @@ function renderGame(st) {
   }
 
   // ── Welche Zeitleiste ist zu sehen? ──
-  // Beim Veto-Aussuchen die eigene, denn dorthin wandert die geklaute
-  // Karte. In der Auflösung die, in der die Karte gelandet ist.
+  // Immer die des Spielers am Zug: dort wird getippt, dort wird angefochten,
+  // und dort steht in der Auflösung die Antwort auf die einzige Frage, die
+  // gerade offen ist – saß der Tipp oder nicht.
+  //
+  // Vorher schwenkte die Auflösung nach gelungenem Klau auf die Leiste des
+  // Vetogebers und zeigte, wie die Karte dort einsortiert wird. Das war eine
+  // Ansicht zu viel: Man verlor die Stelle aus den Augen, um die es die ganze
+  // Runde ging, und musste zwei fremde Leisten gleichzeitig im Kopf behalten.
+  // Die geklaute Karte liegt beim Vetogeber trotzdem richtig einsortiert – man
+  // sieht sie beim nächsten Mal einfach da liegen.
+  // klauGelungen entscheidet nur noch, wem das Konfetti gilt – nicht mehr,
+  // welche Leiste zu sehen ist.
   const klauGelungen = auflösung && st.result.klau?.gelungen;
   const suchtVeto = vetoPhase && st.vetoAngemeldet === seat;
-  // Beim Veto wird in der Leiste des Spielers am Zug getippt, nicht in der
-  // eigenen. Nach gelungenem Klau zeigt die Auflösung die Leiste, in der
-  // die Karte tatsächlich gelandet ist.
-  const tlSeat = klauGelungen ? st.result.klau.seat
-               : auflösung ? st.result.seat
-               : st.turn;
+  const tlSeat = auflösung ? st.result.seat : st.turn;
   $('tlLabel').textContent = suchtVeto
       ? 'Wo gehört sie hin? Zeitleiste von ' + st.seats[st.turn].name
     : tlSeat === seat ? 'Deine Zeitleiste'
@@ -4499,12 +4527,12 @@ function renderTimeline(st, tlSeat, interactive, platzhalter = -1, gesperrt = -1
   const tl = st.timelines[tlSeat];
   const el = $('tl');
   el.innerHTML = '';
-  // Frisch einsortiert ist entweder die Karte des Spielers am Zug oder,
-  // bei gelungenem Klau, die des Vetogebers.
+  // Hervorgehoben wird nur eine frisch einsortierte Karte des Spielers am Zug,
+  // und die gibt es genau dann, wenn sein Tipp saß. Ging die Karte per Veto an
+  // jemand anderen, ist in dieser Leiste nichts dazugekommen – die Leiste des
+  // Vetogebers zeigt die Auflösung bewusst nicht (siehe renderGame).
   const r = st.phase === 'result' ? st.result : null;
-  const freshIdx = !r ? -1
-    : r.klau?.gelungen ? (r.klau.seat === tlSeat ? r.klau.zielIndex : -1)
-    : (r.correct && r.seat === tlSeat ? r.index : -1);
+  const freshIdx = r && r.correct && r.seat === tlSeat ? r.index : -1;
   let focus = null;   // was der Spieler nach dem Neuzeichnen sehen muss
 
   for (let i = 0; i <= tl.length; i++) {

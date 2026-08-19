@@ -369,20 +369,40 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 /* Ab drei Spielern ein Gitter. Die SPALTENZAHL setzt render() als inline-Stil,
    weil sie von der Spielerzahl abhängt und nicht von der Breite: zehn Kacheln
    in zwei Spalten wären fünf Reihen und nähmen die halbe Bühne. */
-.score.viele { display:grid; gap:7px; }
-.score.viele .seat { padding:6px 10px; }
-.score.viele .seat .nm { font-size:11px; }
-.score.viele .seat .ct { font-size:17px; }
+.score.viele { display:grid; gap:6px; }
 .score.viele .vlabel { display:none; }
-.score.viele .vpunkt { width:6px; height:6px; }
+/* Drei bis sechs Spieler: Name und Stand nebeneinander statt übereinander.
+   Gestapelt waren zwei Reihen Kacheln rund 100px hoch, und die fehlten unten –
+   der Aktionsknopf rutschte aus dem Bild, und der Spielbildschirm soll ohne
+   Scrollen auskommen. Eine Zeile je Kachel halbiert das.
+
+   Ab sieben Spielern nicht: Dort stehen vier Spalten nebeneinander, in denen
+   Name, Zahl und Vetopunkte in einer Zeile nicht mehr nebeneinander passen –
+   siehe .knapp, das bleibt gestapelt. */
+.score.viele:not(.knapp) .seat { flex-direction:row; align-items:center; gap:8px;
+                                 padding:4px 9px 4px 10px; border-radius:11px; }
+.score.viele:not(.knapp) .seat .nm { flex:1; min-width:0; font-size:11px; }
+.score.viele:not(.knapp) .seat .ct { font-size:13.5px; }
+.score.viele:not(.knapp) .seat .ct small { font-size:10px; }
+.score.viele:not(.knapp) .vzeile { gap:7px; flex-shrink:0; }
+/* Der Streifen der grossen Kacheln entfällt hier. Quer über eine 25px flache
+   Kachel gelegt sieht er aus wie ein abgeschnittener Rand, und hochkant an die
+   linke Kante gestellt schneidet ihn die runde Ecke zu einem Splitter, der
+   eher nach Zeichenfehler aussieht als nach Markierung. Der Ring um die Kachel
+   und der Name in Schwarz statt Grau sagen es deutlich genug. */
+.score.viele:not(.knapp) .seat.active::before { display:none; }
+/* Der Name des Spielers am Zug ist nicht mehr nur Beschriftung, sondern die
+   Antwort auf "wer ist dran" – also raus aus dem Grau. */
+.score.viele .seat.active .nm { color:var(--text); font-weight:700; }
+.score.viele .vpunkt { width:5.5px; height:5.5px; }
 /* Ab sieben Spielern wird es eng: drei oder vier Spalten auf 400px lassen je
    Kachel unter 100px. Kleinere Schrift, weniger Polster – die Vetopunkte
    bleiben, sie sind im Spiel wichtiger als der volle Name. */
 .score.knapp { gap:5px; }
-.score.knapp .seat { padding:4px 7px; border-radius:11px; }
+.score.knapp .seat { padding:3px 6px; border-radius:10px; }
 .score.knapp .seat .nm { font-size:9.5px; }
-.score.knapp .seat .ct { font-size:14px; }
-.score.knapp .seat .ct small { font-size:9px; }
+.score.knapp .seat .ct { font-size:12.5px; }
+.score.knapp .seat .ct small { font-size:8.5px; }
 .score.knapp .vzeile { gap:5px; }
 .score.knapp .vpunkt { width:5px; height:5px; }
 .score.knapp .vpunkte { gap:2px; }
@@ -670,7 +690,21 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .vzeile { display:flex; align-items:center; gap:8px; }
 .vpunkte { display:flex; gap:3px; }
 .vpunkt { width:7px; height:7px; border-radius:50%; background:var(--text); }
-.vpunkt.weg { background:var(--track); }
+/* `display:block` ist hier PFLICHT und kein Schmuck: Weiter unten steht
+   `.weg { display:none }` für Kästen, die je nach Sicht wegfallen. Die Regel
+   hat zwar die kleinere Spezifität, aber diese hier setzt kein `display` – und
+   was nicht gesetzt ist, kann auch nichts überschreiben. Verbrauchte
+   Vetopunkte waren dadurch nicht bloß blass, sie wurden überhaupt nicht
+   gezeichnet: Gemessen hatte der Punkt 0,00 x 0,00 Pixel. Wer keine Vetos mehr
+   hatte, bei dem stand gar nichts, und "keine mehr" war von "hier steht nichts
+   über Vetos" nicht zu unterscheiden. Genau die Stolperstelle, vor der der
+   Kommentar bei `.weg` warnt.
+
+   Leerer Ring statt hellgrauer Scheibe: In --track gefüllt ist der Punkt auf
+   dem weissen Feld bei 5,5px kaum auszumachen, der Ring hält die drei Plätze
+   auch dann sichtbar, wenn keiner mehr besetzt ist. */
+.vpunkt.weg { display:block; background:transparent;
+              box-shadow:inset 0 0 0 1px var(--muted); }
 .vlabel { font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
 
 /* Eingeloggte, noch nicht ausgewertete Karte in der Zeitleiste.
@@ -4381,9 +4415,13 @@ function renderGame(st) {
         <div class="ct leben">${leben}</div></div>`;
   } else {
     const dabei = aktive(st);
-    // Spalten so, dass die Zeile flach bleibt: bis vier zwei Spalten, bis sechs
-    // drei, darüber vier. Zehn Spieler ergeben damit drei Reihen statt fünf.
-    const spalten = dabei.length <= 4 ? 2 : dabei.length <= 6 ? 3 : 4;
+    // Bis sechs Spieler zwei Spalten, darüber vier. Drei Spalten gab es, solange
+    // eine Kachel zwei Zeilen hoch war und jede Reihe teuer: Da war Breite das
+    // kleinere Übel. Jetzt ist eine Kachel eine flache Zeile, eine Reihe kostet
+    // 26px – und drei Spalten auf 350px ließen vom Namen "Fl…" übrig.
+    // Ab sieben bleibt es bei vier: dort stapelt .knapp wieder, und fünf Reihen
+    // wären höher als das, was die Breite kostet.
+    const spalten = dabei.length <= 6 ? 2 : 4;
     $('score').className = 'score' + (dabei.length > 2 ? ' viele' : '')
                                    + (dabei.length > 6 ? ' knapp' : '');
     $('score').style.gridTemplateColumns = dabei.length > 2 ? `repeat(${spalten},1fr)` : '';
@@ -4436,7 +4474,10 @@ function renderGame(st) {
     setStat(
       // Nicht "Ihr hört beide zu": ab drei Spielern stimmt das nicht mehr, und
       // eine Fallunterscheidung nach Spielerzahl wäre für dieselbe Aussage.
-      lauf === 'laeuft' ? (st.solo ? 'Läuft' : 'Alle hören das Lied')
+      // Als einziger der Statuszustände mit Punkt – die anderen sind
+      // Zwischenstände ("Lädt…", "Tippe zum Anspielen"), dieser hier ist ein
+      // fertiger Satz.
+      lauf === 'laeuft' ? (st.solo ? 'Läuft' : 'Alle hören das Lied.')
       : lauf === 'vorlauf' ? 'Gleich geht’s los…'
       : lauf === 'laedt' ? 'Lädt…'
       : lauf === 'fertig' ? (mine ? 'Durchgelaufen – nochmal anhören oder einsortieren' : 'Durchgelaufen')

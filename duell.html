@@ -92,6 +92,23 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .bigcode { font-size:44px; font-weight:700; letter-spacing:10px; padding-left:10px;
            background:linear-gradient(135deg,var(--grad-a),var(--grad-mid) 55%,var(--grad-b));
            -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+/* Knopf ohne Knopfaussehen: Der Verlaufstext trägt die Fläche schon, ein
+   Rahmen darum machte daraus zwei Kästen ineinander. Das Polster links steht
+   in .bigcode und gleicht die Laufweite aus, die hinter dem letzten Zeichen
+   ebenfalls 10px setzt – deshalb hier ein negativer Rand am Symbol, sonst
+   klebte es scheinbar zu weit weg. */
+.codeknopf { display:flex; align-items:center; justify-content:center; gap:3px;
+             background:none; border:0; padding:4px 6px; cursor:pointer;
+             font-family:inherit; -webkit-appearance:none;
+             transition:transform .15s; }
+.codeknopf:active { transform:scale(.97); }
+.kopierIcon { width:19px; height:19px; flex-shrink:0; margin-left:-6px; align-self:center;
+              fill:none; stroke:var(--muted); stroke-width:1.7;
+              stroke-linecap:round; stroke-linejoin:round; transition:stroke .15s; }
+.codeknopf:active .kopierIcon { stroke:var(--grad-mid); }
+/* Geglückte Rückmeldung in derselben Zeile wie die Fehlermeldung – nur grün.
+   Ein eigenes Element dafür wäre eine Zeile, die 99 % der Zeit leer stünde. */
+#lobbyHint.gut { color:var(--green); }
 .waiting { display:flex; align-items:center; gap:9px; font-size:13px; color:var(--muted); }
 .dot { width:8px; height:8px; border-radius:50%; background:var(--grad-mid); animation:blink 1.4s ease-in-out infinite; }
 /* "Noch eine Runde?" – Ja und Nein nebeneinander statt untereinander: Es ist
@@ -1037,7 +1054,16 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   <div class="logo"><img src="Logo.png" width="513" height="222" alt="Eurovision Song Contest 1408"></div>
   <div class="panel">
     <div class="sub">Spielcode</div>
-    <div class="bigcode" id="lobbyCode">—</div>
+    <!-- Der Code IST der Knopf. Ein eigener Knopf daneben wäre ein zweites
+         Ziel für dieselbe Sache, und mit 44px ist der Code ohnehin das
+         grösste Ziel auf dem Schirm – man tippt ohne Nachdenken darauf. -->
+    <button class="codeknopf" id="btnCode" type="button" aria-label="Spielcode kopieren">
+      <span class="bigcode" id="lobbyCode">—</span>
+      <svg class="kopierIcon" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="9.5" y="9.5" width="11" height="11" rx="2.5"/>
+        <path d="M5.5 15V6a2.5 2.5 0 0 1 2.5-2.5h7"/>
+      </svg>
+    </button>
     <div class="sub" id="lobbyHint">Gib den Code an deinen Mitspieler weiter</div>
     <div class="sub" id="lobbyFilter"></div>
   </div>
@@ -1632,6 +1658,8 @@ let schreibMeldung = '';       // steht da, wenn ein Zug nicht ankam (siehe comm
 // statt des Endbildschirms. Bewusst nur lokal – wer noch auf die Auswertung
 // schaut, soll nicht herausgerissen werden, bloß weil jemand anders zusagt.
 let lobbySicht = false;
+let kopierMeldung = '';        // kurze Rückmeldung nach dem Kopieren des Codes
+let kopierTimer = null;
 let filt = { ...FILT_STANDARD };  // laufende Kartenauswahl im Filterbildschirm
 let statSicht = 'ich';         // 'ich' oder 'alle' auf der Statistikseite
 let statZeit = 'alles';        // 'alles' oder 'monat' – Zeitfilter der Seite
@@ -1852,6 +1880,7 @@ async function init() {
   $('btnStart').addEventListener('click',
     () => G?.state.phase === 'over' ? playAgain() : startGame());
   $('btnAgain').addEventListener('click', playAgain);
+  $('btnCode').addEventListener('click', codeKopieren);
   $('btnJa').addEventListener('click', rundeJa);
   $('btnNein').addEventListener('click', rundeNein);
   $('pbtn').addEventListener('click', togglePlay);
@@ -2732,6 +2761,46 @@ async function joinGame() {
     return s;
   });
   if (!ok) { setHomeStat('Das Spiel ist schon voll.','err'); return leaveGame(); }
+}
+
+// Spielcode in die Zwischenablage. Zwei Wege, weil einer nicht reicht:
+// navigator.clipboard gibt es nur im sicheren Kontext (https), und über
+// file:// oder eine ältere iOS-Fassung fehlt er ersatzlos. Ausgerechnet der
+// Knopf zum Weitergeben des Codes darf aber nicht stumm nichts tun – dann
+// tippt man ihn dreimal und schreibt den Code am Ende doch ab.
+async function codeKopieren() {
+  const code = G?.code;
+  if (!code) return;
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(code);
+    ok = true;
+  } catch (e) {
+    ok = altKopieren(code);
+  }
+  // Auch der Fehlschlag bekommt eine Antwort, und zwar eine brauchbare: Der
+  // Code steht darin, damit er wenigstens abgelesen werden kann.
+  kopierMeldung = ok ? 'Code kopiert!' : 'Kopieren geht hier nicht – Code: ' + code;
+  render();
+  clearTimeout(kopierTimer);
+  kopierTimer = setTimeout(() => { kopierMeldung = ''; render(); }, 2400);
+}
+
+// Der alte Weg über ein kurz eingehängtes Feld. `readonly` verhindert, dass
+// iOS die Tastatur aufklappt, und setSelectionRange ist dort Pflicht: select()
+// allein markiert auf dem iPhone nichts, und kopiert wird dann auch nichts.
+function altKopieren(text) {
+  const feld = document.createElement('textarea');
+  feld.value = text;
+  feld.setAttribute('readonly', '');
+  feld.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:0;padding:0';
+  document.body.appendChild(feld);
+  feld.select();
+  feld.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  feld.remove();
+  return ok;
 }
 
 function rausZuruecksetzen() {
@@ -4351,8 +4420,11 @@ function renderLobby(st) {
   // In der Sammel-Lobby zählt der Hinweis auf, worauf noch gewartet wird –
   // sonst starrt man auf einen grauen Punkt und weiß nicht, ob der Spieler
   // gleich zusagt oder das Handy weggelegt hat.
+  // Reihenfolge mit Absicht: Ein nicht gespeicherter Zug wiegt schwerer als
+  // die Bestätigung, dass der Code in der Zwischenablage liegt.
   const offen = sammeln ? amTisch(st).filter(k => st.bereit?.[k] === undefined) : [];
-  $('lobbyHint').textContent = schreibMeldung || (sammeln
+  $('lobbyHint').classList.toggle('gut', !schreibMeldung && kopierMeldung.startsWith('Code kopiert'));
+  $('lobbyHint').textContent = schreibMeldung || kopierMeldung || (sammeln
     ? (offen.length ? 'Noch keine Antwort von ' + offen.map(k => st.seats[k].name).join(', ')
        : ready ? 'Alle haben geantwortet' : 'Zu wenige für eine Runde')
     : seat === 'p1'

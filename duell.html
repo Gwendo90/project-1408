@@ -1319,6 +1319,10 @@ const TAG_MAX = 2000;
 const TAG_POOL = Array.from({ length: TAG_MAX }, (_, i) => String(i + 1).padStart(3, '0'));
 const VETOS_START = 3;                  // Vetos je Spieler zu Spielbeginn
 const VETO_MS = 15000;                  // Bedenkzeit fürs Veto
+// Zeit zum Aussuchen der Lücke, nachdem das Veto angemeldet ist. Großzügiger
+// als die Bedenkzeit – gesucht wird in einer fremden Leiste, das dauert –,
+// aber eben nicht unendlich: siehe vetoAnmelden().
+const VETO_WAHL_MS = 45000;
 // Fortschrittsring des Countdowns. Radius im 44er-Viewport, Umfang daraus –
 // so steht die Zahl an einer Stelle und nicht als Konstante im CSS daneben.
 const VETO_R = 19;
@@ -3214,15 +3218,25 @@ async function einloggen(index) {
   if (ok) nachAuswertung(ok);
 }
 
-// Gegner meldet das Veto an. Damit stoppt der Countdown – das Aussuchen
-// der Lücke soll nicht unter Zeitdruck stehen, und der Spieler am Zug
-// erfährt sofort, dass es ernst wird.
+// Gegner meldet das Veto an. Der Countdown springt dabei von der Bedenkzeit
+// auf die längere Wahlzeit – das Aussuchen der Lücke soll nicht unter dem
+// Druck der letzten Sekunden stehen –, und der Spieler am Zug erfährt sofort,
+// dass es ernst wird.
+//
+// Eine Frist muss es aber geben, und zwar aus einem Grund, der uns ein Spiel
+// gekostet hat: Solange ein Veto angemeldet ist, sperrt es durchlassen(),
+// vetoAnmelden() und vetoAblauf() für alle. Die Runde hängt dann an genau
+// einem Gerät – dem des Vetogebers, das als einziges noch vetoZurueck() oder
+// vetoSetzen() schicken kann. Kommt von dort nichts mehr (Neuladen, vom
+// Betriebssystem weggeräumter Tab, ein commit, das stillschweigend
+// fehlschlägt), stand vorher der ganze Tisch für immer still: `vetoBis = 0`
+// heißt in vetoTick() "keine Uhr", also lief auch kein Ablauf mehr.
 async function vetoAnmelden() {
   await commit(s => {
     if (s.phase !== 'veto' || s.turn === seat || s.vetoAngemeldet) return null;
     if ((s.vetos?.[seat] || 0) <= 0) return null;
     s.vetoAngemeldet = seat;
-    s.vetoBis = 0;
+    s.vetoBis = serverNow() + VETO_WAHL_MS;
     return s;
   });
 }
@@ -3279,9 +3293,15 @@ async function durchlassen() {
 // Spielers am Zug, der selbst keine Stimme hat. Alle Geräte versuchen es; wer
 // zuerst kommt, gewinnt, der zweite Versuch findet die Phase schon verändert
 // vor und verpufft.
+//
+// Gilt ausdrücklich auch für ein angemeldetes Veto: Wer die Wahlzeit
+// verstreichen lässt, dessen Veto verfällt, und die Runde läuft weiter, als
+// wäre durchgelassen worden. Es kostet nichts – auswerten(s, null) fasst
+// `vetos` nicht an –, denn nachgewiesen hat der Vetogeber nichts, aber
+// bestraft wird er auch nicht für ein Handy, das nicht mehr mitspielt.
 async function vetoAblauf() {
   const ok = await commit(s => {
-    if (s.phase !== 'veto' || s.vetoAngemeldet) return null;
+    if (s.phase !== 'veto') return null;
     // Gegen eine schief laufende Uhr: nur auflösen, wenn das Fenster auch im
     // Zustand abgelaufen ist. serverNow() ist abgeglichen, die Reserve deckt
     // den Rest ab.
@@ -4227,8 +4247,14 @@ function renderGame(st) {
   // Lückenindizes verschieben sich dadurch nicht.
   const platzhalter = (vetoPhase && st.pending && st.pending.seat === tlSeat)
     ? st.pending.index : -1;
+  // Dieselbe Prüfung auf `pending` wie eine Zeile darüber, und zwar nicht aus
+  // Vorsicht: Ein Fehler hier führt mitten in renderGame() zum Abbruch, also
+  // hinter der Bühne, aber vor renderActions() – auf dem Schirm bliebe die
+  // Knopfleiste der vorigen Runde stehen, während der Zustand weitergelaufen
+  // ist. Man sieht dann Knöpfe, deren commit-Wächter längst nicht mehr passen,
+  // und nichts von dem, was man drückt, tut noch etwas.
   renderTimeline(st, tlSeat, (mine && st.phase === 'turn') || suchtVeto, platzhalter,
-                 suchtVeto ? st.pending.index : -1);
+                 suchtVeto && st.pending ? st.pending.index : -1);
 
   // ── Gegner kompakt (im Solo gibt es keinen) ──
   if (st.solo || tlSeat === seat) {

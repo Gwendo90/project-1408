@@ -538,12 +538,12 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
              right:calc(max(env(safe-area-inset-right),16px) + 23px);
              bottom:calc(max(env(safe-area-inset-bottom),16px) + 62px + 23px);
              width:0; height:0; pointer-events:none; }
-/* 30px: mit fünfundzwanzig Katzen braucht die Auffaltung fünf Ringe, und der
-   äußere reicht bei größeren Kacheln über den linken Bildrand hinaus. Die
-   Größe steht auch in KATZ_BOGEN.knopf – katzenRinge() rechnet damit, und
-   left/top sind die halbe Größe. Wer hier dreht, muss dort mitdrehen. */
-.reaktWahl button { position:absolute; left:-15px; top:-15px;
-                    width:30px; height:30px; border-radius:50%; padding:0;
+/* 36px statt 42: Schon bei vierzehn Katzen braucht die Auffaltung drei Ringe,
+   und der äußere reicht sonst über den rechten Bildrand hinaus. Die Größe steht
+   auch in KATZ_BOGEN.knopf – katzenRinge() rechnet damit, und left/top sind die
+   halbe Größe. Wer hier dreht, muss dort mitdrehen. */
+.reaktWahl button { position:absolute; left:-18px; top:-18px;
+                    width:36px; height:36px; border-radius:50%; padding:0;
                     border:1px solid var(--border); background:var(--surface);
                     box-shadow:0 4px 14px rgba(40,30,80,.13);
                     cursor:pointer; -webkit-appearance:none;
@@ -1494,13 +1494,10 @@ const PLAY_U = 2 * Math.PI * PLAY_R;
 // geht – deshalb steht hier eine feste Liste und nicht das, was gerade im
 // Ordner liegt: Ein unbekannter Name vom anderen Gerät wird verworfen,
 // statt ein fehlendes Bild anzuzeigen.
-const KATZEN = ['cat-playful', 'cat-superhero', 'cat-startled', 'cat-angel',
-                'cat-curious', 'cat-spooked-fur', 'cat-grumpy', 'cat-sneaking',
-                'cat-sailing', 'cat-stuck-in-cup', 'cat-pool-float', 'cat-candy-cane',
-                'cat-sleeping', 'cat-hanging-head',
-                'cat-wave-paw', 'cat-paws-up', 'cat-heart-wink', 'cat-dab-stretch',
-                'cat-peek-ears', 'cat-glasses-sit', 'cat-skateboard-rock',
-                'cat-coffee-mug', 'cat-donut', 'cat-ice-cream', 'cat-wine-glass'];
+const KATZEN = ['cat-superhero', 'cat-startled', 'cat-spooked-fur', 'cat-grumpy',
+                'cat-sneaking', 'cat-stuck-in-cup', 'cat-candy-cane',
+                'cat-heart-wink', 'cat-dab-stretch', 'cat-peek-ears',
+                'cat-glasses-sit', 'cat-coffee-mug'];
 // Versetzte Ringe um den Knopf, der unten rechts sitzt – aufgefaltet wird
 // also nach links und oben.
 //
@@ -1515,14 +1512,16 @@ const KATZEN = ['cat-playful', 'cat-superhero', 'cat-startled', 'cat-angel',
 // die oberste Katze auf dem äußersten Ring noch 5px vom Rand, bei 82° ragte sie
 // auf einem 320px-Schirm hinaus (beides gemessen). Bei mehr Katzen müssen
 // deshalb Ringe dazukommen, nicht Grad – siehe katzenRinge().
-// Für 25 Katzen neu gerechnet (vorher 14: dr 54, bis 86, knopf 36). Fünf Ringe
-// statt drei, dafür enger gestaffelt und mit kleineren Knöpfen – sonst reichte
-// der äußerste Ring über den linken Bildrand hinaus.
+// Zwölf Katzen ergeben drei Ringe bis 184…212px – dieselbe Größenordnung wie
+// früher bei vierzehn. Zwischenzeitlich standen hier 25 Katzen, dafür brauchte
+// es fünf Ringe, engere Staffelung (dr 40) und kleinere Knöpfe (30px); mit der
+// ausgemisteten Auswahl passen die bequemeren 36px wieder.
 //
-// `bis` endet jetzt genau senkrecht statt vier Grad dahinter: Auf der Höhe des
-// äußersten Rings lag der letzte Knopf sonst 5px vom rechten Rand entfernt, und
-// das ist die Kante, an der auch die Reaktionsknöpfe kleben.
-const KATZ_BOGEN = { r0: 104, dr: 40, von: 178, bis: 90, knopf: 30, luft: 2 };
+// `bis` endet genau senkrecht statt wie ursprünglich vier Grad dahinter: Auf
+// der Höhe des äußersten Rings lag der letzte Knopf sonst 5px vom rechten Rand
+// entfernt, und das ist die Kante, an der auch die Reaktionsknöpfe kleben. Die
+// vier Grad kosten bei zwölf Katzen nichts.
+const KATZ_BOGEN = { r0: 104, dr: 54, von: 178, bis: 90, knopf: 36, luft: 2 };
 
 // Wie viele Ringe braucht die Auffaltung? Nachbarn desselben Rings liegen
 // k·Schritt auseinander, ihre Sehne ist 2·r·sin(k·Schritt/2) – gerechnet am
@@ -1530,13 +1529,14 @@ const KATZ_BOGEN = { r0: 104, dr: 40, von: 178, bis: 90, knopf: 30, luft: 2 };
 // dem die Sehne den Knopfdurchmesser samt Luft übertrifft.
 //
 // Gerechnet statt festgelegt, weil die Zahl der Katzen wächst: Mit acht
-// reichten zwei Ringe, mit vierzehn drei, mit fünfundzwanzig fünf. Fest
-// verdrahtet hätten die neuen die alten überlappt – die Sehne wäre auf 27px
-// gefallen, bei 32px Bedarf.
+// reichten zwei Ringe, mit zwölf und mit vierzehn drei. Fest verdrahtet hätten
+// spätere Zugänge die alten überlappt.
 //
-// Obergrenze 6 und nicht mehr 4: Bei 25 Katzen war 4 zu wenig, die Schleife
-// lief durch und gab trotzdem 4 zurück. Die Kacheln überlappten sich dann um
-// 10px, ohne dass irgendwo etwas gemeldet hätte.
+// Obergrenze 6 und nicht mehr 4: Bei zwischenzeitlich 25 Katzen war 4 zu wenig,
+// die Schleife lief durch und gab trotzdem 4 zurück. Die Kacheln überlappten
+// sich dann um 10px, ohne dass irgendwo etwas gemeldet hätte. Die Grenze bleibt
+// bei 6, auch wenn zwölf Katzen weit darunter liegen – sie kostet nichts und
+// fängt den Fall beim nächsten Mal ab.
 function katzenRinge(n) {
   const spanne = Math.abs(KATZ_BOGEN.bis - KATZ_BOGEN.von);
   for (let k = 1; k <= 6; k++) {
@@ -1565,7 +1565,7 @@ const NEUERUNGEN = [
     'Nach der Partie fragt das Spiel „Noch eine Runde?", und die Lobby wird zur Ampel: grün will, rot will nicht, grau ist gerade am Kühlschrank. Gestartet wird mit den Grünen – der Rest schaut zu und darf es sich überlegen.',
     'Der Spielcode lässt sich antippen und liegt dann in der Zwischenablage. Damit endet die Ära des Buchstabierens.',
     'Wenn du an die Reihe kommst, blitzt der Bildschirmrand zweimal auf, und wo das Handy es kann, rüttelt es dazu. „Ich war doch gar nicht dran" gilt ab sofort nicht mehr.',
-    'Elf neue Katzen, macht fünfundzwanzig. Neu im Fächer: Donut, Eis, Kaffeebecher, Weinglas, Sonnenbrille, Skateboard, winkende Pfote – und eine, die nur mit den Ohren über den Rand lugt. Aufgefaltet sind es dafür jetzt fünf Ringe statt drei.',
+    'Die Katzen sind ausgemistet: fünf neue dazu – Kaffeebecher, Sonnenbrille, Herzchen, Dab und eine, die nur mit den Ohren über den Rand lugt –, sieben in Rente. Macht zwölf statt vierzehn, dafür sitzt jede.',
     'Vier neue Sprüche für die Lagen, in denen „Wow" nicht mehr trägt: „Schade, 0 Punkte", „Mist", „WTF" und „Freaky".',
     'Die Katze zur Veto-Auflösung ist größer geworden und bleibt stehen, bis es weitergeht. Bisher war sie nach drei Sekunden wieder weg – wer kurz auf die Zeitleiste sah, hat den ganzen Auftritt verpasst.'
   ]},

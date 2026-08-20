@@ -221,6 +221,50 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
           width:min(100vw - 40px,400px); display:flex; flex-direction:column;
           align-items:center; gap:0; pointer-events:none; }
 
+/* ── "Du bist dran": laufender Rahmen um die Kartenrückseite ───────
+   Wie das Band auf einem Eventticket: Der Verlauf wandert ohne Unterbrechung
+   um die Karte herum, solange der Zug läuft.
+
+   Ersetzt den kurzen Puls am Bildschirmrand. Der war nach 1,7 Sekunden vorbei
+   und damit genau dann weg, wenn man kurz nicht hinsah – also immer. Ein
+   Rahmen, der stehen bleibt, beantwortet die Frage auch noch beim dritten
+   Blick, und weil er sich bewegt, fängt er den Blick trotzdem ein.
+
+   Eigene Ebene statt Rahmen an der Karte: Ein `border` an .player würde deren
+   Innenmaß ändern, der Ringkranz spränge bei jedem Zugwechsel um ein paar
+   Pixel. So bleibt die Karte, wie sie ist. */
+.dranRahmen { position:absolute; inset:-4px; border-radius:26px; overflow:hidden;
+              pointer-events:none; opacity:0; transform:scale(.975);
+              transition:opacity .4s, transform .4s cubic-bezier(.34,1.56,.64,1); }
+.dranRahmen.da { opacity:1; transform:scale(1); }
+/* Gedreht wird das Quadrat, nicht der Verlauf: Den Winkel eines
+   conic-gradient animiert man nur über @property, und das fehlt auf den
+   älteren Safari-Fassungen, auf denen hier gespielt wird. Kantenlänge 180 %
+   liegt über der Diagonale (141 %) – darunter liefen die Ecken beim Drehen
+   leer.
+
+   Die Farbfolge ist dieselbe wie auf den Knöpfen und läuft gespiegelt:
+   Pink – Violett – Türkis – Violett – Pink. Türkis direkt in Pink zu blenden
+   war der erste Versuch, dabei entstand auf einem Viertel des Rings eine
+   graustichige Zone (nebeneinander gerendert und verglichen). Über Violett
+   bleibt der Ring rundum gesättigt, und weil Anfang und Ende gleich sind,
+   springt er an der Nahtstelle nicht. */
+.dranRahmen::before { content:''; position:absolute; left:50%; top:50%;
+                      width:180%; height:180%;
+                      background:conic-gradient(var(--grad-a), var(--grad-mid),
+                                                var(--grad-b), var(--grad-mid),
+                                                var(--grad-a));
+                      animation:dranDreh 3.6s linear infinite; }
+@keyframes dranDreh {
+  from { transform:translate(-50%,-50%) rotate(0deg); }
+  to   { transform:translate(-50%,-50%) rotate(360deg); }
+}
+/* Bewegung reduziert: Der Rahmen bleibt, er dreht sich nur nicht mehr. Ganz
+   weglassen hieße, die Auskunft zu streichen – siehe oben. */
+@media (prefers-reduced-motion: reduce) {
+  .dranRahmen::before { animation:none; }
+}
+
 /* ── Player: die Kartenrückseite ───────────────────────────────────
    Gleiche Form und Größe wie die aufgedeckte Karte – beim Auflösen wird die
    Karte umgedreht, nicht ausgetauscht. Auf der gedruckten Rückseite sitzt
@@ -552,44 +596,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .reaktFlug.v1 { right:30%; bottom:52%; }
 .reaktFlug.v2 { right:52%; bottom:38%; }
 
-/* Signal "du bist dran" – siehe zeigeDran(). Am RAND und nicht als Kasten in
-   der Mitte: Ein "Du bist dran"-Schild verdeckte genau das, worauf man danach
-   schauen soll, und müsste weggetippt oder abgewartet werden. Der Rand liegt
-   im Augenwinkel und lässt das Spielfeld frei – gedacht für das Handy, das
-   schräg auf dem Tisch liegt, während man mit den anderen redet.
-
-   Zwei Pulse, dieselbe Zweierfolge wie beim Rütteln: Ein einmaliges Aufleuchten
-   geht als Zeichenfehler durch, zwei sind erkennbar gemeint.
-
-   z-index unter den Katzen (58) und den Reaktionsknöpfen (60) – das Signal
-   soll den Blick holen, nicht die Auflösung überdecken. Tippen fängt es
-   ohnehin nicht ab. */
-/* Streuung und Deckkraft sind ausgemessen, nicht geraten: Bei 42px/9px und
-   0,8 lag der Schleier bis über die Punktestand-Kacheln und die Zeitleiste,
-   man las sie während des Signals schlechter. Enger am Rand und schwächer ist
-   genauso auffällig – die Aufmerksamkeit holt die Bewegung, nicht die Deckung. */
-.dranPuls { position:fixed; inset:0; z-index:57; pointer-events:none;
-            box-shadow:inset 0 0 30px 3px var(--grad-mid);
-            opacity:0; animation:dranPuls 1.7s ease-in-out forwards; }
-@keyframes dranPuls {
-  0%   { opacity:0 }
-  8%   { opacity:.65 }
-  30%  { opacity:0 }
-  42%  { opacity:.65 }
-  100% { opacity:0 }
-}
-/* Wer Bewegung reduziert haben will, bekommt trotzdem ein Signal – nur einmal
-   und langsam statt zweimal und schnell. Ganz weglassen wäre hier falsch: Das
-   ist keine Verzierung, sondern die einzige Auskunft, dass man dran ist, wenn
-   man nicht hinsieht. */
-@media (prefers-reduced-motion: reduce) {
-  .dranPuls { animation-name:dranSanft; animation-duration:2.6s; }
-}
-@keyframes dranSanft {
-  0%       { opacity:0 }
-  22%, 55% { opacity:.5 }
-  100%     { opacity:0 }
-}
 
 /* Die Vetokatze zur Auflösung. Anders als eine getippte Reaktion muss man sie
    LESEN – die Unterschrift sagt, was gerade passiert ist. Sie fliegt deshalb
@@ -1124,6 +1130,10 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   <!-- Feste Höhe im Format der Karte. Player und Auflösung liegen darin
        übereinander, damit beim Phasenwechsel nichts verrutscht. -->
   <div class="buehne">
+    <!-- Liegt vor .stage und .player im Markup und damit unter beiden: Die
+         Karte deckt die Mitte ab, sichtbar bleibt nur der Streifen, der rundum
+         übersteht. -->
+    <div class="dranRahmen" id="dranRahmen" aria-hidden="true"></div>
     <div class="stage" id="stage"></div>
     <div class="player" id="playerBox">
       <!-- Ringkranz der gedruckten Rückseite. Radien im 200er-Viewport,
@@ -2911,7 +2921,6 @@ async function leaveGame() {
   stopAudio();
   G = null; seat = null; lastRenderedCard = null; confettiShownFor = null;
   vetoKatzeFuer = null; katzeWeg();
-  document.body.querySelectorAll('.dranPuls').forEach(el => el.remove());
   pendingGap = null; soloRekord = false; lobbySicht = false; warDran = false;
   setHomeStat('','');
   zeigeBestwert();
@@ -4427,25 +4436,14 @@ function vetoTick() {
 // Ausgelöst wird auf dem ÜBERGANG, nicht am Zustand: render() läuft mehrmals
 // je Zug (Ton, Vorlauf, fremde Änderungen), und bei jedem Durchlauf zu rütteln
 // wäre ein Dauerbrummen statt eines Signals.
-// Der sichtbare Teil des Signals. Wird gebraucht, weil das Rütteln auf dem
-// iPhone nichts tut: Safari kennt die Vibration API nicht, und dort spielen
-// die meisten. Läuft zusätzlich zum Rütteln, nicht statt seiner – auf Android
-// verstärken sich beide, und eine Fallunterscheidung nach Gerät wäre geraten
-// statt gemessen.
+// Das Rütteln beim Zugwechsel. Den sichtbaren Teil trägt inzwischen der
+// laufende Rahmen um die Karte (siehe .dranRahmen) – der steht, solange der
+// Zug dauert, statt wie der frühere Puls am Bildschirmrand nach 1,7 Sekunden
+// vorbei zu sein.
 //
-// Wer den Puls verpasst, ist nicht verloren: Die hervorgehobene Kachel und der
-// Knopf darunter sagen es weiterhin. Der Puls ist der Anstoss hinzusehen,
-// nicht die Auskunft selbst.
-function zeigeDran() {
-  // Einen noch laufenden Puls zuerst wegräumen, sonst liegen bei schnellen
-  // Zügen zwei übereinander und das Leuchten addiert sich.
-  document.body.querySelectorAll('.dranPuls').forEach(el => el.remove());
-  const el = document.createElement('div');
-  el.className = 'dranPuls';
-  el.addEventListener('animationend', () => el.remove());
-  document.body.appendChild(el);
-}
-
+// Das Rütteln bleibt trotzdem: Es kostet nichts, und wo es geht, merkt man den
+// Zugwechsel damit auch, ohne hinzusehen. Auf dem iPhone tut es nichts, Safari
+// kennt die Vibration API nicht.
 function zugSignal(st) {
   // Nur im Mehrspieler. Im Solo und im Tagesduell sitzt man ohnehin davor, da
   // wäre das Rütteln eine Meldung über den eigenen Fingerdruck. Beobachter
@@ -4453,7 +4451,6 @@ function zugSignal(st) {
   const dran = !st.solo && !st.zuschauer?.[seat] && st.turn === seat
             && (st.phase === 'draw' || st.phase === 'turn');
   if (dran && !warDran) {
-    zeigeDran();
     // Optionale Verkettung und try: navigator.vibrate fehlt auf iOS komplett
     // und wirft anderswo, wenn das Muster nicht passt. Ein Signal, das nicht
     // geht, darf auf keinen Fall das Zeichnen des Spielfelds mitreissen.
@@ -4648,6 +4645,14 @@ function renderGame(st) {
   // gehört dem Countdown –, der Ton läuft aber unverändert weiter.
   const audible = st.phase === 'turn' || st.phase === 'veto';
   $('playerBox').style.display = (auflösung || vetoPhase) ? 'none' : 'flex';
+  // Nur wenn die Karte auch dasteht: In der Veto-Phase und in der Auflösung ist
+  // .player ausgeblendet, der Rahmen wäre dann kein Rahmen mehr, sondern eine
+  // ausgefüllte Verlaufsfläche hinter der Bühne.
+  //
+  // Und nur im Mehrspieler: Im Solo und im Tagesduell ist man immer dran, ein
+  // dauerhaft kreisender Rahmen wäre dort keine Auskunft, sondern Unruhe.
+  $('dranRahmen').classList.toggle('da',
+    mine && !st.solo && (st.phase === 'draw' || st.phase === 'turn'));
   // Beim Ziehen ebenfalls bedienbar: dort zieht der Knopf eine Karte, statt
   // Ton anzuhalten (siehe togglePlay). Ausgegraut wäre er nur, wenn man gar
   // nichts tun kann – und das stimmt in der Ziehphase des eigenen Zugs nicht.
